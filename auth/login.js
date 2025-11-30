@@ -1,3 +1,5 @@
+import { setAuthenticated } from '../router.js';
+
 const logoDark = 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-reverse.svg';
 const logoLight = 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-standard.svg';
 
@@ -28,7 +30,7 @@ function authSwitcher(isLogin) {
 
 function renderLoginForm() {
   return `
-    <form class="space-y-4" onsubmit="event.preventDefault(); navigate('#/app/contacts');">
+    <form class="space-y-4">
       <div class="space-y-1">
         <label class="text-sm block text-gray-700 dark:text-white/80">Email</label>
         <input type="email" required placeholder="Enter your email" class="w-full h-11 rounded-md ring-1 ring-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-netnet-purple dark:bg-white/5 dark:text-white dark:placeholder-white/40 dark:ring-white/15"/>
@@ -84,6 +86,15 @@ export function renderLogin(container = document.getElementById('app-main')) {
     toggle.onclick = () => {
       pass.type = pass.type === 'password' ? 'text' : 'password';
     };
+  }
+
+  const form = container.querySelector('form');
+  if (form) {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      setAuthenticated(true);
+      navigate('#/app/me/tasks');
+    });
   }
 }
 

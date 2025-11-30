@@ -11,16 +11,9 @@ import { renderSettingsPage } from './settings/index.js';
 import { renderProfilePage } from './profile/index.js';
 import { renderNnuPage } from './net-net-u/index.js';
 import { renderNetNetBot } from './ai/index.js';
-import { renderLogin } from './auth/login.js';
-import { renderRegister } from './auth/register.js';
-import { renderForgotPassword } from './auth/forgot-password.js';
-import { renderForgotPasswordCheckEmail } from './auth/forgot-password-check-email.js';
-import { renderResetPassword } from './auth/reset-password.js';
-import { renderResetSuccess } from './auth/reset-success.js';
-import { renderVerifyCode } from './auth/verify-code.js';
-import { renderVerifySuccess } from './auth/verify-success.js';
-import { initRouter, navigate } from './router.js';
-import { mountShell } from './app-shell/app-layout.js';
+import { renderAuthScreen, mountAuthShell } from './auth/auth-shell.js';
+import { initRouter, navigate, isAuthenticated } from './router.js';
+import { mountShell, applyMainWrapperClass } from './app-shell/app-layout.js';
 import { setTheme, getTheme } from './app-shell/app-helpers.js';
 
 function ensureToast() {
@@ -52,7 +45,32 @@ function showToast(msg) {
   }, 2000);
 }
 
+let currentShell = null;
+
+function ensureShell(type, hash) {
+  const rootHash = hash || location.hash || '#/app/me/tasks';
+  if (type === currentShell) {
+    return;
+  }
+  if (type === 'auth') {
+    mountAuthShell();
+  } else {
+    mountShell(rootHash);
+    applyMainWrapperClass(rootHash);
+  }
+  currentShell = type;
+}
+
 function renderRoute(route) {
+  const isAuthRoute = route.name.startsWith('auth');
+  if (isAuthRoute) {
+    ensureShell('auth', location.hash);
+    renderAuthScreen(route.name);
+    return;
+  }
+
+  ensureShell('app', location.hash);
+  applyMainWrapperClass(location.hash || '#/app/me/tasks');
   const main = document.getElementById('app-main');
   if (!main) return;
   if (route.name === 'company' || route.name === 'person') {
@@ -78,22 +96,6 @@ function renderRoute(route) {
     renderNnuPage(main);
   } else if (route.name === 'bot') {
     renderNetNetBot(main);
-  } else if (route.name === 'auth-login') {
-    renderLogin(main);
-  } else if (route.name === 'auth-register') {
-    renderRegister(main);
-  } else if (route.name === 'auth-forgot') {
-    renderForgotPassword(main);
-  } else if (route.name === 'auth-check') {
-    renderForgotPasswordCheckEmail(main);
-  } else if (route.name === 'auth-reset') {
-    renderResetPassword(main);
-  } else if (route.name === 'auth-reset-success') {
-    renderResetSuccess(main);
-  } else if (route.name === 'auth-verify-code') {
-    renderVerifyCode(main);
-  } else if (route.name === 'auth-verify-success') {
-    renderVerifySuccess(main);
   } else {
     renderContacts(main);
   }
@@ -104,7 +106,17 @@ function mountApp() {
   ensureToast();
   window.navigate = navigate;
   window.showToast = showToast;
-  mountShell(location.hash || '#/app/contacts');
+  const initialHash = (location.hash && location.hash !== '#')
+    ? location.hash
+    : (isAuthenticated() ? '#/app/me/tasks' : '#/auth/login');
+  if (initialHash.startsWith('#/auth')) {
+    mountAuthShell();
+    currentShell = 'auth';
+  } else {
+    mountShell(initialHash);
+    applyMainWrapperClass(initialHash);
+    currentShell = 'app';
+  }
   initRouter({
     contacts: () => renderRoute({ name: 'contacts' }),
     profile: (type, id) => renderRoute({ name: type, id }),

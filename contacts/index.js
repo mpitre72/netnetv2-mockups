@@ -4,6 +4,7 @@
 import { renderContactsLayout } from './contacts-list.js';
 import { renderCompanyProfile } from './contacts-profile-company.js';
 import { renderPersonProfile } from './contacts-profile-person.js';
+import { ContactsSearchBar } from '../components/ContactsSearchBar.js';
 
 function getContactsData() {
   const data = (typeof window !== 'undefined') ? window.mockContactsData : null;
@@ -17,11 +18,71 @@ function getContactsData() {
 function buildContactsState() {
   return {
     search: '',
-    filters: { city: 'all', state: 'all', title: 'all' },
     expanded: new Set(),
   };
 }
 
+function renderLinkIcons(comp) {
+  // Randomly decide which links to show for demo purposes
+  const options = [];
+  if (comp.website) options.push({ href: 'https://hellonetnet.com', label: 'Website', icon: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v0.5H3V5Zm0 3h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Zm2 2v9h14v-9H5Zm4 7h6v-2H9v2Z' });
+  const socials = comp.socials || {};
+  if (socials.twitter) options.push({ href: 'https://x.com', label: 'X', icon: 'M4 3h4.5l3.1 4.5L14.7 3H19l-6 7.2L20 21h-4.5l-3.3-4.7L8 21H4l6.3-7.4L4 3Z' });
+  if (socials.facebook) options.push({ href: 'https://facebook.com', label: 'Facebook', icon: 'M22 12a10 10 0 1 0-11.6 9.9v-7h-2v-3h2V9a3 3 0 0 1 3-3h3v3h-3v2h3l-.5 3h-2.5v7A10 10 0 0 0 22 12Z' });
+  if (socials.instagram) options.push({ href: 'https://www.instagram.com', label: 'Instagram', icon: 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm9.5 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 8.5A3.5 3.5 0 1 1 8.5 12 3.5 3.5 0 0 1 12 8.5Zm0 2A1.5 1.5 0 1 0 13.5 12 1.5 1.5 0 0 0 12 10.5Z' });
+
+  if (!options.length) return `<span class="text-gray-400 dark:text-gray-500">-</span>`;
+
+  // Randomly pick a subset for demo (anywhere from 0 to all available)
+  const shuffled = options.sort(() => 0.5 - Math.random());
+  const count = Math.max(0, Math.min(options.length, Math.floor(Math.random() * (options.length + 1))));
+  const chosen = shuffled.slice(0, count || 1); // ensure at least one when options exist
+
+  const makeLink = (href, label, svg) => `<a href="${href}" target="_blank" rel="noreferrer" class="contact-link-icon inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 mx-0.5" aria-label="${label}">${svg}</a>`;
+  const iconSvg = (path) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="text-gray-600 dark:text-gray-300"><path d="${path}"/></svg>`;
+  return chosen.map(opt => makeLink(opt.href, opt.label, iconSvg(opt.icon))).join('');
+}
+
+function renderPersonLinks(comp, person) {
+  const icons = [];
+  const makeLink = (href, label, svg) => `<a href="${href}" target="_blank" rel="noreferrer" class="contact-link-icon inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 mx-0.5" aria-label="${label}">${svg}</a>`;
+  const iconSvg = (path) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="text-gray-600 dark:text-gray-300"><path d="${path}"/></svg>`;
+  // email is mandatory
+  if (person.email) {
+    icons.push(makeLink(`mailto:${person.email}`, 'Email', iconSvg('M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v.01L12 13l8-6.99V6H4Z')));
+  }
+  const options = [];
+  if (comp.website) options.push({ href: 'https://hellonetnet.com', label: 'Website', icon: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v0.5H3V5Zm0 3h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Zm2 2v9h14v-9H5Zm4 7h6v-2H9v2Z' });
+  const socials = comp.socials || {};
+  if (socials.twitter) options.push({ href: 'https://x.com', label: 'X', icon: 'M4 3h4.5l3.1 4.5L14.7 3H19l-6 7.2L20 21h-4.5l-3.3-4.7L8 21H4l6.3-7.4L4 3Z' });
+  if (socials.facebook) options.push({ href: 'https://facebook.com', label: 'Facebook', icon: 'M22 12a10 10 0 1 0-11.6 9.9v-7h-2v-3h2V9a3 3 0 0 1 3-3h3v3h-3v2h3l-.5 3h-2.5v7A10 10 0 0 0 22 12Z' });
+  if (socials.instagram) options.push({ href: 'https://www.instagram.com', label: 'Instagram', icon: 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm9.5 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 8.5A3.5 3.5 0 1 1 8.5 12 3.5 3.5 0 0 1 12 8.5Zm0 2A1.5 1.5 0 1 0 13.5 12 1.5 1.5 0 0 0 12 10.5Z' });
+  if (options.length) {
+    const shuffled = options.sort(() => 0.5 - Math.random());
+    const count = Math.floor(Math.random() * (options.length + 1));
+    const chosen = shuffled.slice(0, count);
+    chosen.forEach(opt => icons.push(makeLink(opt.href, opt.label, iconSvg(opt.icon))));
+  }
+  return icons.length ? icons.join('') : `<span class="text-gray-400 dark:text-gray-500">-</span>`;
+}
+
+function renderLocation(comp) {
+  const hasCity = comp.city && comp.city.trim() !== '';
+  const hasState = comp.state && comp.state.trim() !== '';
+  if (!hasCity && !hasState) return `<span class="text-gray-400 dark:text-gray-500">-</span>`;
+  if (hasCity && hasState) return `${comp.city}, ${comp.state}`;
+  return hasCity ? comp.city : comp.state;
+}
+
+function renderPhone(comp) {
+  if (!comp.phone) return `<span class="text-gray-400 dark:text-gray-500">-</span>`;
+  return comp.phone;
+}
+
+function renderMobile(person) {
+  if (!person.mobile) return `<span class="text-gray-400 dark:text-gray-500">-</span>`;
+  return person.mobile;
+}
 function renderTable(state, scope) {
   const tbody = scope.querySelector('#contacts-table-body');
   if (!tbody) {
@@ -31,11 +92,9 @@ function renderTable(state, scope) {
   const data = getContactsData();
   tbody.innerHTML = '';
   const s = state.search.toLowerCase();
-  const { city, state: st, title } = state.filters;
+  const searchHasTerm = s !== '';
 
   data.forEach(comp => {
-    const compCityMatch = city === 'all' || comp.city === city;
-    const compStateMatch = st === 'all' || comp.state === st;
     const compTextMatch =
       comp.name.toLowerCase().includes(s) ||
       comp.city.toLowerCase().includes(s);
@@ -47,18 +106,15 @@ function renderTable(state, scope) {
         p.name.toLowerCase().includes(s) ||
         p.email.toLowerCase().includes(s) ||
         p.title.toLowerCase().includes(s);
-      const pCityMatch = city === 'all' || p.city === city;
-      const pStateMatch = st === 'all' || p.state === st;
-      const pTitleMatch = title === 'all' || p.title === title;
-      return pTextMatch && pCityMatch && pStateMatch && pTitleMatch;
+      return pTextMatch;
     });
 
     const hasMatchingPeople = matchingPeople.length > 0;
-    const companyMatchesCriteria =
-      compTextMatch && compCityMatch && compStateMatch && (title === 'all');
+    const companyMatchesCriteria = compTextMatch;
 
     if (companyMatchesCriteria || hasMatchingPeople) {
-      const isExpanded = state.expanded.has(comp.id);
+      const autoExpand = searchHasTerm && hasMatchingPeople;
+      const isExpanded = state.expanded.has(comp.id) || autoExpand;
       const chevronRotation = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
 
       const compRow = document.createElement('tr');
@@ -66,7 +122,7 @@ function renderTable(state, scope) {
         "bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 " +
         "hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors cursor-pointer group";
       compRow.onclick = (e) => {
-        if (e.target.tagName === 'A') return;
+        if (e.target.closest && e.target.closest('a')) return;
         toggleContactRow(comp.id, state, scope);
       };
       compRow.innerHTML = `
@@ -75,12 +131,16 @@ function renderTable(state, scope) {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
           </svg>
         </td>
-        <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">${comp.name}</td>
-        <td class="px-6 py-4 text-netnet-purple dark:text-blue-400 hidden md:table-cell">
-          <a href="https://${comp.website}" target="_blank" class="hover:underline">${comp.website}</a>
+        <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">
+          <a href="#/app/contacts/company/${comp.id}" class="hover:underline hover:text-netnet-purple transition-colors">
+            ${comp.name}
+          </a>
         </td>
-        <td class="px-6 py-4 text-gray-600 dark:text-gray-300">${comp.city}</td>
-        <td class="px-6 py-4 text-gray-600 dark:text-gray-300">${comp.state}</td>
+        <td class="px-6 py-4">
+          ${renderLinkIcons(comp)}
+        </td>
+        <td class="px-6 py-4 text-gray-600 dark:text-gray-300">${renderPhone(comp)}</td>
+        <td class="px-6 py-4 text-gray-600 dark:text-gray-300">${renderLocation(comp)}</td>
       `;
       tbody.appendChild(compRow);
 
@@ -88,36 +148,24 @@ function renderTable(state, scope) {
         const detailsRow = document.createElement('tr');
         detailsRow.className = "bg-gray-50 dark:bg-gray-900/50 shadow-inner";
 
-        const peopleToShow =
-          (s !== '' || city !== 'all' || st !== 'all' || title !== 'all')
-            ? matchingPeople
-            : people;
+        const peopleToShow = searchHasTerm ? matchingPeople : people;
 
         let innerContent = '';
         if (peopleToShow.length === 0) {
           innerContent = `
             <div class="p-4 text-sm text-gray-500 italic text-center">
               No people match the current filters.
-              <div class="mt-2">
-                <a href="#/app/contacts/company/${comp.id}" class="text-netnet-purple hover:underline font-medium">
-                  View Company Profile
-                </a>
-              </div>
             </div>`;
         } else {
           innerContent = `
-            <div class="px-6 py-2 flex justify-end">
-              <a href="#/app/contacts/company/${comp.id}" class="text-xs text-netnet-purple hover:underline font-semibold uppercase tracking-wide">
-                View Company Profile &rarr;
-              </a>
-            </div>
             <table class="w-full text-sm">
-              <thead class="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-100 dark:bg-gray-800 sticky top-[32px] z-20">
+              <thead class="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-100 dark:bg-gray-800">
                 <tr>
                   <th class="px-6 py-2 w-10"></th>
                   <th class="px-6 py-2">Name</th>
                   <th class="px-6 py-2">Title</th>
-                  <th class="px-6 py-2">Email</th>
+                  <th class="px-6 py-2">Links</th>
+                  <th class="px-6 py-2">Mobile</th>
                   <th class="px-6 py-2">Location</th>
                 </tr>
               </thead>
@@ -131,7 +179,8 @@ function renderTable(state, scope) {
                       </a>
                     </td>
                     <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.title}</td>
-                    <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.email}</td>
+                    <td class="px-6 py-3">${renderPersonLinks(comp, p)}</td>
+                    <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${renderMobile(p)}</td>
                     <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.city}, ${p.state}</td>
                   </tr>`).join('')}
               </tbody>
@@ -169,9 +218,6 @@ function toggleContactRow(id, state, scope) {
 export function initContactsModule(rootEl) {
   const scope = rootEl || document;
   const searchInput = scope.querySelector('#contact-search');
-  const citySelect = scope.querySelector('#filter-city');
-  const stateSelect = scope.querySelector('#filter-state');
-  const titleSelect = scope.querySelector('#filter-title');
   const tbody = scope.querySelector('#contacts-table-body');
 
   if (!tbody) {
@@ -193,19 +239,6 @@ export function initContactsModule(rootEl) {
     });
   }
 
-  if (citySelect && stateSelect && titleSelect) {
-    [citySelect, stateSelect, titleSelect].forEach(sel => {
-      sel.addEventListener('change', () => {
-        state.filters = {
-          city: citySelect.value || 'all',
-          state: stateSelect.value || 'all',
-          title: titleSelect.value || 'all',
-        };
-        renderTable(state, scope);
-      });
-    });
-  }
-
   renderTable(state, scope);
 }
 
@@ -218,6 +251,11 @@ export function renderContacts(rootEl) {
   }
   const data = getContactsData();
   container.innerHTML = renderContactsLayout(data);
+  // Mount the floating search bar markup
+  const searchMount = container.querySelector('#contacts-search-mount');
+  if (searchMount) {
+    searchMount.innerHTML = ContactsSearchBar();
+  }
   initContactsModule(container);
 }
 

@@ -3,7 +3,7 @@ export function renderMobileBottomNav() {
   const timeIcon = 'https://hellonetnet.com/wp-content/uploads/2025/11/Time-Active-white.svg';
   const chatIcon = 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Active-white.svg';
   return `
-    <div id="mobileBottomNav" class="mobile-bottom-nav md:hidden">
+    <div id="mobileBottomNav" class="mobile-bottom-nav hidden-desktop">
       <button onclick="navigate('#/app/me')" class="flex items-center justify-center w-12 h-12 rounded-full active:bg-white/10">
         <img src="${meIcon}" alt="Me" class="w-7 h-7" />
       </button>

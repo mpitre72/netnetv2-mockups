@@ -25,7 +25,7 @@
       "sidebar main";
     --top-bar-height: 56px;
   }
-  #app-top-bar { grid-area: header; height: var(--top-bar-height); z-index: 30; }
+  #app-top-bar { grid-area: header; height: calc(var(--top-bar-height) * 0.8); z-index: 30; }
   #app-sidebar { grid-area: sidebar; width: var(--sidebar-width); z-index: 20; }
   #app-main {
     grid-area: main;
@@ -201,6 +201,10 @@ html.dark #app-sidebar img[data-icon="reports"] { filter: brightness(0) invert(1
   background-color: #711FFF;
   display: flex; align-items: center; justify-content: space-evenly;
   box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+.mobile-bottom-nav.hidden-desktop { display: none; }
+@media (max-width: 767px) {
+  .mobile-bottom-nav.hidden-desktop { display: flex; }
 }
 .mobile-menu-overlay {
   position: fixed; inset: 0; z-index: 50;

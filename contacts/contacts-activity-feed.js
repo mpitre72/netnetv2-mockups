@@ -19,7 +19,7 @@ export function renderContactsActivityFeed(data, type, mockReportData) {
       <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase mb-3">Activity Feed</h3>
         <div class="relative">
-          <textarea id="quick-note" rows="2" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm p-3 pr-10 focus:ring-1 focus:ring-netnet-purple focus:outline-none resize-none" placeholder="Add a note..."></textarea>
+          <textarea id="quick-note" rows="2" class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white text-gray-900 dark:bg-gray-900 dark:text-white text-sm p-3 pr-10 focus:ring-1 focus:ring-netnet-purple focus:outline-none resize-none" placeholder="Add a note..."></textarea>
           <button class="absolute right-2 bottom-2 text-gray-400 hover:text-netnet-purple" onclick="showToast('Voice note started...')">
             ${typeof CHAT_UI_ICONS !== 'undefined' ? CHAT_UI_ICONS.mic : ''}
           </button>

@@ -55,4 +55,4 @@ export const WORKSPACES = [
 ];
 
 export const WORKSPACE_KEY = 'activeWorkspace';
-export const THEME_KEY = 'appTheme';
+export const THEME_KEY = 'theme';

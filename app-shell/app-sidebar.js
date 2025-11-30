@@ -16,7 +16,7 @@ export function renderSidebar(hash) {
             </div>` : '';
           return `
             <div class="flex flex-col">
-              <a href="${item.path}" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors" aria-label="${item.name}">
+              <a href="${item.path}" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors text-gray-600 dark:text-slate-200" aria-label="${item.name}">
                 <img data-icon="${item.key}" alt="${item.name}" class="${imgClass} flex-shrink-0" data-light-idle="${iconSet.light.idle}" data-light-active="${iconSet.light.active}" data-dark-idle="${iconSet.dark.idle}" data-dark-active="${iconSet.dark.active}"/>
                 <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">${item.name}</span>
               </a>${subMenu}
@@ -24,19 +24,19 @@ export function renderSidebar(hash) {
         }).join('')}
       </nav>
       <nav class="space-y-2">
-        <a href="#/app/settings" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800">
+        <a href="#/app/settings" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-800">
           <span class="flex-shrink-0">${APP_ICONS.settings}</span>
           <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">Settings</span>
         </a>
-        <a href="#/app/profile" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800">
+        <a href="#/app/profile" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-800">
           <span class="flex-shrink-0">${APP_ICONS.avatar}</span>
           <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">Profile</span>
         </a>
-        <button id="workspaceSwitcherButton" type="button" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 w-full transition-colors">
+        <button id="workspaceSwitcherButton" type="button" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-800 w-full transition-colors">
           <img id="workspaceSwitcherIcon" src="" alt="Workspace" class="h-6 w-6 flex-shrink-0 rounded-full object-contain"/>
           <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">Workspace</span>
         </button>
-        <a href="#/auth/login" id="logout-btn" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800">
+        <a href="#/auth/login" id="logout-btn" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-800">
           <span class="flex-shrink-0">${APP_ICONS.logout}</span>
           <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">Log out</span>
         </a>

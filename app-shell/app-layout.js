@@ -4,6 +4,7 @@ import { renderSidebar, wireSidebarIcons } from './app-sidebar.js';
 import { renderMobileBottomNav } from './app-bottom-nav.js';
 import { initWorkspaceTabs, renderWorkspaceTabs } from './app-tabs.js';
 import { __isDark, getActiveWorkspace, setActiveWorkspace, setTheme } from './app-helpers.js';
+import { setAuthenticated } from '../router.js';
 
 function renderMobileHeader() {
   return `
@@ -73,18 +74,77 @@ function renderMobileMenu(hash) {
   `;
 }
 
-export function renderAppShell(hash = '#/app/contacts') {
+export function renderAppShell(hash = '#/app/me/tasks') {
   return `
     <div id="app-shell" class="drawer-closed bg-white dark:bg-black">
       ${renderMobileHeader()}
       ${renderTopBar()}
       ${renderSidebar(hash)}
-      <main id="app-main" class="h-full overflow-hidden bg-white dark:bg-gray-900"></main>
+      <main id="app-main"></main>
       ${renderMobileBottomNav()}
       ${renderMobileMenu(hash)}
       <div id="drawer-container"></div>
     </div>
   `;
+}
+
+function renderNotificationsDrawer() {
+  return `
+    <div id="app-drawer-backdrop"></div>
+    <aside id="app-drawer" class="bg-[#111827] text-white p-5 flex flex-col gap-4 w-full max-w-md">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Notifications</h2>
+        <button type="button" id="drawerCloseBtn" class="text-white/70 hover:text-white">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="flex flex-col gap-3 text-sm">
+        <div class="rounded-lg border border-white/10 bg-white/5 p-3">
+          <p class="text-white"><strong class="text-white">Marc</strong> assigned to work on <a href="#" class="text-netnet-purple underline">Job 1234 Website Redesign</a> for Globex Corporation.</p>
+          <p class="text-white/60 text-xs mt-1">10 minutes ago</p>
+        </div>
+        <div class="rounded-lg border border-white/10 bg-white/5 p-3">
+          <p class="text-white"><strong class="text-white">Sherri</strong> mentioned you in a chat:</p>
+          <p class="text-white/80 italic mt-1">"Hey @Arthur, the design comps look good."</p>
+          <p class="text-white/60 text-xs mt-1">1 hour ago</p>
+        </div>
+        <div class="rounded-lg border border-white/10 bg-white/5 p-3">
+          <p class="text-white"><strong class="text-white">Bill</strong> completed the task <strong class="text-white">"New Hamburger Menu"</strong> in ITK Redesign Job.</p>
+          <p class="text-white/60 text-xs mt-1">2 hours ago</p>
+        </div>
+        <div class="rounded-lg border border-white/10 bg-white/5 p-3">
+          <p class="text-white">You have <span class="text-orange-300 font-semibold">3 tasks</span> that are due tomorrow. <a href="#" class="text-netnet-purple underline">View them?</a></p>
+          <p class="text-white/60 text-xs mt-1">5 hours ago</p>
+        </div>
+      </div>
+    </aside>
+  `;
+}
+
+export function applyMainWrapperClass(hash) {
+  const main = document.getElementById('app-main');
+  if (!main) return;
+
+  const h = hash || '#/app/me/tasks';
+
+  const isReportsOrTable =
+    h.startsWith('#/app/reports') ||
+    h.startsWith('#/app/contacts') ||
+    h.startsWith('#/app/net-net-bot') ||
+    h.startsWith('#/app/settings') ||
+    h.startsWith('#/app/profile') ||
+    h.startsWith('#/app/net-net-u') ||
+    h.startsWith('#/app/jobs') ||
+    h.startsWith('#/app/sales') ||
+    h.startsWith('#/app/quick-tasks') ||
+    h.startsWith('#/app/contacts/company/') ||
+    h.startsWith('#/app/contacts/person/');
+
+  const base = isReportsOrTable
+    ? 'p-4 sm:p-6 lg:p-8 overflow-hidden bg-white dark:bg-gray-900'
+    : 'p-4 sm:p-6 lg:p-8 flex items-center justify-center';
+
+  main.className = base;
 }
 
 function wireMobileHeaderLogo() {
@@ -167,19 +227,58 @@ function initWorkspaceSwitcher() {
 function initMobileWorkspaceSwitcher() {
   const trigger = document.getElementById('mobileWorkspaceMenuButton');
   const icon = document.getElementById('mobileWorkspaceMenuIcon');
-  if (!trigger || !icon) return;
+  const sheet = document.getElementById('mobileWorkspaceSheet');
+  const panel = document.getElementById('mobileWorkspacePanel');
+  const options = document.getElementById('mobileWorkspaceOptions');
+  if (!trigger || !icon || !sheet || !panel || !options) return;
+
   const applyIcon = () => {
     const ws = getActiveWorkspace();
     icon.src = ws.icon; icon.alt = ws.name;
   };
-  trigger.addEventListener('click', () => {
-    const next = getActiveWorkspace().id === 'netnet' ? 'fathom' : 'netnet';
-    setActiveWorkspace(next);
-    applyIcon();
-    const deskIcon = document.getElementById('workspaceSwitcherIcon');
-    const found = WORKSPACES.find(w => w.id === next);
-    if (deskIcon && found) deskIcon.src = found.icon;
+
+  const closeSheet = () => {
+    sheet.style.opacity = '0';
+    panel.style.transform = 'translateY(100%)';
+    setTimeout(() => sheet.classList.add('pointer-events-none'), 200);
+  };
+
+  const openSheet = () => {
+    sheet.classList.remove('pointer-events-none');
+    sheet.style.opacity = '1';
+    panel.style.transform = 'translateY(0%)';
+  };
+
+  options.innerHTML = WORKSPACES.map(ws => `
+    <button type="button" class="mobile-workspace-option flex flex-col items-center gap-1 group" data-workspace-id="${ws.id}">
+      <span class="inline-flex items-center justify-center rounded-full bg-white shadow-md transition-transform group-active:scale-95" style="width:56px;height:56px;">
+        <img src="${ws.icon}" alt="${ws.name}" class="h-8 w-8"/>
+      </span>
+      <span class="mt-1 block text-[11px] text-slate-200">${ws.name}</span>
+    </button>
+  `).join('');
+
+  options.querySelectorAll('.mobile-workspace-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-workspace-id');
+      if (id) {
+        setActiveWorkspace(id);
+        applyIcon();
+        const deskIcon = document.getElementById('workspaceSwitcherIcon');
+        const found = WORKSPACES.find(w => w.id === id);
+        if (deskIcon && found) deskIcon.src = found.icon;
+      }
+      closeSheet();
+    });
   });
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openSheet();
+  });
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+
   applyIcon();
 }
 
@@ -187,17 +286,35 @@ export function wireAppShell(hash) {
   const appThemeBtn = document.getElementById('appThemeBtn');
   if (appThemeBtn) {
     appThemeBtn.onclick = () => {
-      const isDark = document.documentElement.classList.contains('dark');
-      setTheme(isDark ? 'light' : 'dark');
+      const isDark = __isDark();
+      const next = isDark ? 'light' : 'dark';
+      setTheme(next);
       refreshDynamicIcons();
     };
   }
   const openDrawerBtn = document.getElementById('openDrawerBtn');
-  if (openDrawerBtn) openDrawerBtn.onclick = () => {};
+  if (openDrawerBtn) {
+    openDrawerBtn.onclick = () => {
+      const shell = document.getElementById('app-shell');
+      if (shell) shell.classList.remove('drawer-closed');
+    };
+  }
   const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) logoutBtn.addEventListener('click', (e) => { e.preventDefault(); localStorage.removeItem('timerActive'); navigate('#/auth/login'); });
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('timerActive');
+      setAuthenticated(false);
+      navigate('#/auth/login');
+    });
+  }
   const notifBtn = document.getElementById('notifBtn');
-  if (notifBtn) notifBtn.onclick = () => {};
+  if (notifBtn) {
+    notifBtn.onclick = () => {
+      const shell = document.getElementById('app-shell');
+      if (shell) shell.classList.remove('drawer-closed');
+    };
+  }
   wireSidebarIcons(); wireTopBarLogo(); wireAppTimer(); wireMobileEvents(); 
   if (hash.startsWith('#/app/net-net-bot')) {
     // chat events placeholder
@@ -210,6 +327,12 @@ function refreshDynamicIcons() {
   wireSidebarIcons();
   wireTopBarLogo();
   wireMobileHeaderLogo();
+  const reportsIcon = document.getElementById('reportsFeaturedIcon');
+  if (reportsIcon) {
+    const dark = __isDark();
+    const src = reportsIcon.getAttribute(dark ? 'data-dark-idle' : 'data-light-idle');
+    if (src && reportsIcon.getAttribute('src') !== src) reportsIcon.setAttribute('src', src);
+  }
   const ti = document.getElementById('timerIcon');
   if (ti) {
     const active = !!JSON.parse(localStorage.getItem('timerActive') || 'false');
@@ -236,19 +359,50 @@ function wireMobileEvents() {
       overlay.classList.remove('open');
     });
   });
+  const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
+  if (mobileLogoutBtn) {
+    mobileLogoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('timerActive');
+      setAuthenticated(false);
+      navigate('#/auth/login');
+      if (overlay) overlay.classList.remove('open');
+    });
+  }
   const themeToggle = document.getElementById('mobileThemeToggle');
   if (themeToggle) {
+    const knob = themeToggle.querySelector('span');
+    const applyMobileThemeUI = () => {
+      const dark = __isDark();
+      if (knob) {
+        knob.classList.toggle('translate-x-1', !dark);
+        knob.classList.toggle('dark:translate-x-6', dark);
+        knob.classList.toggle('translate-x-6', dark);
+      }
+    };
+    applyMobileThemeUI();
     themeToggle.onclick = () => {
-      const isDark = __isDark();
-      setTheme(isDark ? 'light' : 'dark');
+      const next = __isDark() ? 'light' : 'dark';
+      setTheme(next);
       refreshDynamicIcons();
+      applyMobileThemeUI();
     };
   }
+  const drawerCloseBtn = document.getElementById('drawerCloseBtn');
+  const appShell = document.getElementById('app-shell');
+  const backdrop = document.getElementById('app-drawer-backdrop');
+  const drawerPanel = document.getElementById('app-drawer');
+  const closeDrawer = () => {
+    if (appShell) appShell.classList.add('drawer-closed');
+  };
+  if (drawerCloseBtn) drawerCloseBtn.onclick = closeDrawer;
+  if (backdrop) backdrop.onclick = closeDrawer;
 }
 
 export function mountShell(hash) {
   const root = document.getElementById('app-root') || document.body;
   root.innerHTML = renderAppShell(hash);
+  const drawer = document.getElementById('drawer-container');
+  if (drawer) drawer.innerHTML = renderNotificationsDrawer();
   initWorkspaceTabs();
   renderWorkspaceTabs();
   wireAppShell(hash);

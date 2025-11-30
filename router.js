@@ -1,6 +1,26 @@
 import { openTabForHash } from './app-shell/app-tabs.js';
 
-const DEFAULT_HASH = '#/app/contacts';
+const DEFAULT_HASH = '#/app/me/tasks';
+const LOGIN_HASH = '#/auth/login';
+
+// Temporary, simple auth stub for prototype
+const AUTH_STORAGE_KEY = 'netnet_isAuthenticated';
+
+export function isAuthenticated() {
+  try {
+    return localStorage.getItem(AUTH_STORAGE_KEY) === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+
+export function setAuthenticated(value) {
+  try {
+    localStorage.setItem(AUTH_STORAGE_KEY, value ? 'true' : 'false');
+  } catch (e) {
+    // Ignore storage errors in prototype
+  }
+}
 
 function parseRoute(hash) {
   const h = hash || DEFAULT_HASH;
@@ -55,7 +75,9 @@ function parseRoute(hash) {
 function handleRoute(renderers) {
   const hash = location.hash || DEFAULT_HASH;
   const route = parseRoute(hash);
-  openTabForHash(hash);
+  if (!route.name.startsWith('auth')) {
+    openTabForHash(hash);
+  }
   if (route.name === 'company' || route.name === 'person') {
     renderers.profile(route.name, route.id);
   } else if (route.name === 'me') {
@@ -86,8 +108,29 @@ function handleRoute(renderers) {
 }
 
 export function initRouter(renderers) {
-  window.addEventListener('hashchange', () => handleRoute(renderers));
-  handleRoute(renderers);
+  const normalizeHashForAuth = (hash) => {
+    const currentHash = hash || '';
+    const authed = isAuthenticated();
+    if (!currentHash || currentHash === '#') {
+      return authed ? DEFAULT_HASH : LOGIN_HASH;
+    }
+    if (!authed && currentHash.startsWith('#/app')) {
+      return LOGIN_HASH;
+    }
+    return currentHash;
+  };
+
+  const processRoute = () => {
+    const desiredHash = normalizeHashForAuth(location.hash);
+    if (location.hash !== desiredHash) {
+      location.hash = desiredHash;
+      return;
+    }
+    handleRoute(renderers);
+  };
+
+  window.addEventListener('hashchange', processRoute);
+  processRoute();
 }
 
 export function navigate(hash) {

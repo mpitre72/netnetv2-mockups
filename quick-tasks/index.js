@@ -37,7 +37,11 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
   `;
   quickTasksIconPaint(false);
   const btn = container.querySelector('#openDrawerBtn');
-  if (btn) btn.onclick = () => { if (typeof showToast === 'function') showToast('Context panel placeholder'); };
+  if (btn) btn.onclick = () => {
+    const shell = document.getElementById('app-shell');
+    if (shell) shell.classList.remove('drawer-closed');
+  };
+  container.classList.add('flex', 'items-center', 'justify-center', 'h-full');
 }
 
 if (typeof window !== 'undefined') {

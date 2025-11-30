@@ -37,9 +37,9 @@ function restoreTabs() {
 
 function ensureHomeTab() {
   if (!workspaceTabs.length) {
-    const homeHash = '#/app/contacts';
+    const homeHash = '#/app/me/tasks';
     const id = 'tab-' + Date.now();
-    workspaceTabs.push({ id: id, hash: homeHash, label: 'Contacts' });
+    workspaceTabs.push({ id: id, hash: homeHash, label: 'My Tasks' });
     activeTabId = id;
   }
 }
@@ -69,7 +69,7 @@ export function renderWorkspaceTabs() {
   add.textContent = '+';
   add.title = 'Open new tab';
   add.addEventListener('click', () => {
-    const currentHash = location.hash || '#/app/contacts';
+    const currentHash = location.hash || '#/app/me/tasks';
     const id = 'tab-' + Date.now();
     workspaceTabs.push({ id, hash: currentHash, label: labelForRoute(currentHash) });
     activeTabId = id;
