@@ -5,15 +5,15 @@
 export function renderContactsLayout(data = []) {
   return `
     <div class="flex flex-col h-full relative">
-      <div class="sticky top-0 z-20 bg-white/70 dark:bg-gray-900/80 backdrop-blur-md px-4 pt-3 pb-2">
+      <div class="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md px-4 pt-2 pb-3 md:sticky md:top-0 md:z-20 md:bg-white/70 md:dark:bg-gray-900/80 md:pt-3 md:pb-2 md:backdrop-blur-md">
         <div class="flex flex-col md:flex-row items-center gap-3">
           <div class="flex-1 w-full" id="contacts-search-mount"></div>
-          <button onclick="showToast('New Contact feature coming soon')" class="w-full md:w-auto px-4 py-2 bg-netnet-purple text-white font-medium rounded-lg hover:bg-[#6020df] transition-colors flex items-center justify-center gap-2">
+          <button onclick="showToast('New Contact feature coming soon')" class="hidden md:inline-flex md:w-auto h-12 px-5 bg-netnet-purple text-white font-medium rounded-lg hover:bg-[#6020df] transition-colors items-center justify-center gap-2">
             <span>+ New Contact</span>
           </button>
         </div>
       </div>
-      <div class="flex-1 overflow-y-auto contacts-scroll">
+      <div class="flex-1 overflow-y-auto contacts-scroll pb-36 md:pb-0">
         <table class="w-full text-left border-collapse">
           <thead class="bg-gray-50 dark:bg-gray-800/80 sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400 font-semibold backdrop-blur-sm">
             <tr>
