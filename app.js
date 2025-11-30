@@ -16,6 +16,21 @@ import { initRouter, navigate, isAuthenticated } from './router.js';
 import { mountShell, applyMainWrapperClass } from './app-shell/app-layout.js';
 import { setTheme, getTheme } from './app-shell/app-helpers.js';
 
+// Environment detection for Net Net (GitHub Pages vs Local)
+const detectedEnv = (typeof window !== 'undefined' && window.location.hostname === 'mpitre72.github.io')
+  ? 'GitHub Pages'
+  : 'Local';
+if (typeof window !== 'undefined') {
+  window.__NETNET_ENV__ = detectedEnv;
+  window.addEventListener('DOMContentLoaded', () => {
+    if (document.querySelector('.env-indicator')) return;
+    const badge = document.createElement('div');
+    badge.className = 'env-indicator';
+    badge.textContent = `Environment: ${detectedEnv}`;
+    document.body.appendChild(badge);
+  });
+}
+
 function ensureToast() {
   if (!document.getElementById('toast-container')) {
     const toast = document.createElement('div');
