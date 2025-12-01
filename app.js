@@ -12,7 +12,7 @@ import { renderProfilePage } from './profile/index.js';
 import { renderNnuPage } from './net-net-u/index.js';
 import { renderNetNetBot } from './ai/index.js';
 import { renderAuthScreen, mountAuthShell } from './auth/auth-shell.js';
-import { initRouter, navigate, isAuthenticated } from './router.js';
+import { initRouter, navigate } from './router.js';
 import { mountShell, applyMainWrapperClass } from './app-shell/app-layout.js';
 import { setTheme, getTheme } from './app-shell/app-helpers.js';
 
@@ -128,7 +128,7 @@ function mountApp() {
   window.showToast = showToast;
   const initialHash = (location.hash && location.hash !== '#')
     ? location.hash
-    : (isAuthenticated() ? '#/app/me/tasks' : '#/auth/login');
+    : '#/auth/login';
   if (initialHash.startsWith('#/auth')) {
     mountAuthShell();
     currentShell = 'auth';

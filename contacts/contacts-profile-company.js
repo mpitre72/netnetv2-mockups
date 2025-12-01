@@ -144,7 +144,7 @@ export function renderCompanyProfile(data, profileState, mockReportData) {
             <a href="#/app/contacts/person/${person.id}" class="hover:underline text-netnet-purple">${person.name}</a>
           </div>
           <div class="text-sm text-gray-600 dark:text-gray-300">${person.title || '-'}</div>
-          <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <div class="company-people-links flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
             ${renderPersonLinksInline(person)}
           </div>
           <div class="text-sm text-gray-600 dark:text-gray-300">${mobile}</div>

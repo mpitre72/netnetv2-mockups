@@ -1,7 +1,8 @@
 import { openTabForHash } from './app-shell/app-tabs.js';
 import { getContactsEntryHash } from './contacts/contacts-ui-state.js';
 
-const DEFAULT_HASH = '#/app/me/tasks';
+const DEFAULT_HASH = '#/auth/login';
+const APP_DEFAULT_HASH = '#/app/me/tasks';
 const LOGIN_HASH = '#/auth/login';
 
 // Temporary, simple auth stub for prototype
@@ -84,12 +85,16 @@ function parseRoute(hash) {
   if (authResetSuccess) return { name: 'auth-reset-success' };
   if (authVerifyCode) return { name: 'auth-verify-code' };
   if (authVerifySuccess) return { name: 'auth-verify-success' };
-  return { name: 'contacts-root' };
+  return { name: 'auth-login' };
 }
 
 function handleRoute(renderers) {
   const hash = location.hash || DEFAULT_HASH;
   const route = parseRoute(hash);
+  if (route.name === 'auth-login' && hash !== LOGIN_HASH) {
+    navigate(LOGIN_HASH);
+    return;
+  }
   if (!route.name.startsWith('auth')) {
     openTabForHash(hash);
   }
@@ -140,7 +145,7 @@ export function initRouter(renderers) {
     const currentHash = hash || '';
     const authed = isAuthenticated();
     if (!currentHash || currentHash === '#') {
-      return authed ? DEFAULT_HASH : LOGIN_HASH;
+      return authed ? APP_DEFAULT_HASH : LOGIN_HASH;
     }
     if (!authed && currentHash.startsWith('#/app')) {
       return LOGIN_HASH;
