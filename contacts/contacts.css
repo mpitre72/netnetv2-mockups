@@ -77,6 +77,13 @@ html.dark .lookup-menu {
   background: rgba(31, 41, 55, 0.68);
 }
 
+.contacts-employee-header-row {
+  position: sticky;
+  top: var(--contacts-employee-header-top, 56px);
+  z-index: 9;
+  background: inherit;
+}
+
 .company-people-links {
   display: flex;
   flex-wrap: wrap;
