@@ -338,7 +338,10 @@ export const mockContactsData = [
         "address": "201 W 5th St",
         "zip": "78701",
         "activities": [],
-        "mobile": "(773) 769-0062"
+        "mobile": "(773) 769-0062",
+        "linkedin": "https://www.linkedin.com/in/tylermorgan",
+        "instagram": "https://www.instagram.com/tyler.creative",
+        "website": "https://www.tylermorgan.design"
       },
       {
         "id": 1020,
@@ -351,7 +354,8 @@ export const mockContactsData = [
         "address": "515 Congress Ave",
         "zip": "78701",
         "activities": [],
-        "mobile": ""
+        "mobile": "",
+        "linkedin": "https://www.linkedin.com/in/isabellaperezux"
       },
       {
         "id": 1021,
@@ -364,7 +368,9 @@ export const mockContactsData = [
         "address": "700 Lavaca St",
         "zip": "78701",
         "activities": [],
-        "mobile": ""
+        "mobile": "",
+        "x": "https://x.com/logandavisdev",
+        "website": "https://www.logandavis.dev"
       },
       {
         "id": 1022,
@@ -377,7 +383,10 @@ export const mockContactsData = [
         "address": "301 W 6th St",
         "zip": "78701",
         "activities": [],
-        "mobile": "404 535 4474"
+        "mobile": "404 535 4474",
+        "facebook": "https://www.facebook.com/chloe.martinez",
+        "threads": "https://www.threads.net/@chloe.words",
+        "instagram": "https://www.instagram.com/chloe.m.art"
       },
       {
         "id": 1023,
@@ -390,7 +399,9 @@ export const mockContactsData = [
         "address": "401 Congress Ave",
         "zip": "78701",
         "activities": [],
-        "mobile": ""
+        "mobile": "",
+        "linkedin": "https://www.linkedin.com/in/jasonclarkseo",
+        "pinterest": "https://www.pinterest.com/jasonclarkseo"
       },
       {
         "id": 1024,
@@ -403,7 +414,10 @@ export const mockContactsData = [
         "address": "100 W 3rd St",
         "zip": "78701",
         "activities": [],
-        "mobile": "503.274.7106"
+        "mobile": "503.274.7106",
+        "linkedin": "https://www.linkedin.com/in/miathompsondesign",
+        "youtube": "https://www.youtube.com/@miathompsondesign",
+        "instagram": "https://www.instagram.com/mia.thompson.designs"
       },
       {
         "id": 1025,
@@ -416,7 +430,9 @@ export const mockContactsData = [
         "address": "909 Congress Ave",
         "zip": "78701",
         "activities": [],
-        "mobile": ""
+        "mobile": "",
+        "whatsapp": "https://wa.me/15125553007",
+        "linkedin": "https://www.linkedin.com/in/andrewwhiteproducer"
       },
       {
         "id": 1026,
@@ -429,7 +445,9 @@ export const mockContactsData = [
         "address": "801 W 5th St",
         "zip": "78703",
         "activities": [],
-        "mobile": ""
+        "mobile": "",
+        "facebook": "https://www.facebook.com/lily.evans.pm",
+        "tiktok": "https://www.tiktok.com/@lily.manages"
       }
     ]
   },

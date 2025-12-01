@@ -131,6 +131,20 @@ function buildHeader({ title, backTarget, showIntlToggle, isIntl }) {
 }
 
 function buildCompanyFormBody(isIntl) {
+  const socialIcons = [
+    { name: 'LinkedIn', key: 'linkedin' },
+    { name: 'Facebook', key: 'facebook' },
+    { name: 'X', key: 'x' },
+    { name: 'Instagram', key: 'instagram' },
+    { name: 'TikTok', key: 'tiktok' },
+    { name: 'WhatsApp', key: 'whatsapp' },
+    { name: 'YouTube', key: 'youtube' },
+    { name: 'Snapchat', key: 'snapchat' },
+    { name: 'Threads', key: 'threads' },
+    { name: 'Reddit', key: 'reddit' },
+    { name: 'Pinterest', key: 'pinterest' },
+    { name: 'Website', key: 'globe' },
+  ];
   return `
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6 space-y-8">
       <div>
@@ -151,42 +165,56 @@ function buildCompanyFormBody(isIntl) {
         </div>
       </div>
       <div>
-        <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Contact Information</h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Email</label>
-            <input type="email" class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+        <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">
+          <h4 class="text-sm font-bold text-gray-900 dark:text-white">Contact Info</h4>
+          <label class="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+            <span>US</span>
+            <input type="checkbox" id="company-intl-toggle" class="sr-only peer">
+            <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-netnet-purple dark:peer-focus:ring-white rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-netnet-purple"></div>
+            <span>Intl</span>
+          </label>
+        </div>
+        <div class="space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Email</label>
+              <input type="email" class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Office Phone</label>
+              <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Alternate Phone</label>
+              <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Website</label>
+              <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Phone</label>
-            <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+          <div id="company-address-fields">
+            ${renderAddressFields('company', isIntl)}
           </div>
         </div>
       </div>
       <div>
-        <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Address</h4>
-        ${renderAddressFields('company', isIntl)}
-      </div>
-      <div>
-        <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Social & Web</h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Website</label>
-            <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">LinkedIn</label>
-            <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Instagram</label>
-            <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Facebook</label>
-            <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
-          </div>
+        <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Social Profiles</h4>
+        <div id="company-social-list" class="space-y-3">
+          ${socialIcons.map(s => `
+            <div class="flex items-center gap-4">
+              <div class="social-icon-container">
+                ${SOCIAL_ICON_MAP[s.key]}
+              </div>
+              <div class="flex-1">
+                <input aria-label="${s.name}" class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" placeholder="${s.name} URL or handle" />
+              </div>
+            </div>
+          `).join('')}
         </div>
+        <button type="button" id="add-company-social-btn" class="mt-3 inline-flex items-center gap-2 text-sm text-netnet-purple hover:underline">
+          <span>+ Add custom social</span>
+        </button>
       </div>
     </div>
   `;
@@ -289,7 +317,7 @@ export function renderCompanyFormPage({ mode = 'create', id = null, container } 
   target.innerHTML = `
     <div class="h-full overflow-y-auto p-4 md:p-8 bg-[var(--color-bg-app,#020617)]">
       <div class="max-w-3xl mx-auto">
-        ${buildHeader({ title, backTarget, showIntlToggle: true, isIntl })}
+        ${buildHeader({ title, backTarget, showIntlToggle: false, isIntl })}
         <form id="entity-form" class="space-y-6">
           ${buildCompanyFormBody(isIntl)}
         </form>
@@ -297,14 +325,15 @@ export function renderCompanyFormPage({ mode = 'create', id = null, container } 
     </div>
   `;
 
-  const toggle = target.querySelector('#intl-toggle');
+  const toggle = target.querySelector('#company-intl-toggle');
   const form = target.querySelector('#entity-form');
   const cancelBtn = target.querySelector('#cancel-btn');
   const redrawAddress = (intl) => {
-    const addressWrap = form.querySelector('h4:nth-of-type(3)').parentElement;
-    addressWrap.querySelector(':scope > div:last-of-type').innerHTML = renderAddressFields('company', intl);
+    const wrap = form.querySelector('#company-address-fields');
+    if (wrap) wrap.innerHTML = renderAddressFields('company', intl);
   };
   if (toggle) {
+    toggle.checked = isIntl;
     toggle.addEventListener('change', () => redrawAddress(toggle.checked));
   }
   if (cancelBtn) {
@@ -320,6 +349,24 @@ export function renderCompanyFormPage({ mode = 'create', id = null, container } 
         const fallbackId = companies?.[0]?.id || 1;
         navigate(`#/app/contacts/company/${fallbackId}`);
       }
+    };
+  }
+  const companySocialList = target.querySelector('#company-social-list');
+  const addCompanySocialBtn = target.querySelector('#add-company-social-btn');
+  if (addCompanySocialBtn && companySocialList) {
+    addCompanySocialBtn.onclick = () => {
+      const div = document.createElement('div');
+      div.className = 'flex items-center gap-4';
+      div.innerHTML = `
+        <div class="social-icon-container">
+          ${SOCIAL_ICON_MAP.globe}
+        </div>
+        <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+          <input class="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" placeholder="Social name" />
+          <input class="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" placeholder="URL or handle" />
+        </div>
+      `;
+      companySocialList.appendChild(div);
     };
   }
 }

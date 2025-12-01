@@ -60,6 +60,45 @@ html.dark .lookup-menu {
 }
 .lookup-item.add { border-top: 1px solid rgba(148,163,184,0.25); font-weight: 600; }
 
+.contacts-row {
+  transition: background-color 120ms ease;
+}
+.contacts-row:hover {
+  background: var(--color-bg-hover, rgba(113,31,255,0.06));
+}
+.company-people-row {
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: rgba(15, 23, 42, 0.65);
+}
+.company-people-row:hover {
+  background: rgba(31, 41, 55, 0.68);
+}
+
+.email-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg-elevated-light, rgba(226, 232, 240, 0.35));
+  color: var(--color-text, #e2e8f0);
+  transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+.email-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm-elevated, 0 8px 20px rgba(0,0,0,0.35));
+  background: var(--color-bg-elevated, rgba(148, 163, 184, 0.35));
+}
+.email-chip svg {
+  width: 14px;
+  height: 14px;
+}
+
 .lookup-modal-layer {
   position: fixed;
   inset: 0;
