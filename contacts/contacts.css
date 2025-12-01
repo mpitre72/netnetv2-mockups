@@ -79,9 +79,15 @@ html.dark .lookup-menu {
 
 .contacts-employee-header-row {
   position: sticky;
-  top: var(--contacts-employee-header-top, 56px);
+  top: var(--contacts-employee-header-top, 40px);
   z-index: 9;
   background: inherit;
+  margin-top: 0;
+  border-top: 0;
+}
+.contacts-employee-table {
+  border-collapse: collapse;
+  border-spacing: 0;
 }
 
 .company-people-links {

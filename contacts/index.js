@@ -187,7 +187,7 @@ function renderTable(state, scope) {
             </div>`;
         } else {
           innerContent = `
-            <table class="w-full text-sm">
+            <table class="w-full text-sm contacts-employee-table">
               <thead class="contacts-employee-header-row text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-100 dark:bg-gray-800">
                 <tr>
                   <th class="px-6 py-2 w-10"></th>
