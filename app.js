@@ -91,6 +91,8 @@ function renderRoute(route) {
   if (route.name === 'company' || route.name === 'person') {
     main.innerHTML = `<div id="profile-container" class="h-full overflow-y-auto"></div>`;
     renderContactProfile(route.name, route.id, { container: document.getElementById('profile-container') });
+  } else if (route.name === 'company-new' || route.name === 'company-edit' || route.name === 'person-new' || route.name === 'person-edit') {
+    renderContacts(main, route.name, route.id);
   } else if (route.name === 'me') {
     renderMePage(route.page || 'tasks', main);
   } else if (route.name === 'jobs') {
@@ -111,8 +113,11 @@ function renderRoute(route) {
     renderNnuPage(main);
   } else if (route.name === 'bot') {
     renderNetNetBot(main);
+  } else if (route.name === 'contacts-companies' || route.name === 'contacts-people' || route.name === 'contacts-root') {
+    const subview = route.subview || (route.name === 'contacts-people' ? 'people' : 'companies');
+    renderContacts(main, subview);
   } else {
-    renderContacts(main);
+    renderContacts(main, 'companies');
   }
 }
 
@@ -133,7 +138,7 @@ function mountApp() {
     currentShell = 'app';
   }
   initRouter({
-    contacts: () => renderRoute({ name: 'contacts' }),
+    contacts: (route) => renderRoute(route || { name: 'contacts-root', subview: 'companies' }),
     profile: (type, id) => renderRoute({ name: type, id }),
     me: (page) => renderRoute({ name: 'me', page }),
     jobs: () => renderRoute({ name: 'jobs' }),

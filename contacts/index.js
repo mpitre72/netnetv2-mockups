@@ -5,19 +5,18 @@ import { renderContactsLayout } from './contacts-list.js';
 import { renderCompanyProfile } from './contacts-profile-company.js';
 import { renderPersonProfile } from './contacts-profile-person.js';
 import { ContactsSearchBar } from '../components/ContactsSearchBar.js';
+import { renderCompanyFormPage, renderPersonFormPage } from './contacts-forms.js';
+import { getContactsData } from './contacts-data.js';
+import {
+  getListState,
+  updateListState,
+  setLastSubview,
+  getContactsEntryHash,
+} from './contacts-ui-state.js';
 
-function getContactsData() {
-  const data = (typeof window !== 'undefined') ? window.mockContactsData : null;
-  if (!Array.isArray(data)) {
-    console.warn('[ContactsModule] window.mockContactsData is not an array or not defined.');
-    return [];
-  }
-  return data;
-}
-
-function buildContactsState() {
+function buildContactsState({ search = '' } = {}) {
   return {
-    search: '',
+    search: search || '',
     expanded: new Set(),
   };
 }
@@ -215,17 +214,18 @@ function toggleContactRow(id, state, scope) {
   renderTable(state, scope);
 }
 
-export function initContactsModule(rootEl) {
+export function initContactsModule(rootEl, { subview = 'companies', listState = {} } = {}) {
   const scope = rootEl || document;
   const searchInput = scope.querySelector('#contact-search');
   const tbody = scope.querySelector('#contacts-table-body');
+  const scrollArea = scope.querySelector('.contacts-scroll');
 
   if (!tbody) {
     console.warn('[ContactsModule] contacts table body not found.');
     return;
   }
 
-  const state = buildContactsState();
+  const state = buildContactsState({ search: listState.search });
 
   // Expose global handlers so legacy code can still call them if needed
   if (typeof window !== 'undefined') {
@@ -233,30 +233,62 @@ export function initContactsModule(rootEl) {
   }
 
   if (searchInput) {
+    searchInput.value = state.search;
     searchInput.addEventListener('input', (e) => {
       state.search = e.target.value || '';
+      updateListState(subview, { search: state.search });
       renderTable(state, scope);
     });
   }
+
+  if (scrollArea) {
+    scrollArea.scrollTop = listState.scrollY || 0;
+    scrollArea.addEventListener('scroll', () => {
+      updateListState(subview, { scrollY: scrollArea.scrollTop });
+    });
+  }
+
+  scope.addEventListener('click', (e) => {
+    const link = e.target.closest && e.target.closest('a[href^="#/app/contacts/"]');
+    if (!link) return;
+    const href = link.getAttribute('href') || '';
+    if (href.includes('/company/')) {
+      setLastSubview('companies');
+    } else if (href.includes('/person/')) {
+      setLastSubview('people');
+    }
+    updateListState(subview, { search: state.search, scrollY: scrollArea ? scrollArea.scrollTop : 0 });
+  });
 
   renderTable(state, scope);
 }
 
 // Render + wire in one step (useful for router)
-export function renderContacts(rootEl) {
+export function renderContacts(rootEl, subview = 'companies', id = null) {
   const container = rootEl || document.getElementById('app-main');
   if (!container) {
     console.warn('[ContactsModule] container not found for renderContacts.');
     return;
   }
+  if (subview === 'company-new' || subview === 'company-edit') {
+    renderCompanyFormPage({ mode: subview === 'company-new' ? 'create' : 'edit', id: subview === 'company-edit' ? id : null, container });
+    return;
+  }
+  if (subview === 'person-new' || subview === 'person-edit') {
+    renderPersonFormPage({ mode: subview === 'person-new' ? 'create' : 'edit', id: subview === 'person-edit' ? id : null, container });
+    return;
+  }
+  const normalizedSubview = subview === 'people' ? 'people' : 'companies';
   const data = getContactsData();
-  container.innerHTML = renderContactsLayout(data);
+  const listState = getListState(normalizedSubview);
+  setLastSubview(normalizedSubview);
+  container.innerHTML = renderContactsLayout(data, normalizedSubview);
   // Mount the floating search bar markup
   const searchMount = container.querySelector('#contacts-search-mount');
   if (searchMount) {
-    searchMount.innerHTML = ContactsSearchBar();
+    searchMount.innerHTML = ContactsSearchBar({ value: listState.search || '' });
   }
-  initContactsModule(container);
+  initContactsModule(container, { subview: normalizedSubview, listState });
 }
 
 export function renderContactProfile(type, id, { container, mockReportData } = {}) {
@@ -265,6 +297,7 @@ export function renderContactProfile(type, id, { container, mockReportData } = {
     console.warn('[ContactsModule] profile container not found.');
     return;
   }
+  setLastSubview(type === 'person' ? 'people' : 'companies');
 
   const contacts = getContactsData();
   let data = null;
@@ -290,16 +323,6 @@ export function renderContactProfile(type, id, { container, mockReportData } = {
       ? renderCompanyProfile(data, profileState, reports)
       : renderPersonProfile(data, profileState, reports);
     target.innerHTML = html;
-
-    const fmtToggle = target.querySelector('#fmt-toggle');
-    if (fmtToggle) fmtToggle.onchange = (e) => { profileState.isIntl = e.target.checked; render(); };
-
-    const saveBtn = target.querySelector('#save-btn');
-    const cancelBtn = target.querySelector('#cancel-btn');
-    const editBtn = target.querySelector('#edit-btn');
-    if (saveBtn) saveBtn.onclick = () => { profileState.isEditing = false; if (typeof showToast === 'function') showToast('Saved successfully'); render(); };
-    if (cancelBtn) cancelBtn.onclick = () => { profileState.isEditing = false; render(); };
-    if (editBtn) editBtn.onclick = () => { profileState.isEditing = true; render(); };
 
     const addNoteBtn = target.querySelector('#add-note-btn');
     const noteInput = target.querySelector('#quick-note');

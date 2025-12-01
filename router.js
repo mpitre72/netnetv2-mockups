@@ -1,4 +1,5 @@
 import { openTabForHash } from './app-shell/app-tabs.js';
+import { getContactsEntryHash } from './contacts/contacts-ui-state.js';
 
 const DEFAULT_HASH = '#/app/me/tasks';
 const LOGIN_HASH = '#/auth/login';
@@ -25,7 +26,14 @@ export function setAuthenticated(value) {
 function parseRoute(hash) {
   const h = hash || DEFAULT_HASH;
   const companyMatch = h.match(/^#\/app\/contacts\/company\/(\d+)$/);
+  const companyEdit = h.match(/^#\/app\/contacts\/companies\/(\d+)\/edit$/);
+  const companyNew = h === '#/app/contacts/companies/new';
   const personMatch = h.match(/^#\/app\/contacts\/person\/(\d+)$/);
+  const personEdit = h.match(/^#\/app\/contacts\/people\/(\d+)\/edit$/);
+  const personNew = h === '#/app/contacts/people/new';
+  const contactsCompanies = /^#\/app\/contacts\/companies\/?$/.test(h);
+  const contactsPeople = /^#\/app\/contacts\/people\/?$/.test(h);
+  const contactsRoot = /^#\/app\/contacts\/?$/.test(h);
   const meTime = h.startsWith('#/app/me/time');
   const mePerf = h.startsWith('#/app/me/performance');
   const meTasks = h.startsWith('#/app/me') || h === '#/app/me' || h === '#/app/me/';
@@ -47,8 +55,15 @@ function parseRoute(hash) {
   const authVerifyCode = h === '#/auth/verify-code';
   const authVerifySuccess = h === '#/auth/verify-success';
 
+  if (companyEdit) return { name: 'company-edit', id: parseInt(companyEdit[1], 10) };
+  if (companyNew) return { name: 'company-new' };
   if (companyMatch) return { name: 'company', id: parseInt(companyMatch[1], 10) };
+  if (personEdit) return { name: 'person-edit', id: parseInt(personEdit[1], 10) };
+  if (personNew) return { name: 'person-new' };
   if (personMatch) return { name: 'person', id: parseInt(personMatch[1], 10) };
+  if (contactsCompanies) return { name: 'contacts-companies', subview: 'companies' };
+  if (contactsPeople) return { name: 'contacts-people', subview: 'people' };
+  if (contactsRoot) return { name: 'contacts-root' };
   if (meTime) return { name: 'me', page: 'time' };
   if (mePerf) return { name: 'me', page: 'performance' };
   if (meTasks) return { name: 'me', page: 'tasks' };
@@ -69,7 +84,7 @@ function parseRoute(hash) {
   if (authResetSuccess) return { name: 'auth-reset-success' };
   if (authVerifyCode) return { name: 'auth-verify-code' };
   if (authVerifySuccess) return { name: 'auth-verify-success' };
-  return { name: 'contacts' };
+  return { name: 'contacts-root' };
 }
 
 function handleRoute(renderers) {
@@ -78,7 +93,20 @@ function handleRoute(renderers) {
   if (!route.name.startsWith('auth')) {
     openTabForHash(hash);
   }
-  if (route.name === 'company' || route.name === 'person') {
+  if (route.name === 'contacts-root') {
+    const targetHash = getContactsEntryHash();
+    if (location.hash !== targetHash) {
+      navigate(targetHash);
+      return;
+    }
+    renderers.contacts({ name: 'contacts-companies', subview: 'companies' });
+  } else if (route.name === 'contacts-companies' || route.name === 'contacts-people') {
+    renderers.contacts(route);
+  } else if (route.name === 'company-new' || route.name === 'company-edit') {
+    renderers.contacts({ name: route.name, id: route.id });
+  } else if (route.name === 'person-new' || route.name === 'person-edit') {
+    renderers.contacts({ name: route.name, id: route.id });
+  } else if (route.name === 'company' || route.name === 'person') {
     renderers.profile(route.name, route.id);
   } else if (route.name === 'me') {
     renderers.me(route.page);
@@ -103,7 +131,7 @@ function handleRoute(renderers) {
   } else if (route.name.startsWith('auth')) {
     renderers.auth(route.name);
   } else {
-    renderers.contacts();
+    renderers.contacts({ name: 'contacts-root', subview: 'companies' });
   }
 }
 

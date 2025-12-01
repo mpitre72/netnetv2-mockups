@@ -5,19 +5,21 @@ export function renderCompanyProfile(data, profileState, mockReportData) {
   const labelClass = "block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1";
   const inputClass = "w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none";
   const viewValueClass = "text-gray-900 dark:text-white text-base font-medium min-h-[1.5rem]";
+  const backTarget = '#/app/contacts/companies';
+  const backLabel = 'Companies';
+  // TODO: Use this International toggle only on Add/Edit Company screens to switch between USA and international formatting.
+  const toggleHtml = '';
+  const backIconBtn = `
+    <button
+      onclick="navigate('${backTarget}')"
+      class="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200 bg-white/70 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+      aria-label="Back to Contacts"
+      title="Back to Contacts"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+    </button>`;
 
-  const toggleHtml = `
-    <label class="inline-flex items-center cursor-pointer">
-      <input type="checkbox" class="sr-only peer" id="fmt-toggle" ${isIntl ? 'checked' : ''}>
-      <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-netnet-purple dark:peer-focus:ring-white rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-netnet-purple"></div>
-      <span class="ms-2 text-xs font-medium text-gray-500 dark:text-gray-400">International</span>
-    </label>
-  `;
-
-  const buttonsHtml = isEditing 
-    ? `<button id="save-btn" class="px-3 py-1.5 bg-netnet-purple text-white rounded text-sm hover:bg-[#6020df]">Save</button>
-       <button id="cancel-btn" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>`
-    : `<button id="edit-btn" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700">Edit</button>`;
+  const buttonsHtml = `<button onclick="navigate('#/app/contacts/companies/${data.id}/edit')" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700">Edit</button>`;
 
   const zipLabel = isIntl ? "Postal Code" : "Zip Code";
   const stateLabel = isIntl ? "Province" : "State";
@@ -25,15 +27,18 @@ export function renderCompanyProfile(data, profileState, mockReportData) {
 
   return `
     <div class="flex flex-col lg:flex-row h-full">
-      <div class="flex-1 overflow-y-auto p-4 md:p-8">
+      <div class="flex-1 overflow-y-auto p-4 md:p-8 bg-[var(--color-bg-app,#020617)]">
         <div class="max-w-3xl mx-auto">
-          <div class="flex items-start justify-between mb-6">
-            <div>
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
+            <div class="flex items-center gap-3 md:gap-4">
+              <button onclick="navigate('${backTarget}')" class="md:hidden inline-flex items-center gap-2 h-11 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white/80 dark:bg-gray-900/60 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                <span>${backLabel}</span>
+              </button>
+              ${backIconBtn}
               <h1 class="text-2xl font-bold text-gray-900 dark:text-white">${data.name}</h1>
-              <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Company Profile</p>
             </div>
-            <div class="flex flex-col items-end gap-3">
-              ${toggleHtml}
+            <div class="flex items-center gap-3">
               <div class="flex gap-2">${buttonsHtml}</div>
             </div>
           </div>
@@ -73,9 +78,7 @@ export function renderCompanyProfile(data, profileState, mockReportData) {
               </div>
             </div>
           </div>
-          <div class="mt-8">
-            <button onclick="navigate('#/app/contacts')" class="text-netnet-purple hover:underline text-sm font-medium">&larr; Back to Contacts List</button>
-          </div>
+          <div class="hidden md:block mt-8">${backIconBtn}</div>
         </div>
       </div>
       <div class="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700 h-[50vh] lg:h-full flex-shrink-0">
