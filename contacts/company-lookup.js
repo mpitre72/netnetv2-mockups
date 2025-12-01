@@ -76,7 +76,7 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
       <label class="lookup-label">${label}</label>
       <div class="lookup-input-wrap">
         <input type="text" class="lookup-input" placeholder="${placeholder}" value="${state.term}" aria-label="${label}" />
-        <ul class="lookup-menu" style="display:none;"></ul>
+        <div class="lookup-menu-card" style="display:none;"></div>
       </div>
     </div>
     <div class="lookup-modal-layer" style="display:none;"></div>
@@ -128,6 +128,8 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
     const nameInput = modalLayer.querySelector('#quick-add-name');
     const errorEl = modalLayer.querySelector('#quick-add-error');
     nameInput.focus();
+    const endPos = nameInput.value.length;
+    nameInput.setSelectionRange(endPos, endPos);
     modalLayer.addEventListener('click', (e) => {
       if (e.target.classList.contains('lookup-modal-backdrop')) {
         modalLayer.style.display = 'none';
