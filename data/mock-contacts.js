@@ -30,7 +30,12 @@ export const mockContactsData = [
         "address": "12 W 23rd St",
         "zip": "10010",
         "activities": [],
-        "mobile": "(312) 084-1367"
+        "mobile": "(312) 084-1367",
+        "linkedin": "https://www.linkedin.com/in/emilycarter",
+        "instagram": "https://www.instagram.com/emily.creates",
+        "x": "https://x.com/emilycarter",
+        "facebook": "https://www.facebook.com/emily.carter",
+        "website": "https://www.emilycarter.com"
       },
       {
         "id": 1002,
@@ -43,7 +48,10 @@ export const mockContactsData = [
         "address": "44 W 21st St",
         "zip": "10011",
         "activities": [],
-        "mobile": "702-490-9872"
+        "mobile": "702-490-9872",
+        "linkedin": "https://www.linkedin.com/in/michaelrivera",
+        "youtube": "https://www.youtube.com/@riveralabs",
+        "website": "https://www.mrivera.dev"
       },
       {
         "id": 1003,
@@ -56,7 +64,11 @@ export const mockContactsData = [
         "address": "88 5th Ave",
         "zip": "10011",
         "activities": [],
-        "mobile": ""
+        "mobile": "",
+        "linkedin": "https://www.linkedin.com/in/sophialee",
+        "instagram": "https://www.instagram.com/sophia.sketches",
+        "pinterest": "https://www.pinterest.com/sophia.design",
+        "website": "https://www.sophialeeux.com"
       },
       {
         "id": 1004,
@@ -69,7 +81,11 @@ export const mockContactsData = [
         "address": "23 E 19th St",
         "zip": "10003",
         "activities": [],
-        "mobile": "925-475-6733"
+        "mobile": "925-475-6733",
+        "linkedin": "https://www.linkedin.com/in/danielkim",
+        "x": "https://x.com/dankim_dev",
+        "threads": "https://www.threads.net/@dankim.dev",
+        "website": "https://www.danielkim.dev"
       },
       {
         "id": 1005,
@@ -82,7 +98,11 @@ export const mockContactsData = [
         "address": "17 W 14th St",
         "zip": "10011",
         "activities": [],
-        "mobile": ""
+        "mobile": "",
+        "linkedin": "https://www.linkedin.com/in/rachelgreenpm",
+        "facebook": "https://www.facebook.com/rachel.green.pm",
+        "whatsapp": "https://wa.me/12125551005",
+        "website": "https://www.rachelgreenpm.com"
       },
       {
         "id": 1006,
@@ -95,7 +115,10 @@ export const mockContactsData = [
         "address": "50 Irving Pl",
         "zip": "10003",
         "activities": [],
-        "mobile": "(212) 409-8285"
+        "mobile": "(212) 409-8285",
+        "linkedin": "https://www.linkedin.com/in/alexjohnsondev",
+        "x": "https://x.com/alexcodes",
+        "website": "https://www.alexjohnson.dev"
       },
       {
         "id": 1007,
@@ -108,7 +131,11 @@ export const mockContactsData = [
         "address": "301 W 24th St",
         "zip": "10011",
         "activities": [],
-        "mobile": "615.374.2841"
+        "mobile": "615.374.2841",
+        "linkedin": "https://www.linkedin.com/in/priyasinghdesign",
+        "instagram": "https://www.instagram.com/priya.designs",
+        "pinterest": "https://www.pinterest.com/priya.design",
+        "website": "https://www.priyasingh.design"
       },
       {
         "id": 1008,
@@ -121,7 +148,10 @@ export const mockContactsData = [
         "address": "5 E 22nd St",
         "zip": "10010",
         "activities": [],
-        "mobile": "310.983.3528"
+        "mobile": "310.983.3528",
+        "linkedin": "https://www.linkedin.com/in/jamesmillerbackend",
+        "reddit": "https://www.reddit.com/user/jmbackend",
+        "youtube": "https://www.youtube.com/@backendwithjames"
       },
       {
         "id": 1009,
@@ -1629,8 +1659,8 @@ export const mockContactsData = [
       }
     ]
   }
-];
+]
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.mockContactsData = mockContactsData;
 }
