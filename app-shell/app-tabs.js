@@ -49,13 +49,16 @@ export function renderWorkspaceTabs() {
   if (!bar) return;
   if (!isDesktop()) { bar.innerHTML = ''; return; }
   bar.innerHTML = '';
+  bar.setAttribute('role', 'tablist');
   workspaceTabs.forEach(tab => {
     const isActive = tab.id === activeTabId;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'workspace-tab' + (isActive ? ' workspace-tab--active' : '');
     btn.dataset.tabId = tab.id;
-    btn.innerHTML = `<span class="workspace-tab__label">${tab.label}</span><span class="workspace-tab__close" aria-label="Close tab">&times;</span>`;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    btn.innerHTML = `<span class="workspace-tab__label">${tab.label}</span><span class="workspace-tab__close" aria-label="Close tab ${tab.label}">&times;</span>`;
     btn.addEventListener('click', (e) => {
       const isClose = e.target.classList.contains('workspace-tab__close');
       if (isClose) { e.stopPropagation(); closeTab(tab.id); } 

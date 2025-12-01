@@ -2,11 +2,15 @@ import { APP_ICONS, LOGO_ASSETS, TIMER_ICONS } from './app-constants.js';
 
 export function renderTopBar() {
   return `
-    <header id="app-top-bar" class="hidden md:flex bg-netnet-purple items-center justify-between px-4">
-      <a href="#/app/me" id="top-bar-logo-link" class="flex-shrink-0">
-        <img src="${LOGO_ASSETS.dark.idle}" id="top-bar-logo-img" alt="Net Net" class="h-[30px] w-auto ml-3" />
-      </a>
-      <div id="workspaceTabs" class="hidden lg:flex items-end gap-2 ml-10 overflow-x-auto scrollbar-none self-stretch h-full"></div>
+    <header id="app-top-bar" class="hidden md:flex bg-netnet-purple items-center gap-4">
+      <div class="flex items-center h-full flex-shrink-0" style="width: var(--sidebar-width); min-width: var(--sidebar-width);">
+        <a href="#/app/me" id="top-bar-logo-link" class="flex items-center h-full px-4">
+          <img src="${LOGO_ASSETS.dark.idle}" id="top-bar-logo-img" alt="Net Net" class="h-[30px] w-auto" />
+        </a>
+      </div>
+      <div class="hidden lg:flex flex-1 items-center h-full">
+        <div id="workspaceTabs" class="flex items-center gap-2 overflow-x-auto scrollbar-none w-full h-full"></div>
+      </div>
       <div class="ml-auto flex items-center gap-4 pr-3">
         <button id="timerBtn" class="relative inline-flex items-center justify-center h-9 w-9 rounded-full hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-white/40">
           <img id="timerIcon" alt="Timer" class="h-5 w-5 select-none pointer-events-none" />
