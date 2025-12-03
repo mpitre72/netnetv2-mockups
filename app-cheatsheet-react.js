@@ -5,38 +5,6 @@ const { createRoot } = ReactDOM;
 
 const sizeClasses = { sm: 'h-6', md: 'h-8', lg: 'h-12' };
 const cardBase = 'rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-sm';
-const cheatSheetStyles = `
-  .cs-tab {
-    position: relative;
-    display: flex;
-    align-items: center;
-    max-width: 200px;
-    flex-shrink: 0;
-    padding: 0.35rem 0.8rem;
-    border-radius: 0.5rem 0.5rem 0 0;
-    border: 1px solid rgba(255,255,255,0.12);
-    background-color: rgba(255,255,255,0.12);
-    color: rgba(255,255,255,0.75);
-    font-size: 0.85rem;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: default;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  }
-  .cs-tab:not(.cs-tab--new)::before {
-    content: "";
-    flex: 0 0 20px;
-    margin-right: 0.25rem;
-  }
-  .cs-tab:hover { background-color: rgba(255,255,255,0.20); border-color: rgba(255,255,255,0.20); }
-  .cs-tab--active { border-color: rgba(255,255,255,0.32); background-color: rgba(255,255,255,0.32); color: #ffffff; }
-  .cs-tab__label { flex: 1 1 auto; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.4rem; }
-  .cs-tab__close { flex: 0 0 20px; height: 20px; margin-left: 0.25rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; font-size: 0.7rem; line-height: 1; opacity: 0; pointer-events: none; transition: opacity 0.15s ease, background-color 0.15s ease; }
-  .cs-tab:hover .cs-tab__close { opacity: 1; pointer-events: auto; }
-  .cs-tab__close:hover { background-color: rgba(0,0,0,0.08); }
-  .cs-tab--new { justify-content: center; border-style: dashed; border-color: rgba(255,255,255,0.35); background-color: transparent; color: rgba(255,255,255,0.9); padding-left: 0.75rem; padding-right: 0.75rem; }
-  .cs-tab--new:hover { background-color: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.35); }
-`;
 
 function Section({ title, children }) {
   return h('section', { className: 'space-y-4' }, [
@@ -84,35 +52,46 @@ function SocialIcon({ network, mode = 'light', href }) {
   return h('div', { className: baseClass }, iconImg);
 }
 
-function NetNetButton({ variant = 'primary', label = 'Button', size = 'md', state = 'rest', fullWidth = false, icon }) {
+function NetNetButton({ variant = 'primary', label = 'Button', size = 'md', state = 'default', fullWidth = false, icon }) {
   const base =
-    'inline-flex items-center justify-center gap-2 font-semibold rounded-md transition-colors transition-shadow duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900';
+    'inline-flex items-center justify-center gap-2 font-semibold rounded-md transition duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900';
   const sizeMap = { sm: 'px-3 py-2 text-sm', md: 'px-4 py-2.5 text-sm', lg: 'px-5 py-3 text-base' };
   const common = sizeMap[size] || sizeMap.md;
-  const variants = {
-    primary: 'bg-netnet-purple text-white shadow-md shadow-netnet-purple/20 hover:bg-netnet-purple/90 active:bg-netnet-purple/80',
-    secondary:
-      'bg-white text-slate-900 border border-slate-200 shadow-sm hover:border-slate-300 hover:bg-slate-50 dark:bg-slate-900 dark:text-white dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800',
-    ghost: 'bg-transparent text-slate-900 hover:bg-slate-100 active:bg-slate-200 dark:text-white dark:hover:bg-white/10 dark:active:bg-white/5',
-    icon: 'p-2 text-slate-700 bg-white border border-slate-200 rounded-full shadow-sm hover:bg-slate-50 active:bg-slate-100 dark:bg-slate-900 dark:text-white dark:border-slate-700 dark:hover:bg-slate-800 dark:active:bg-slate-700',
+  const variantStyles = {
+    primary: {
+      base: 'bg-netnet-purple text-white shadow-md shadow-netnet-purple/25',
+      hover: 'bg-[#5c1ad8] shadow-lg',
+      active: 'bg-[#5116c3] shadow-inner translate-y-[1px]',
+      disabled: 'bg-netnet-purple/50 text-white/70 shadow-none cursor-not-allowed',
+    },
+    secondary: {
+      base: 'bg-white text-slate-900 border border-slate-200 shadow-sm dark:bg-slate-900 dark:text-white dark:border-slate-700',
+      hover: 'bg-slate-50 border-slate-300 dark:bg-slate-800 dark:border-slate-600',
+      active: 'bg-slate-100 border-slate-400 translate-y-[1px] dark:bg-slate-700 dark:border-slate-500',
+      disabled: 'bg-slate-100 text-slate-400 border-slate-200 shadow-none cursor-not-allowed dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700',
+    },
+    ghost: {
+      base: 'bg-transparent text-slate-700 dark:text-white',
+      hover: 'bg-slate-100 dark:bg-white/10',
+      active: 'bg-slate-200 translate-y-[1px] dark:bg-white/15',
+      disabled: 'text-slate-400 cursor-not-allowed dark:text-slate-500',
+    },
+    icon: {
+      base: 'p-2 w-10 h-10 text-slate-700 bg-white border border-slate-200 rounded-full shadow-sm dark:bg-slate-900 dark:text-white dark:border-slate-700',
+      hover: 'bg-slate-50 text-netnet-purple border-slate-300 dark:bg-slate-800 dark:text-netnet-purple dark:border-slate-600',
+      active: 'bg-slate-100 translate-y-[1px] dark:bg-slate-700',
+      disabled: 'text-slate-400 border-slate-200 shadow-none cursor-not-allowed dark:text-slate-500 dark:border-slate-700',
+    },
   };
-  const stateStyles = {
-    rest: '',
-    hover: 'ring-2 ring-netnet-purple/30',
-    active: 'translate-y-[1px] shadow-inner',
-    disabled: 'opacity-60 cursor-not-allowed pointer-events-none',
-  };
-  const content = icon
-    ? h('span', { className: 'inline-flex items-center justify-center' }, icon)
-    : h('span', null, label);
+  const v = variantStyles[variant] || variantStyles.primary;
+  const stateClass = state === 'hover' ? v.hover : state === 'active' ? v.active : state === 'disabled' ? v.disabled : v.base;
+  const content = icon ? h('span', { className: 'inline-flex items-center justify-center' }, icon) : h('span', null, label);
   const width = fullWidth ? 'w-full' : '';
   return h(
     'button',
     {
       type: 'button',
-      className: [base, common, variants[variant] || variants.primary, stateStyles[state] || '', width]
-        .filter(Boolean)
-        .join(' '),
+      className: [base, common, stateClass, variant === 'icon' ? '' : '', width].filter(Boolean).join(' '),
       disabled: state === 'disabled',
       'aria-disabled': state === 'disabled',
     },
@@ -120,14 +99,34 @@ function NetNetButton({ variant = 'primary', label = 'Button', size = 'md', stat
   );
 }
 
-function DesktopAppTab({ label, active = false, closable = false }) {
+function DesktopAppTab({ label, active = false }) {
+  return h(
+    'button',
+    {
+      type: 'button',
+      className: ['workspace-tab', active ? 'workspace-tab--active' : ''].join(' '),
+    },
+    [
+      h('span', { className: 'workspace-tab__label' }, label),
+      h('span', { className: 'workspace-tab__close' }, '\u00d7'),
+    ]
+  );
+}
+
+function DesktopTabBar() {
   return h(
     'div',
-    { className: ['cs-tab', active ? 'cs-tab--active' : '', closable ? '' : ''].join(' ') },
-    [
-      h('span', { className: 'cs-tab__label' }, label),
-      closable ? h('span', { className: 'cs-tab__close' }, '\u00d7') : null,
-    ]
+    { className: 'rounded-lg overflow-hidden shadow-sm ring-1 ring-slate-200 dark:ring-white/10 bg-netnet-purple px-3 py-2' },
+    h(
+      'div',
+      { id: 'workspaceTabs', className: 'flex items-center gap-2' },
+      [
+        h(DesktopAppTab, { label: 'Components', active: true }),
+        h(DesktopAppTab, { label: 'Me / Tasks' }),
+        h(DesktopAppTab, { label: 'Contacts' }),
+        h('button', { type: 'button', className: 'workspace-tab workspace-tab--new' }, '+'),
+      ]
+    )
   );
 }
 
@@ -245,27 +244,42 @@ function SocialIconsRow() {
   );
 }
 
-function ContactsChromeButton({ label, icon }) {
+function ChromeButton({ label, icon, state = 'default' }) {
+  const base =
+    'inline-flex items-center gap-2 min-w-[36px] h-10 px-3 rounded-md border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 text-slate-700 dark:text-slate-100 shadow-sm transition';
+  const stateClass =
+    state === 'hover'
+      ? 'shadow-md bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'
+      : state === 'active'
+        ? 'translate-y-[1px] bg-slate-50 border-slate-300 dark:bg-slate-800 dark:border-slate-600'
+        : state === 'disabled'
+          ? 'opacity-50 cursor-not-allowed'
+          : '';
   return h(
     'div',
     { className: 'flex items-center gap-2' },
     [
-      h('button', { type: 'button', className: 'new-action-icon', 'aria-label': label }, icon),
-      h('span', { className: 'text-xs text-slate-500 dark:text-white/60' }, label),
+      h('button', { type: 'button', className: [base, stateClass, 'buttons-demo__full'].filter(Boolean).join(' '), disabled: state === 'disabled' }, [
+        icon,
+        h('span', { className: 'text-sm font-semibold whitespace-nowrap' }, label),
+      ]),
+      h('span', { className: 'text-xs text-slate-500 dark:text-white/60' }, state[0].toUpperCase() + state.slice(1)),
     ]
   );
 }
 
-function ContactsChromeButtonsRow() {
+function ChromeButtonsRow() {
   const buttons = [
     {
-      label: 'Contacts – Add Company',
+      label: 'Add Company',
+      state: 'default',
       icon: h('svg', { className: 'w-5 h-5', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M3 21h18M6 21V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v13M9 21v-4h6v4M9 12h6M9 9h6' }),
       ]),
     },
     {
-      label: 'Contacts – Add Person',
+      label: 'Add Person',
+      state: 'hover',
       icon: h('svg', { className: 'w-5 h-5', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }),
         h('circle', { cx: '9', cy: '7', r: '4' }),
@@ -273,7 +287,8 @@ function ContactsChromeButtonsRow() {
       ]),
     },
     {
-      label: 'Contacts – Upload/Import',
+      label: 'Upload',
+      state: 'active',
       icon: h('svg', { className: 'w-5 h-5 transform rotate-180', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M12 3v12m0 0 4-4m-4 4-4-4m-6 8h20' }),
       ]),
@@ -281,14 +296,50 @@ function ContactsChromeButtonsRow() {
   ];
   return h(
     'div',
-    { className: `${cardBase} p-4 flex flex-wrap gap-4` },
-    buttons.map((btn) => h(ContactsChromeButton, { key: btn.label, label: btn.label, icon: btn.icon }))
+    { className: `${cardBase} p-4 flex flex-col gap-4` },
+    [
+      h(
+        'div',
+        { className: 'flex flex-wrap gap-4' },
+        buttons.map((btn) => h(ChromeButton, { key: btn.label, label: btn.label, icon: btn.icon, state: btn.state }))
+      ),
+      h('div', { className: 'flex items-center gap-3' }, [
+        h('span', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Micro'),
+        h('div', { className: 'flex items-center gap-3' }, [
+          h(
+            'button',
+            { type: 'button', className: 'header-icon-button header-icon-button--small' },
+            h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+              h('circle', { cx: '12', cy: '12', r: '10' }),
+              h('path', { d: 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 1-1 1.7V14' }),
+              h('circle', { cx: '12', cy: '17', r: '1' }),
+            ])
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'header-icon-button header-icon-button--small' },
+            h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+              h('path', { d: 'M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9' }),
+              h('path', { d: 'M13.73 21a2 2 0 01-3.46 0' }),
+            ])
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'header-icon-button header-icon-button--small' },
+            h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+              h('circle', { cx: '12', cy: '12', r: '4' }),
+              h('path', { d: 'M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12' }),
+            ])
+          ),
+        ]),
+      ]),
+    ]
   );
 }
 
 function ButtonsGrid() {
   const variants = ['primary', 'secondary', 'ghost', 'icon'];
-  const states = ['rest', 'hover', 'active', 'disabled'];
+  const states = ['default', 'hover', 'active', 'disabled'];
   return h(
     'div',
     { className: 'space-y-3' },
@@ -303,7 +354,7 @@ function ButtonsGrid() {
               key: `${variant}-${state}`,
               variant,
               state,
-              label: state === 'rest' ? 'Default' : state[0].toUpperCase() + state.slice(1),
+              label: state === 'default' ? 'Default' : state[0].toUpperCase() + state.slice(1),
               icon: variant === 'icon' ? h('span', { className: 'text-lg' }, '★') : null,
             })
           ),
@@ -316,16 +367,8 @@ function ButtonsGrid() {
 function TabsPreview() {
   return h(
     'div',
-    { className: 'rounded-lg overflow-hidden shadow-sm ring-1 ring-slate-200 dark:ring-white/10' },
-    h(
-      'div',
-      { className: 'bg-netnet-purple px-3 py-2 flex items-center gap-2' },
-      [
-        h(DesktopAppTab, { label: 'Components', active: true, closable: true }),
-        h(DesktopAppTab, { label: 'Me / Tasks', closable: true }),
-        h(DesktopAppTab, { label: 'Contacts', closable: true }),
-      ]
-    )
+    null,
+    h(DesktopTabBar)
   );
 }
 
@@ -383,7 +426,6 @@ function ComponentsCheatSheet() {
     'div',
     { className: 'max-w-6xl mx-auto p-6 space-y-8 text-slate-900 dark:text-white' },
     [
-      h('style', { dangerouslySetInnerHTML: { __html: cheatSheetStyles } }),
       h('div', { className: 'space-y-2' }, [
         h('h1', { className: 'text-2xl font-bold' }, 'Components Cheat Sheet'),
         h('p', { className: 'text-sm text-slate-600 dark:text-white/70' }, 'Canonical reference for Net Net chrome components, states, and themes.'),
@@ -391,9 +433,8 @@ function ComponentsCheatSheet() {
       h(Section, { title: 'Net Net Logos' }, h(LogoGrid)),
       h(Section, { title: 'Navigation Icons' }, h(NavIconGrid)),
       h(Section, { title: 'Social Icons' }, h(SocialIconsRow)),
-      h(Section, { title: 'Chrome Buttons (Contacts)' }, h(ContactsChromeButtonsRow)),
+      h(Section, { title: 'Buttons' }, h(ChromeButtonsRow)),
       h(Section, { title: 'Top Bar Chrome' }, h(TopBarChromeShowcase)),
-      h(Section, { title: 'Buttons' }, h(ButtonsGrid)),
       h(Section, { title: 'Desktop Tabs' }, h(TabsPreview)),
     ]
   );
