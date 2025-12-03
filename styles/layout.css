@@ -565,7 +565,7 @@ html.dark .new-action-icon:hover {
 }
 html.dark .social-icon-container {
   background: var(--color-bg-elevated, #1f2937);
-  color: var(--color-text-secondary, #cbd5e1);
+  color: #ffffff !important;
 }
 html.dark .social-icon-container:hover {
   box-shadow: 0 6px 14px rgba(0,0,0,0.35);
@@ -578,4 +578,174 @@ html.dark .social-icon-container:hover {
 .social-icon-container svg {
   width: 18px;
   height: 18px;
+}
+
+html.dark .social-icon-container svg,
+html.dark .social-icon-container img {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Unified Net Net button system */
+.nn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-width: 1px;
+  border-style: solid;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.nn-btn--micro {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.nn-btn--mini {
+  width: 42px;
+  height: 36px;
+  padding: 0;
+}
+
+.nn-btn--full {
+  height: 36px;
+  padding: 0 16px;
+}
+
+.nn-btn--social {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+/* Spacing helpers for buttons in cheat sheet */
+.nn-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+}
+
+.social-icons-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.icon-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon-label {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+html.dark .icon-label {
+  color: #e5e7eb;
+}
+
+/* Ensure social buttons are white in dark mode */
+html.dark .nn-btn.nn-btn--social {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+html.dark .nn-btn.nn-btn--social svg,
+html.dark .nn-btn.nn-btn--social svg * {
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Dark theme - reuse header icon behavior */
+html.dark .nn-btn {
+  border-color: rgba(255,255,255,0.25);
+  background-color: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+}
+html.dark .nn-btn:hover {
+  transform: scale(1.03);
+  background-color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.35);
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.30);
+}
+html.dark .nn-btn:active {
+  transform: scale(0.98);
+  background-color: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.35);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.24);
+}
+
+/* Light theme - purple accent */
+html:not(.dark) .nn-btn {
+  background-color: #ffffff;
+  border-color: rgba(148,163,184,0.45);
+  color: #0f172a;
+  box-shadow: 0 3px 8px rgba(15,23,42,0.04);
+}
+html:not(.dark) .nn-btn:hover {
+  transform: translateY(-1px);
+  background-color: #f9f5ff;
+  border-color: #711FFF;
+  color: #711FFF;
+  box-shadow: 0 6px 16px rgba(15,23,42,0.10);
+}
+html:not(.dark) .nn-btn:active {
+  transform: translateY(0);
+  background-color: #f4ebff;
+  border-color: #711FFF;
+  box-shadow: 0 3px 8px rgba(15,23,42,0.16);
+}
+
+/* Cheat sheet full-size buttons - reuse micro button motion language */
+.buttons-demo__full {
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+.buttons-demo__full:hover {
+  transform: translateY(-1px);
+  background-color: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.35);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.22);
+  color: #ffffff;
+}
+.buttons-demo__full:active {
+  transform: translateY(0);
+  background-color: rgba(255,255,255,0.10);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+}
+html:not(.dark) .buttons-demo__full {
+  background-color: var(--color-bg-elevated-light, #e2e8f0);
+  border-color: var(--color-border-subtle-light, rgba(148,163,184,0.55));
+  color: var(--color-text-primary-light, #0f172a);
+}
+html:not(.dark) .buttons-demo__full:hover {
+  background-color: var(--color-bg-subtle, #f1f5f9);
+  border-color: var(--color-border-subtle-light, rgba(148,163,184,0.65));
+  box-shadow: 0 6px 14px rgba(15,23,42,0.12);
+}
+html:not(.dark) .buttons-demo__full:active {
+  box-shadow: 0 3px 8px rgba(15,23,42,0.16);
 }

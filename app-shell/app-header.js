@@ -21,21 +21,16 @@ export function renderTopBar() {
         </div>
         <div class="flex items-center gap-3 justify-end pr-3" style="width: var(--sidebar-width); min-width: var(--sidebar-width);">
           <span class="h-5 w-px bg-white/25"></span>
-          <button id="helpBtn" class="header-icon-button header-icon-button--small relative" aria-label="Help and documentation" title="Help and documentation">
+          <button id="helpBtn" class="header-icon-button header-icon-button--small nn-btn nn-btn--micro relative" aria-label="Help and documentation">
             <svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 1-1 1.7V14"/><circle cx="12" cy="17" r="1"/></svg>
-            <span class="flyout-label bg-gray-800 text-white dark:bg-gray-100 dark:text-black">Get Help</span>
           </button>
-          <button id="notifBtn" class="header-icon-button header-icon-button--small relative" aria-label="Notifications" title="Notifications">
+          <button id="notifBtn" class="header-icon-button header-icon-button--small nn-btn nn-btn--micro relative" aria-label="Notifications">
             <svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-            <span class="flyout-label bg-gray-800 text-white dark:bg-gray-100 dark:text-black">Notifications</span>
           </button>
-          <div class="header-icon-tooltip">
-            <button id="appThemeBtn" type="button" class="header-icon-button header-icon-button--small" aria-label="Toggle light and dark theme">
-              <span class="inline-flex items-center dark:hidden"><svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"></circle><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></span>
-              <span class="hidden dark:inline-flex items-center"><svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
-            </button>
-            <span class="header-icon-tooltip-text">Toggle light and dark theme</span>
-          </div>
+          <button id="appThemeBtn" type="button" class="header-icon-button header-icon-button--small nn-btn nn-btn--micro" aria-label="Toggle light and dark theme">
+            <span class="inline-flex items-center dark:hidden"><svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"></circle><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></span>
+            <span class="hidden dark:inline-flex items-center"><svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+          </button>
         </div>
       </div>
     </header>

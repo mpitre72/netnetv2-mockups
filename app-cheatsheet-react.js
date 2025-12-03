@@ -37,19 +37,37 @@ function NavIcon({ section = 'me', mode = 'light', active = false, size = 'md' }
   return h('img', { src, alt: `${section} icon`, className: `${cl} object-contain`, loading: 'lazy' });
 }
 
-function SocialIcon({ network, mode = 'light', href }) {
+function SocialIcon({ network, mode = 'light' }) {
   const src = socialIcons[network]?.[mode] || socialIcons.website?.[mode];
-  const iconImg = h('img', { src, alt: `${network} icon`, className: 'h-5 w-5 object-contain' });
-  const baseClass =
-    'inline-flex items-center justify-center h-12 w-12 rounded-lg border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white bg-white dark:bg-slate-900 shadow-sm';
-  if (href) {
-    return h(
-      'a',
-      { href, target: '_blank', rel: 'noopener noreferrer', className: `${baseClass} hover:border-netnet-purple/60 transition` },
-      iconImg
-    );
-  }
-  return h('div', { className: baseClass }, iconImg);
+  const labelMap = {
+    linkedin: 'LinkedIn',
+    x: 'X',
+    facebook: 'Facebook',
+    instagram: 'Instagram',
+    youtube: 'YouTube',
+    tiktok: 'TikTok',
+    whatsapp: 'WhatsApp',
+    snapchat: 'Snapchat',
+    threads: 'Threads',
+    reddit: 'Reddit',
+    pinterest: 'Pinterest',
+    website: 'Website',
+    personalWebsite: 'Personal Website',
+    email: 'Email',
+  };
+  const label = labelMap[network] || (network.charAt(0).toUpperCase() + network.slice(1));
+  return h(
+    'div',
+    { className: 'icon-stack' },
+    [
+      h(
+        'button',
+        { type: 'button', className: 'nn-btn nn-btn--social', 'aria-label': `${network} icon` },
+        h('img', { src, alt: `${network} icon`, className: 'h-5 w-5 object-contain' })
+      ),
+      h('span', { className: 'text-[11px] text-slate-500 dark:text-slate-300' }, label),
+    ]
+  );
 }
 
 function NetNetButton({ variant = 'primary', label = 'Button', size = 'md', state = 'default', fullWidth = false, icon }) {
@@ -213,57 +231,99 @@ function NavIconGrid() {
 
 function SocialIconsRow() {
   const socialNetworks = ['linkedin', 'x', 'facebook', 'instagram', 'youtube', 'tiktok', 'whatsapp', 'snapchat', 'threads', 'reddit', 'pinterest'];
-  const utility = ['website', 'personalWebsite', 'email'];
+  const utilityIcons = [
+    {
+      key: 'website',
+      label: 'Website',
+      svg: h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+        h('circle', { cx: '12', cy: '12', r: '9' }),
+        h('path', { d: 'M3 12h18' }),
+        h('path', { d: 'M12 3a15 15 0 0 1 0 18' }),
+        h('path', { d: 'M12 3a15 15 0 0 0 0 18' }),
+      ]),
+    },
+    {
+      key: 'personalWebsite',
+      label: 'Personal Website',
+      svg: h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+        h('circle', { cx: '9', cy: '8', r: '3' }),
+        h('path', { d: 'M3 20c0-3 2.5-5 6-5' }),
+        h('circle', { cx: '17', cy: '12', r: '3' }),
+        h('path', { d: 'M17 9v-2' }),
+        h('path', { d: 'M17 21v-2' }),
+        h('path', { d: 'M14 12h-2' }),
+        h('path', { d: 'M22 12h-2' }),
+      ]),
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      svg: h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+        h('rect', { x: '3', y: '5', width: '18', height: '14', rx: '2' }),
+        h('path', { d: 'M3 7l9 6 9-6' }),
+      ]),
+    },
+  ];
   return h(
     'div',
-    { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
-    ['light', 'dark'].map((mode) =>
+    { className: 'grid grid-cols-1 gap-6' },
+    [
       h(
         'div',
-        {
-          key: mode,
-          className: `${cardBase} p-4 ${mode === 'dark' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'}`,
-        },
+        { className: `${cardBase} p-4 bg-white dark:bg-slate-900 text-slate-700 dark:text-white` },
         [
-          h('div', { className: 'text-sm font-semibold mb-3 capitalize' }, `${mode} theme`),
-          h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-white/60 mb-2' }, 'Social'),
+          h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3' }, 'Social'),
           h(
             'div',
-            { className: 'flex items-center gap-3 flex-wrap mb-3' },
-            socialNetworks.map((network) => h(SocialIcon, { key: `${mode}-${network}`, network, mode }))
+            { className: 'social-icons-row' },
+            socialNetworks.map((network) => h(SocialIcon, { key: `social-${network}`, network, mode: 'light' }))
           ),
-          h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-white/60 mb-2' }, 'Contact / Utility'),
+          h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-6 mb-3' }, 'Contact / Utility'),
           h(
             'div',
-            { className: 'flex items-center gap-3 flex-wrap' },
-            utility.map((network) => h(SocialIcon, { key: `${mode}-${network}`, network, mode }))
+            { className: 'social-icons-row' },
+            utilityIcons.map((item) =>
+              h(
+                'div',
+                { key: item.key, className: 'icon-stack' },
+                [
+                  h(
+                    'button',
+                    { type: 'button', className: 'nn-btn nn-btn--social', 'aria-label': item.label },
+                    item.svg
+                  ),
+                  h('span', { className: 'icon-label' }, item.label),
+                ]
+              )
+            )
           ),
         ]
-      )
-    )
+      ),
+    ]
   );
 }
 
-function ChromeButton({ label, icon, state = 'default' }) {
-  const base =
-    'inline-flex items-center gap-2 min-w-[36px] h-10 px-3 rounded-md border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 text-slate-700 dark:text-slate-100 shadow-sm transition';
-  const stateClass =
-    state === 'hover'
-      ? 'shadow-md bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'
-      : state === 'active'
-        ? 'translate-y-[1px] bg-slate-50 border-slate-300 dark:bg-slate-800 dark:border-slate-600'
-        : state === 'disabled'
-          ? 'opacity-50 cursor-not-allowed'
-          : '';
+function ChromeButton({ label, icon, state = 'default', size = 'full' }) {
+  const sizeClass = size === 'mini' ? 'nn-btn--mini' : 'nn-btn--full';
+  const stateClass = state === 'disabled' ? 'opacity-50 cursor-not-allowed' : state === 'active' ? 'translate-y-[1px]' : '';
   return h(
     'div',
     { className: 'flex items-center gap-2' },
     [
-      h('button', { type: 'button', className: [base, stateClass, 'buttons-demo__full'].filter(Boolean).join(' '), disabled: state === 'disabled' }, [
-        icon,
-        h('span', { className: 'text-sm font-semibold whitespace-nowrap' }, label),
-      ]),
-      h('span', { className: 'text-xs text-slate-500 dark:text-white/60' }, state[0].toUpperCase() + state.slice(1)),
+      h(
+        'button',
+        {
+          type: 'button',
+          className: ['nn-btn', sizeClass, stateClass].filter(Boolean).join(' '),
+          disabled: state === 'disabled',
+        },
+        size === 'mini'
+          ? [icon]
+          : [
+              icon,
+              h('span', { className: 'text-sm font-semibold whitespace-nowrap' }, label),
+            ]
+      ),
     ]
   );
 }
@@ -298,17 +358,12 @@ function ChromeButtonsRow() {
     'div',
     { className: `${cardBase} p-4 flex flex-col gap-4` },
     [
-      h(
-        'div',
-        { className: 'flex flex-wrap gap-4' },
-        buttons.map((btn) => h(ChromeButton, { key: btn.label, label: btn.label, icon: btn.icon, state: btn.state }))
-      ),
       h('div', { className: 'flex items-center gap-3' }, [
-        h('span', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Micro'),
-        h('div', { className: 'flex items-center gap-3' }, [
+        h('span', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Micro'),
+        h('div', { className: 'nn-btn-row' }, [
           h(
             'button',
-            { type: 'button', className: 'header-icon-button header-icon-button--small' },
+            { type: 'button', className: 'header-icon-button header-icon-button--small nn-btn nn-btn--micro' },
             h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
               h('circle', { cx: '12', cy: '12', r: '10' }),
               h('path', { d: 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 1-1 1.7V14' }),
@@ -317,7 +372,7 @@ function ChromeButtonsRow() {
           ),
           h(
             'button',
-            { type: 'button', className: 'header-icon-button header-icon-button--small' },
+            { type: 'button', className: 'header-icon-button header-icon-button--small nn-btn nn-btn--micro' },
             h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
               h('path', { d: 'M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9' }),
               h('path', { d: 'M13.73 21a2 2 0 01-3.46 0' }),
@@ -325,13 +380,31 @@ function ChromeButtonsRow() {
           ),
           h(
             'button',
-            { type: 'button', className: 'header-icon-button header-icon-button--small' },
+            { type: 'button', className: 'header-icon-button header-icon-button--small nn-btn nn-btn--micro' },
             h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
               h('circle', { cx: '12', cy: '12', r: '4' }),
               h('path', { d: 'M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12' }),
             ])
           ),
         ]),
+      ]),
+      h(
+        'div',
+        { className: 'flex items-center gap-3' },
+        [
+          h('span', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Mini'),
+          h('div', { className: 'nn-btn-row' }, [
+            h(ChromeButton, { label: 'Add Company', icon: buttons[0].icon, state: buttons[0].state, size: 'mini' }),
+            h(ChromeButton, { label: 'Add Person', icon: buttons[1].icon, state: buttons[1].state, size: 'mini' }),
+            h(ChromeButton, { label: 'Upload', icon: buttons[2].icon, state: buttons[2].state, size: 'mini' }),
+          ]),
+        ]
+      ),
+      h('div', { className: 'flex items-center gap-3' }, [
+        h('span', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Full'),
+        h('div', { className: 'nn-btn-row' },
+          buttons.map((btn) => h(ChromeButton, { key: `full-${btn.label}`, label: btn.label, icon: btn.icon, state: btn.state, size: 'full' }))
+        ),
       ]),
     ]
   );
