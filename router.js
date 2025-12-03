@@ -43,6 +43,7 @@ function parseRoute(hash) {
   const quick = h.startsWith('#/app/quick-tasks');
   const chat = h.startsWith('#/app/chat');
   const reports = h.startsWith('#/app/reports');
+  const components = h.startsWith('#/app/components');
   const settings = h.startsWith('#/app/settings');
   const profile = h.startsWith('#/app/profile');
   const nnu = h.startsWith('#/app/net-net-u');
@@ -73,6 +74,7 @@ function parseRoute(hash) {
   if (quick) return { name: 'quick' };
   if (chat) return { name: 'chat' };
   if (reports) return { name: 'reports' };
+  if (components) return { name: 'components' };
   if (settings) return { name: 'settings' };
   if (profile) return { name: 'profile' };
   if (nnu) return { name: 'nnu' };
@@ -125,6 +127,8 @@ function handleRoute(renderers) {
     renderers.chat();
   } else if (route.name === 'reports') {
     renderers.reports();
+  } else if (route.name === 'components') {
+    renderers.components();
   } else if (route.name === 'settings') {
     renderers.settings();
   } else if (route.name === 'profile') {

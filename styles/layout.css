@@ -112,6 +112,123 @@ html:not(.dark) #app-sidebar nav div a:hover { color: #0f172a; }
   transform: translateX(-50%) translateY(0);
 }
 
+.header-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.header-icon-button--small {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 0.5rem;
+}
+.header-icon-button:hover {
+  transform: scale(1.03);
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.35);
+  color: #ffffff;
+}
+.header-icon-button:active {
+  transform: scale(0.98);
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.35);
+}
+.header-icon-button svg {
+  pointer-events: none;
+}
+
+.time-icon-button {
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid rgba(255,255,255,0.28);
+  background: rgba(255,255,255,0.14);
+  box-shadow: var(--shadow-sm, 0 6px 14px rgba(0,0,0,0.18));
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+}
+.time-icon-button:hover {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.36);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.22);
+}
+.time-icon-button:active {
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+.time-icon-button .time-icon-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: #711FFF;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.time-icon-button.time-icon-active .time-icon-dot {
+  opacity: 1;
+}
+.time-icon-button.time-icon-active {
+  animation: timePulse 4s cubic-bezier(0.2, 0.0, 0.2, 1) infinite;
+}
+@keyframes timePulse {
+  0% { opacity: 0.95; }
+  50% { opacity: 1; }
+  100% { opacity: 0.95; }
+}
+html:not(.dark) .time-icon-button {
+  background: var(--color-bg-elevated-light, #e2e8f0);
+  border-color: var(--color-border-strong, rgba(148,163,184,0.55));
+  box-shadow: var(--shadow-sm, 0 6px 14px rgba(15,23,42,0.14));
+  color: var(--color-text, #0f172a);
+}
+html:not(.dark) .time-icon-button:hover {
+  background: var(--color-bg-subtle, #f1f5f9);
+  border-color: var(--color-border-strong, rgba(148,163,184,0.65));
+}
+html:not(.dark) .time-icon-button .time-icon-dot {
+  background: var(--color-brand-purple, #711FFF);
+}
+
+.header-icon-glyph-small {
+  width: 14px;
+  height: 14px;
+}
+
+.header-icon-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.header-icon-tooltip-text {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f9fafb;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+  margin-top: 6px;
+  z-index: 50;
+}
+.header-icon-tooltip:hover .header-icon-tooltip-text,
+.header-icon-tooltip:focus-within .header-icon-tooltip-text {
+  opacity: 1;
+}
+
 #app-drawer-backdrop {
   position: fixed; inset: 0; z-index: 40;
   background: rgba(0,0,0,0.5);

@@ -1,7 +1,7 @@
 import { setAuthenticated } from '../router.js';
 
-const logoDark = 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-reverse.svg';
-const logoLight = 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-standard.svg';
+const logoDark = 'public/assets/brand/logos/logo-white.svg';
+const logoLight = 'public/assets/brand/logos/logo-standard.svg';
 
 function authHeader(title, subtitle = '') {
   const isDark = document.documentElement.classList.contains('dark');

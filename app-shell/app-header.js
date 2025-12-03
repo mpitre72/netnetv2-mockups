@@ -2,7 +2,7 @@ import { APP_ICONS, LOGO_ASSETS, TIMER_ICONS } from './app-constants.js';
 
 export function renderTopBar() {
   return `
-    <header id="app-top-bar" class="hidden md:flex bg-netnet-purple items-center gap-4">
+    <header id="app-top-bar" class="hidden md:flex bg-netnet-purple items-center gap-4 px-2">
       <div class="flex items-center h-full flex-shrink-0" style="width: var(--sidebar-width); min-width: var(--sidebar-width);">
         <a href="#/app/me" id="top-bar-logo-link" class="flex items-center h-full px-4">
           <img src="${LOGO_ASSETS.dark.idle}" id="top-bar-logo-img" alt="Net Net" class="h-[30px] w-auto" />
@@ -11,24 +11,32 @@ export function renderTopBar() {
       <div class="hidden lg:flex flex-1 items-center h-full">
         <div id="workspaceTabs" class="flex items-center gap-2 overflow-x-auto scrollbar-none w-full h-full"></div>
       </div>
-      <div class="ml-auto flex items-center gap-4 pr-3">
-        <button id="timerBtn" class="relative inline-flex items-center justify-center h-9 w-9 rounded-full hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-white/40">
-          <img id="timerIcon" alt="Timer" class="h-5 w-5 select-none pointer-events-none" />
-          <span class="flyout-label bg-gray-800 text-white dark:bg-gray-100 dark:text-black">Time</span>
-        </button>
-        <span class="h-5 w-px bg-white/25"></span>
-        <button id="helpBtn" class="relative flex items-center justify-center h-9 w-9 rounded-full text-white/90 hover:text-white hover:bg-white/15" aria-label="Help">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12" y2="17"/></svg>
-          <span class="flyout-label bg-gray-800 text-white dark:bg-gray-100 dark:text-black">Get Help</span>
-        </button>
-        <button id="notifBtn" class="relative flex items-center justify-center h-9 w-9 rounded-full text-white/90 hover:text-white hover:bg-white/15" aria-label="Notifications">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-          <span class="flyout-label bg-gray-800 text-white dark:bg-gray-100 dark:text-black">Notifications</span>
-        </button>
-        <button id="appThemeBtn" type="button" class="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm border-white/25 text-white/90 hover:bg-white/15 hover:text-white">
-          <span class="inline-flex items-center dark:hidden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"></circle><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg><span class="ml-1.5">Light</span></span>
-          <span class="hidden dark:inline-flex items-center"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span class="ml-1.5">Dark</span></span>
-        </button>
+      <div class="flex items-center h-full gap-4 pr-4">
+        <div class="flex items-center h-full">
+          <button id="timerBtn" aria-label="Open time tracking" class="time-icon-button relative inline-flex items-center justify-center h-9 w-9">
+            <img id="timerIcon" alt="Timer" class="h-5 w-5 select-none pointer-events-none" />
+            <span class="time-icon-dot" aria-hidden="true"></span>
+            <span class="flyout-label bg-gray-800 text-white dark:bg-gray-100 dark:text-black">Time</span>
+          </button>
+        </div>
+        <div class="flex items-center gap-3 justify-end pr-3" style="width: var(--sidebar-width); min-width: var(--sidebar-width);">
+          <span class="h-5 w-px bg-white/25"></span>
+          <button id="helpBtn" class="header-icon-button header-icon-button--small relative" aria-label="Help and documentation" title="Help and documentation">
+            <svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 1-1 1.7V14"/><circle cx="12" cy="17" r="1"/></svg>
+            <span class="flyout-label bg-gray-800 text-white dark:bg-gray-100 dark:text-black">Get Help</span>
+          </button>
+          <button id="notifBtn" class="header-icon-button header-icon-button--small relative" aria-label="Notifications" title="Notifications">
+            <svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            <span class="flyout-label bg-gray-800 text-white dark:bg-gray-100 dark:text-black">Notifications</span>
+          </button>
+          <div class="header-icon-tooltip">
+            <button id="appThemeBtn" type="button" class="header-icon-button header-icon-button--small" aria-label="Toggle light and dark theme">
+              <span class="inline-flex items-center dark:hidden"><svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"></circle><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></span>
+              <span class="hidden dark:inline-flex items-center"><svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+            </button>
+            <span class="header-icon-tooltip-text">Toggle light and dark theme</span>
+          </div>
+        </div>
       </div>
     </header>
   `;
@@ -50,10 +58,13 @@ export function wireAppTimer() {
   let running = !!(JSON.parse(localStorage.getItem(key)));
   const touch = window.matchMedia && window.matchMedia('(hover:none)').matches;
   function paint(active) {
-    const useActive = touch ? true : !!active;
+    const useActive = touch ? true : !active; // inverted visual mapping
     const url = useActive ? TIMER_ICONS.active : TIMER_ICONS.idle;
     if (img && img.getAttribute('src') !== url) img.setAttribute('src', url);
     if (mImg) mImg.setAttribute('src', TIMER_ICONS.active);
+    if (button) {
+      button.classList.toggle('time-icon-active', useActive);
+    }
   }
   paint(running);
   const toggle = () => {

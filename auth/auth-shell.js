@@ -2,8 +2,8 @@ import { setTheme, getTheme, __isDark } from '../app-shell/app-helpers.js';
 import { navigate } from '../router.js';
 import { setAuthenticated } from '../router.js';
 
-const LOGO_LIGHT = 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-standard.svg';
-const LOGO_DARK = 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-reverse.svg';
+const LOGO_LIGHT = 'public/assets/brand/logos/logo-standard.svg';
+const LOGO_DARK = 'public/assets/brand/logos/logo-white.svg';
 const LOGIN_SUCCESS_ROUTE = '#/app/me/tasks';
 
 function authLogoSrc() {

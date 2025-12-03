@@ -62,6 +62,12 @@ function showToast(msg) {
 
 let currentShell = null;
 
+function unmountCheatSheet() {
+  if (typeof window !== 'undefined' && window.unmountComponentsCheatSheetReactView) {
+    window.unmountComponentsCheatSheetReactView();
+  }
+}
+
 function ensureShell(type, hash) {
   const rootHash = hash || location.hash || '#/app/me/tasks';
   if (type === currentShell) {
@@ -79,6 +85,7 @@ function ensureShell(type, hash) {
 function renderRoute(route) {
   const isAuthRoute = route.name.startsWith('auth');
   if (isAuthRoute) {
+    unmountCheatSheet();
     ensureShell('auth', location.hash);
     renderAuthScreen(route.name);
     return;
@@ -88,6 +95,14 @@ function renderRoute(route) {
   applyMainWrapperClass(location.hash || '#/app/me/tasks');
   const main = document.getElementById('app-main');
   if (!main) return;
+  if (route.name === 'components') {
+    main.innerHTML = '<div id="components-cheat-sheet-root" class="w-full"></div>';
+    if (typeof window !== 'undefined' && window.renderComponentsCheatSheetReactView) {
+      window.renderComponentsCheatSheetReactView();
+    }
+    return;
+  }
+  unmountCheatSheet();
   if (route.name === 'company' || route.name === 'person') {
     main.innerHTML = `<div id="profile-container" class="h-full overflow-y-auto"></div>`;
     renderContactProfile(route.name, route.id, { container: document.getElementById('profile-container') });
@@ -146,6 +161,7 @@ function mountApp() {
     quick: () => renderRoute({ name: 'quick' }),
     chat: () => renderRoute({ name: 'chat' }),
     reports: () => renderRoute({ name: 'reports' }),
+    components: () => renderRoute({ name: 'components' }),
     settings: () => renderRoute({ name: 'settings' }),
     profilePage: () => renderRoute({ name: 'profile' }),
     nnu: () => renderRoute({ name: 'nnu' }),

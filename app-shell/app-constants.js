@@ -6,25 +6,25 @@ export const APP_ICONS = {
 };
 
 export const ICONS = {
-  me: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Me-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Me-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Me-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Me-Active-white.svg' } },
-  contacts: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Contacts-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Contacts-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Contacts-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Contacts-Active-white.svg' } },
-  sales: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Sales-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Sales-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Sales-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Sales-Active-white.svg' } },
-  jobs: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Jobs-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Jobs-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Jobs-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Jobs-Active-white.svg' } },
-  quick: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/QuickTasks-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/QuickTasks-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/QuickTasks-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/QuickTasks-Active-white.svg' } },
-  chat: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Active-white.svg' } },
-  reports: { light:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Active.svg' }, dark:   { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Active.svg' } },
-  nnu: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/NNU-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/NNU-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/NNU-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/NNU-Active-white.svg' } },
-  bot: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/AI-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/AI-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/AI-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/AI-Active-white.svg' } }
+  me: { light: { idle: 'public/assets/brand/nav/Me-Idle.svg', active: 'public/assets/brand/nav/Me-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Me-Idle-white.svg', active: 'public/assets/brand/nav/Me-Active-white.svg' } },
+  contacts: { light: { idle: 'public/assets/brand/nav/Contacts-Idle.svg', active: 'public/assets/brand/nav/Contacts-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Contacts-Idle-white.svg', active: 'public/assets/brand/nav/Contacts-Active-white.svg' } },
+  sales: { light: { idle: 'public/assets/brand/nav/Sales-Idle.svg', active: 'public/assets/brand/nav/Sales-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Sales-Idle-white.svg', active: 'public/assets/brand/nav/Sales-Active-white.svg' } },
+  jobs: { light: { idle: 'public/assets/brand/nav/Jobs-Idle.svg', active: 'public/assets/brand/nav/Jobs-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Jobs-Idle-white.svg', active: 'public/assets/brand/nav/Jobs-Active-white.svg' } },
+  quick: { light: { idle: 'public/assets/brand/nav/QuickTasks-Idle.svg', active: 'public/assets/brand/nav/QuickTasks-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/QuickTasks-Idle-white.svg', active: 'public/assets/brand/nav/QuickTasks-Active-white.svg' } },
+  chat: { light: { idle: 'public/assets/brand/nav/Chat-Idle.svg', active: 'public/assets/brand/nav/Chat-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Chat-Idle-white.svg', active: 'public/assets/brand/nav/Chat-Active-white.svg' } },
+  reports: { light:  { idle: 'public/assets/brand/nav/Reports-Idle.svg', active: 'public/assets/brand/nav/Reports-Active.svg' }, dark:   { idle: 'public/assets/brand/nav/Reports-Idle-white.svg', active: 'public/assets/brand/nav/Reports-Active-white.svg' } },
+  nnu: { light: { idle: 'public/assets/brand/nav/NNU-Idle.svg', active: 'public/assets/brand/nav/NNU-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/NNU-Idle-white.svg', active: 'public/assets/brand/nav/NNU-Active-white.svg' } },
+  bot: { light: { idle: 'public/assets/brand/nav/AI-Idle.svg', active: 'public/assets/brand/nav/AI-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/AI-Idle-white.svg', active: 'public/assets/brand/nav/AI-Active-white.svg' } }
 };
 
 export const LOGO_ASSETS = {
-  dark: { idle: 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-outline.svg' },
-  light: { idle: 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-standard.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/logo-outline-black.svg' }
+  dark: { idle: 'public/assets/brand/logos/logo-white.svg', active: 'public/assets/brand/logos/logo-white.svg' },
+  light: { idle: 'public/assets/brand/logos/logo-standard.svg', active: 'public/assets/brand/logos/logo-standard.svg' }
 };
 
 export const TIMER_ICONS = {
-  idle:  'https://hellonetnet.com/wp-content/uploads/2025/11/Time-Idle-white.svg',
-  active:'https://hellonetnet.com/wp-content/uploads/2025/11/Time-Active-white.svg'
+  idle:  'public/assets/brand/chrome/Time-Idle-white.svg',
+  active:'public/assets/brand/chrome/Time-Active-white.svg'
 };
 
 export const SIDEBAR_LINKS = [
@@ -49,10 +49,16 @@ export const SIDEBAR_LINKS = [
 ];
 
 export const WORKSPACES = [
-  { id: 'netnet', name: 'Net Net', icon: 'https://hellonetnet.com/wp-content/uploads/2024/06/Net-Net-Symbol.svg' },
-  { id: 'fathom', name: 'Fathom', icon: 'https://hellonetnet.com/wp-content/uploads/2025/11/Fathom-Symbol-Blue-square.svg' },
-  { id: 'rhi', name: 'Right Here Interactive', icon: 'https://hellonetnet.com/wp-content/uploads/2025/11/Favicon-Red.svg' }
+  { id: 'netnet', name: 'Net Net', icon: 'public/assets/samples/Net-Net-Symbol.svg' },
+  { id: 'fathom', name: 'Fathom', icon: 'public/assets/samples/Fathom-Symbol-Blue-square.svg' },
+  { id: 'rhi', name: 'Right Here Interactive', icon: 'public/assets/samples/Favicon-Red.svg' }
 ];
+
+export const WORKSPACE_SAMPLE_ICONS = {
+  netnet: 'public/assets/samples/Net-Net-Symbol.svg',
+  fathom: 'public/assets/samples/Fathom-Symbol-Blue-square.svg',
+  rhi: 'public/assets/samples/Favicon-Red.svg',
+};
 
 export const WORKSPACE_KEY = 'activeWorkspace';
 export const THEME_KEY = 'theme';

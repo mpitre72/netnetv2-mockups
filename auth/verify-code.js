@@ -4,7 +4,7 @@ export function renderVerifyCode(container = document.getElementById('app-main')
     <div class="relative z-10">
       <div class="w-full flex flex-col items-center px-4 sm:px-6 py-12 relative">
         <div class="w-full flex justify-center mb-6">
-          <img class="auth-logo block" src="https://hellonetnet.com/wp-content/uploads/2024/12/logo-standard.svg" alt="Net Net" style="width:clamp(120px,33%,160px);height:auto;">
+          <img class="auth-logo block" src="public/assets/brand/logos/logo-standard.svg" alt="Net Net" style="width:clamp(120px,33%,160px);height:auto;">
         </div>
         <h1 class="text-4xl font-semibold text-gray-900 dark:text-white">Check your email</h1>
         <p class="mt-2 text-sm text-gray-600 dark:text-white/70">Enter the 4-digit code we sent.</p>

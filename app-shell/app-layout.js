@@ -127,6 +127,7 @@ export function applyMainWrapperClass(hash) {
 
   const h = hash || '#/app/me/tasks';
 
+  const isComponents = h.startsWith('#/app/components');
   const isReportsOrTable =
     h.startsWith('#/app/reports') ||
     h.startsWith('#/app/contacts') ||
@@ -140,7 +141,9 @@ export function applyMainWrapperClass(hash) {
     h.startsWith('#/app/contacts/company/') ||
     h.startsWith('#/app/contacts/person/');
 
-  const base = isReportsOrTable
+  const base = isComponents
+    ? 'p-4 sm:p-6 lg:p-8 overflow-y-auto bg-white dark:bg-gray-900'
+    : isReportsOrTable
     ? 'p-4 sm:p-6 lg:p-8 overflow-hidden bg-white dark:bg-gray-900'
     : 'p-4 sm:p-6 lg:p-8 flex items-center justify-center';
 
@@ -285,6 +288,7 @@ function initMobileWorkspaceSwitcher() {
 export function wireAppShell(hash) {
   const appThemeBtn = document.getElementById('appThemeBtn');
   if (appThemeBtn) {
+    appThemeBtn.removeAttribute('title');
     appThemeBtn.onclick = () => {
       const isDark = __isDark();
       const next = isDark ? 'light' : 'dark';
@@ -334,10 +338,13 @@ function refreshDynamicIcons() {
     if (src && reportsIcon.getAttribute('src') !== src) reportsIcon.setAttribute('src', src);
   }
   const ti = document.getElementById('timerIcon');
+  const tb = document.getElementById('timerBtn');
   if (ti) {
     const active = !!JSON.parse(localStorage.getItem('timerActive') || 'false');
     const touch = window.matchMedia && window.matchMedia('(hover:none)').matches;
-    ti.src = (touch || active) ? TIMER_ICONS.active : TIMER_ICONS.idle;
+    const showActiveVisual = touch || !active; // inverted mapping
+    ti.src = showActiveVisual ? TIMER_ICONS.active : TIMER_ICONS.idle;
+    if (tb) tb.classList.toggle('time-icon-active', showActiveVisual);
   }
 }
 
