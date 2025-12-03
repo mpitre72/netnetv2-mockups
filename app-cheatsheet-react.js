@@ -38,7 +38,8 @@ function NavIcon({ section = 'me', mode = 'light', active = false, size = 'md' }
 }
 
 function SocialIcon({ network, mode = 'light' }) {
-  const src = socialIcons[network]?.[mode] || socialIcons.website?.[mode];
+  const lightSrc = socialIcons[network]?.light || socialIcons.website?.light;
+  const darkSrc = socialIcons[network]?.dark || socialIcons.website?.dark || lightSrc;
   const labelMap = {
     linkedin: 'LinkedIn',
     x: 'X',
@@ -63,7 +64,19 @@ function SocialIcon({ network, mode = 'light' }) {
       h(
         'button',
         { type: 'button', className: 'nn-btn nn-btn--social', 'aria-label': `${network} icon` },
-        h('img', { src, alt: `${network} icon`, className: 'h-5 w-5 object-contain' })
+        [
+          h(
+            'span',
+            { className: 'inline-flex dark:hidden' },
+            h('img', { src: lightSrc, alt: `${network} icon`, className: 'h-5 w-5 object-contain' })
+          ),
+          h(
+            'span',
+            { className: 'hidden dark:inline-flex' },
+            // Dark glyph: ensure explicitly white via separate source
+            h('img', { src: darkSrc, alt: `${network} icon dark`, className: 'h-5 w-5 object-contain' })
+          ),
+        ]
       ),
       h('span', { className: 'text-[11px] text-slate-500 dark:text-slate-300' }, label),
     ]
@@ -235,33 +248,36 @@ function SocialIconsRow() {
     {
       key: 'website',
       label: 'Website',
-      svg: h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-        h('circle', { cx: '12', cy: '12', r: '9' }),
-        h('path', { d: 'M3 12h18' }),
-        h('path', { d: 'M12 3a15 15 0 0 1 0 18' }),
-        h('path', { d: 'M12 3a15 15 0 0 0 0 18' }),
-      ]),
+      build: (strokeColor = 'currentColor') =>
+        h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: strokeColor, strokeWidth: '1.8' }, [
+          h('circle', { cx: '12', cy: '12', r: '9' }),
+          h('path', { d: 'M3 12h18' }),
+          h('path', { d: 'M12 3a15 15 0 0 1 0 18' }),
+          h('path', { d: 'M12 3a15 15 0 0 0 0 18' }),
+        ]),
     },
     {
       key: 'personalWebsite',
       label: 'Personal Website',
-      svg: h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-        h('circle', { cx: '9', cy: '8', r: '3' }),
-        h('path', { d: 'M3 20c0-3 2.5-5 6-5' }),
-        h('circle', { cx: '17', cy: '12', r: '3' }),
-        h('path', { d: 'M17 9v-2' }),
-        h('path', { d: 'M17 21v-2' }),
-        h('path', { d: 'M14 12h-2' }),
-        h('path', { d: 'M22 12h-2' }),
-      ]),
+      build: (strokeColor = 'currentColor') =>
+        h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: strokeColor, strokeWidth: '1.8' }, [
+          h('circle', { cx: '9', cy: '8', r: '3' }),
+          h('path', { d: 'M3 20c0-3 2.5-5 6-5' }),
+          h('circle', { cx: '17', cy: '12', r: '3' }),
+          h('path', { d: 'M17 9v-2' }),
+          h('path', { d: 'M17 21v-2' }),
+          h('path', { d: 'M14 12h-2' }),
+          h('path', { d: 'M22 12h-2' }),
+        ]),
     },
     {
       key: 'email',
       label: 'Email',
-      svg: h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-        h('rect', { x: '3', y: '5', width: '18', height: '14', rx: '2' }),
-        h('path', { d: 'M3 7l9 6 9-6' }),
-      ]),
+      build: (strokeColor = 'currentColor') =>
+        h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: strokeColor, strokeWidth: '1.8' }, [
+          h('rect', { x: '3', y: '5', width: '18', height: '14', rx: '2' }),
+          h('path', { d: 'M3 7l9 6 9-6' }),
+        ]),
     },
   ];
   return h(
@@ -290,7 +306,18 @@ function SocialIconsRow() {
                   h(
                     'button',
                     { type: 'button', className: 'nn-btn nn-btn--social', 'aria-label': item.label },
-                    item.svg
+                    [
+                      h(
+                        'span',
+                        { className: 'inline-flex dark:hidden' },
+                        item.build()
+                      ),
+                      h(
+                        'span',
+                        { className: 'hidden dark:inline-flex' },
+                        item.build('#ffffff')
+                      ),
+                    ]
                   ),
                   h('span', { className: 'icon-label' }, item.label),
                 ]

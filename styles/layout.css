@@ -611,6 +611,7 @@ html.dark .social-icon-container img {
   width: 24px;
   height: 24px;
   padding: 0;
+  border-radius: 7px !important;
 }
 
 .nn-btn--mini {
@@ -671,6 +672,22 @@ html.dark .nn-btn.nn-btn--social svg,
 html.dark .nn-btn.nn-btn--social svg * {
   fill: #ffffff !important;
   stroke: #ffffff !important;
+}
+
+/* FINAL WHITE GLYPH OVERRIDE FOR SOCIAL ICONS */
+html.dark .nn-btn.nn-btn--social {
+  color: #ffffff !important;
+}
+
+html.dark .nn-btn.nn-btn--social svg,
+html.dark .nn-btn.nn-btn--social svg *,
+html.dark .nn-btn.nn-btn--social img {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+  --tw-text-opacity: 1 !important;
+  --tw-fill-opacity: 1 !important;
+  --tw-stroke-opacity: 1 !important;
 }
 
 /* Dark theme - reuse header icon behavior */
