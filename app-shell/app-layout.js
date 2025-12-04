@@ -306,11 +306,7 @@ export function wireAppShell(hash) {
   const cheatSheetBtn = document.getElementById('settingsCheatSheetBtn');
   if (cheatSheetBtn) {
     cheatSheetBtn.onclick = () => {
-      if (window.navigate) {
-        window.navigate('#/app/components');
-      } else {
-        location.hash = '#/app/components';
-      }
+      location.hash = '#/app/components';
     };
   }
   const logoutBtn = document.getElementById('logout-btn');
@@ -321,6 +317,10 @@ export function wireAppShell(hash) {
       setAuthenticated(false);
       navigate('#/auth/login');
     });
+  }
+  const profileBtn = document.getElementById('sidebarProfileBtn');
+  if (profileBtn) {
+    profileBtn.onclick = () => { location.hash = '#/app/profile'; };
   }
   const notifBtn = document.getElementById('notifBtn');
   if (notifBtn) {

@@ -2,11 +2,15 @@ import { APP_ICONS, ICONS, SIDEBAR_LINKS } from './app-constants.js';
 import { __isDark, __isMeActive, __norm, __paint } from './app-helpers.js';
 
 export function renderSidebar(hash) {
+  const order = ['me', 'bot', 'contacts', 'sales', 'jobs', 'quick', 'chat', 'reports', 'nnu'];
+  const orderedLinks = order
+    .map(key => SIDEBAR_LINKS.find(item => item.key === key))
+    .filter(Boolean);
   return `
     <aside id="app-sidebar" class="hidden md:flex bg-[#0F172A] dark:bg-[#0F172A] flex-col justify-between p-2 overflow-hidden">
-      <div class="flex-1 overflow-y-auto pr-1">
-        <nav class="space-y-2">
-          ${SIDEBAR_LINKS.map(item => {
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <nav id="sidebar-sections" class="space-y-2 overflow-y-auto pr-1">
+          ${orderedLinks.map(item => {
             const iconSet = ICONS[item.key];
             if (!iconSet) return '';
             const imgClass = item.key === 'me' ? 'h-5 w-5' : 'h-6 w-6';
@@ -24,23 +28,12 @@ export function renderSidebar(hash) {
             </div>`;
           }).join('')}
         </nav>
-        <nav class="space-y-2 mt-4">
-          <a href="#/app/settings" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-800">
-            <span class="flex-shrink-0">${APP_ICONS.settings}</span>
-            <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">Settings</span>
-          </a>
-        </nav>
       </div>
-      <div class="mt-4 flex flex-col gap-2">
-        <div class="user-profile-bar flex items-center gap-3 rounded-lg px-3 py-2 bg-slate-900/80 border border-slate-700">
-          <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-200 text-sm font-semibold">
-            MP
-          </div>
-          <div class="flex flex-col">
-            <span class="text-sm font-semibold text-slate-100">Marc Pitre</span>
-            <span class="text-xs text-slate-400">Owner</span>
-          </div>
-        </div>
+      <div id="sidebar-functions" class="mt-4 flex flex-col gap-2">
+        <a href="#/app/settings" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-800">
+          <span class="flex-shrink-0">${APP_ICONS.settings}</span>
+          <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">Settings</span>
+        </a>
         <button id="workspaceSwitcherButton" type="button" class="relative flex items-center justify-center lg:justify-start lg:px-4 h-12 w-12 lg:w-auto rounded-lg text-gray-600 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-800 w-full transition-colors">
           <img id="workspaceSwitcherIcon" src="" alt="Workspace" class="h-6 w-6 flex-shrink-0 rounded-full object-contain"/>
           <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">Workspace</span>
@@ -49,6 +42,17 @@ export function renderSidebar(hash) {
           <span class="flex-shrink-0">${APP_ICONS.logout}</span>
           <span class="flyout-label lg:ml-3 bg-gray-800 text-white dark:bg-gray-100 dark:text-black lg:bg-transparent lg:text-gray-700 lg:dark:text-gray-200 lg:static lg:opacity-100 lg:transform-none lg:p-0 lg:pointer-events-auto">Log out</span>
         </a>
+        <button
+          type="button"
+          id="sidebarProfileBtn"
+          class="user-profile-bar flex items-center gap-3 rounded-lg px-3 py-2 bg-slate-900/80 border border-slate-700 hover:bg-slate-800 hover:border-slate-500 text-left w-full"
+        >
+          <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-200 text-sm font-semibold">MP</div>
+          <div class="flex flex-col">
+            <span class="text-sm font-semibold text-slate-100">Marc Pitre</span>
+            <span class="text-xs text-slate-400">Owner</span>
+          </div>
+        </button>
       </div>
     </aside>
   `;
