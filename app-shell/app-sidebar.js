@@ -14,10 +14,10 @@ export function renderSidebar(hash) {
             const iconSet = ICONS[item.key];
             if (!iconSet) return '';
             const imgClass = item.key === 'me' ? 'h-5 w-5' : 'h-6 w-6';
-            const isActive = item.path === hash || (item.key === 'me' && hash.startsWith('#/app/me'));
+            const isActive = (item.key === 'me' && hash.startsWith('#/app/me')) || (item.key !== 'me' && hash.startsWith(item.path));
             const subMenu = (item.subs && isActive) ? `
             <div class="mt-1 ml-4 flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-              ${item.subs.map(sub => `<a href="${sub.path}" class="flex items-center gap-2 hover:text-slate-900 dark:hover:text-white p-1 pl-2 rounded transition-colors ${hash.startsWith(sub.path) ? 'text-netnet-purple font-medium dark:text-white' : ''}"><span>${sub.name}</span></a>`).join('')}
+              ${item.subs.map(sub => `<a href="${sub.path}" class="block rounded px-2 py-1 hover:bg-slate-800/60 hover:text-white ${hash.startsWith(sub.path) ? 'text-white' : ''}"><span>${sub.name}</span></a>`).join('')}
             </div>` : '';
             return `
             <div class="flex flex-col">

@@ -17,4 +17,17 @@ export function renderSettingsPage(container = document.getElementById('app-main
       </section>
     </div>
   `;
+
+  // Wire buttons locally (Settings renders after shell mount)
+  const cheatSheetBtn = document.getElementById('settingsCheatSheetBtn');
+  if (cheatSheetBtn) {
+    cheatSheetBtn.onclick = () => { location.hash = '#/app/components'; };
+  }
+  const openDrawerBtn = document.getElementById('openDrawerBtn');
+  if (openDrawerBtn) {
+    openDrawerBtn.onclick = () => {
+      const shell = document.getElementById('app-shell');
+      if (shell) shell.classList.remove('drawer-closed');
+    };
+  }
 }
