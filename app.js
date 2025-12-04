@@ -141,9 +141,7 @@ function mountApp() {
   ensureToast();
   window.navigate = navigate;
   window.showToast = showToast;
-  const initialHash = (location.hash && location.hash !== '#')
-    ? location.hash
-    : '#/auth/login';
+  const initialHash = '#/auth/login';
   if (initialHash.startsWith('#/auth')) {
     mountAuthShell();
     currentShell = 'auth';

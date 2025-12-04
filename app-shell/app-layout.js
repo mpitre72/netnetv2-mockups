@@ -142,9 +142,9 @@ export function applyMainWrapperClass(hash) {
     h.startsWith('#/app/contacts/person/');
 
   const base = isComponents
-    ? 'p-4 sm:p-6 lg:p-8 overflow-y-auto bg-white dark:bg-gray-900'
+    ? 'p-4 sm:p-6 lg:p-8 overflow-y-auto'
     : isReportsOrTable
-    ? 'p-4 sm:p-6 lg:p-8 overflow-hidden bg-white dark:bg-gray-900'
+    ? 'p-4 sm:p-6 lg:p-8 overflow-hidden'
     : 'p-4 sm:p-6 lg:p-8 flex items-center justify-center';
 
   main.className = base;
@@ -301,6 +301,16 @@ export function wireAppShell(hash) {
     openDrawerBtn.onclick = () => {
       const shell = document.getElementById('app-shell');
       if (shell) shell.classList.remove('drawer-closed');
+    };
+  }
+  const cheatSheetBtn = document.getElementById('settingsCheatSheetBtn');
+  if (cheatSheetBtn) {
+    cheatSheetBtn.onclick = () => {
+      if (window.navigate) {
+        window.navigate('#/app/components');
+      } else {
+        location.hash = '#/app/components';
+      }
     };
   }
   const logoutBtn = document.getElementById('logout-btn');

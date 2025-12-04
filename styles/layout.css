@@ -18,6 +18,11 @@
   overflow-y: auto;
   padding-top: 56px;
   padding-bottom: 80px;
+  background-color: var(--color-bg-app-light, #F9FAFB);
+}
+
+html.dark #app-main {
+  background-color: var(--color-bg-app, #020617);
 }
 
 @media (min-width: 768px) {
@@ -655,6 +660,10 @@ html.dark .social-icon-container img {
 .icon-label {
   font-size: 11px;
   color: #6b7280;
+}
+
+.user-profile-bar {
+  backdrop-filter: blur(4px);
 }
 
 html.dark .icon-label {

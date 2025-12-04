@@ -52,25 +52,32 @@ export function wireAppTimer() {
   const key = 'timerActive';
   let running = !!(JSON.parse(localStorage.getItem(key)));
   const touch = window.matchMedia && window.matchMedia('(hover:none)').matches;
-  function paint(active) {
-    const useActive = touch ? true : !active; // inverted visual mapping
-    const url = useActive ? TIMER_ICONS.active : TIMER_ICONS.idle;
+  function setVisualState(isActiveVisual) {
+    const url = isActiveVisual ? TIMER_ICONS.active : TIMER_ICONS.idle;
     if (img && img.getAttribute('src') !== url) img.setAttribute('src', url);
-    if (mImg) mImg.setAttribute('src', TIMER_ICONS.active);
+    if (mImg) mImg.setAttribute('src', TIMER_ICONS.active); // mobile stays active visual
     if (button) {
-      button.classList.toggle('time-icon-active', useActive);
+      button.classList.toggle('time-icon-active', isActiveVisual);
     }
   }
-  paint(running);
+
+  // Initial paint: touch devices always show active; desktop reflects running state
+  setVisualState(touch || running);
+
   const toggle = () => {
     running = !running;
-    localStorage.setItem(key, JSON.stringify(running));
-    paint(running);
+    try {
+      localStorage.setItem(key, JSON.stringify(running));
+    } catch (e) {
+      // ignore storage errors in prototype
+    }
+    setVisualState(touch || running);
   };
   if (button) {
     if (!touch) {
-      button.onmouseenter = () => paint(true);
-      button.onmouseleave = () => paint(running);
+      // Hover shows active visual, leave restores to running state
+      button.onmouseenter = () => setVisualState(true);
+      button.onmouseleave = () => setVisualState(running);
     } else {
       button.onmouseenter = button.onmouseleave = null;
     }

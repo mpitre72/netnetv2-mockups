@@ -11,6 +11,7 @@ export function renderSettingsPage(container = document.getElementById('app-main
           <p class="mt-2 text-sm md:text-base text-slate-600 dark:text-slate-300">General/team/templates/work-types/billing settings will appear here.</p>
           <div class="mt-6 flex items-center justify-center gap-3">
             <button type="button" id="openDrawerBtn" class="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Open Context Panel</button>
+            <button type="button" id="settingsCheatSheetBtn" class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 text-slate-100 px-4 py-2 text-sm font-medium hover:bg-slate-800 hover:text-white">Cheat Sheet</button>
           </div>
         </div>
       </section>
