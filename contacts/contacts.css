@@ -77,10 +77,21 @@ html.dark .lookup-menu {
   background: rgba(31, 41, 55, 0.68);
 }
 
+:root {
+  --contacts-company-sticky-top: 48px;
+  --contacts-company-row-height: 56px;
+}
+
+.contacts-company-row {
+  position: sticky;
+  top: var(--contacts-company-sticky-top, 48px);
+  z-index: 9;
+}
+
 .contacts-employee-header-row {
   position: sticky;
-  top: var(--contacts-employee-header-top, 40px);
-  z-index: 9;
+  top: calc(var(--contacts-company-sticky-top, 48px) + var(--contacts-company-row-height, 56px));
+  z-index: 8;
   background: inherit;
   margin-top: 0;
   border-top: 0;

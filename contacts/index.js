@@ -184,7 +184,7 @@ function renderTable(state, scope) {
 
       const compRow = document.createElement('tr');
       compRow.className =
-        "contacts-row " + baseRowBg + " border-b border-gray-100 dark:border-gray-700 " +
+        "contacts-row contacts-company-row " + baseRowBg + " border-b border-gray-100 dark:border-gray-700 " +
         "transition-colors cursor-pointer group";
       compRow.onclick = (e) => {
         if (e.target.closest && e.target.closest('a')) return;
