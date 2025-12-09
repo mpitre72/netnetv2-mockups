@@ -31,21 +31,22 @@ export const SIDEBAR_LINKS = [
   { 
     name: 'Me', 
     path: '#/app/me/tasks', 
+    basePath: '#/app/me',
     key: 'me',
     subs: [
-        { name: 'My Tasks', path: '#/app/me/tasks' },
-        { name: 'My Time', path: '#/app/me/time' },
-        { name: 'My Performance', path: '#/app/me/performance' },
+        { key: 'me-tasks', name: 'My Tasks', path: '#/app/me/tasks' },
+        { key: 'me-time', name: 'My Time', path: '#/app/me/time' },
+        { key: 'me-performance', name: 'My Performance', path: '#/app/me/performance' },
     ]
   },
-  { name: 'Net Net Bot', path: '#/app/net-net-bot', key: 'bot' },
-  { name: 'Contacts', path: '#/app/contacts', key: 'contacts' },
-  { name: 'Sales', path: '#/app/sales', key: 'sales' },
-  { name: 'Jobs', path: '#/app/jobs', key: 'jobs' },
-  { name: 'Quick Tasks', path: '#/app/quick-tasks', key: 'quick' },
-  { name: 'Chat', path: '#/app/chat', key: 'chat' },
-  { name: 'Reports', path: '#/app/reports', key: 'reports' },
-  { name: 'Net Net U', path: '#/app/net-net-u', key: 'nnu' },
+  { name: 'Net Net Bot', path: '#/app/net-net-bot', basePath: '#/app/net-net-bot', key: 'bot' },
+  { name: 'Contacts', path: '#/app/contacts', basePath: '#/app/contacts', key: 'contacts' },
+  { name: 'Sales', path: '#/app/sales', basePath: '#/app/sales', key: 'sales' },
+  { name: 'Jobs', path: '#/app/jobs', basePath: '#/app/jobs', key: 'jobs' },
+  { name: 'Quick Tasks', path: '#/app/quick-tasks', basePath: '#/app/quick-tasks', key: 'quick' },
+  { name: 'Chat', path: '#/app/chat', basePath: '#/app/chat', key: 'chat' },
+  { name: 'Reports', path: '#/app/reports', basePath: '#/app/reports', key: 'reports' },
+  { name: 'Net Net U', path: '#/app/net-net-u', basePath: '#/app/net-net-u', key: 'nnu' },
 ];
 
 export const WORKSPACES = [

@@ -6,8 +6,15 @@ export function renderContactsLayout(data = [], subview = 'companies') {
   return `
     <div class="flex flex-col h-full relative bg-[var(--color-bg-app,#020617)]">
       <div class="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md px-4 pt-2 pb-3 md:sticky md:top-0 md:z-20 md:bg-white/70 md:dark:bg-gray-900/80 md:pt-3 md:pb-2 md:backdrop-blur-md">
-        <div class="flex flex-col md:flex-row items-center gap-3">
-          <div class="flex-1 w-full" id="contacts-search-mount"></div>
+        <div class="flex flex-col md:flex-row items-center gap-3 w-full">
+          <div class="flex items-center gap-2 w-full">
+            <button id="contacts-expand-toggle" type="button" class="new-action-icon" aria-label="Expand all" title="Expand all">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <div class="flex-1" id="contacts-search-mount"></div>
+          </div>
           <div class="hidden md:flex items-center gap-2 text-slate-500 dark:text-slate-300">
             <button
               onclick="navigate('#/app/contacts/companies/new')"

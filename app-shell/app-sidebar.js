@@ -1,5 +1,12 @@
 import { APP_ICONS, ICONS, SIDEBAR_LINKS } from './app-constants.js';
-import { __isDark, __isMeActive, __norm, __paint } from './app-helpers.js';
+import { __norm, __paint } from './app-helpers.js';
+
+function isSectionActive(hash, item) {
+  const normalizedHash = __norm(hash || '#/app');
+  const base = __norm(item?.basePath || item?.path || '');
+  if (!base) return false;
+  return normalizedHash.startsWith(base);
+}
 
 export function renderSidebar(hash) {
   const order = ['me', 'bot', 'contacts', 'sales', 'jobs', 'quick', 'chat', 'reports', 'nnu'];
@@ -14,10 +21,17 @@ export function renderSidebar(hash) {
             const iconSet = ICONS[item.key];
             if (!iconSet) return '';
             const imgClass = item.key === 'me' ? 'h-5 w-5' : 'h-6 w-6';
-            const isActive = (item.key === 'me' && hash.startsWith('#/app/me')) || (item.key !== 'me' && hash.startsWith(item.path));
-            const subMenu = (item.subs && isActive) ? `
+            const active = isSectionActive(hash, item);
+            const subMenu = (item.subs && active) ? `
             <div class="mt-1 ml-4 flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300">
-              ${item.subs.map(sub => `<a href="${sub.path}" class="block rounded px-2 py-1 hover:bg-slate-800/60 hover:text-white ${hash.startsWith(sub.path) ? 'text-white' : ''}"><span>${sub.name}</span></a>`).join('')}
+              ${item.subs.map(sub => {
+                const subActive = __norm(hash || '#/app').startsWith(__norm(sub.path || ''));
+                const subClasses = [
+                  'block rounded px-2 py-1 hover:bg-slate-800/60 hover:text-white',
+                  subActive ? 'text-white bg-slate-800/60' : '',
+                ].join(' ');
+                return `<a href="${sub.path}" class="${subClasses}"><span>${sub.name}</span></a>`;
+              }).join('')}
             </div>` : '';
             return `
             <div class="flex flex-col">
@@ -61,19 +75,21 @@ export function renderSidebar(hash) {
 export function wireSidebarIcons() {
   const canHover = matchMedia && matchMedia('(hover:hover)').matches;
   const hash = __norm(location.hash || '#/app');
+  const linkMap = Object.fromEntries(SIDEBAR_LINKS.map(item => [item.key, item]));
   document.querySelectorAll('nav a[href^="#/app"]').forEach(a => {
     const img = a.querySelector('img[data-icon]');
     if (!img) return;
     const href  = __norm(a.getAttribute('href') || '');
     const key   = (img.getAttribute('data-icon') || '').toLowerCase().trim();
-    const isActive = (key === 'me') ? __isMeActive(hash) : (hash === href || hash.startsWith(href + '/'));
+    const item = linkMap[key];
+    const isActive = item ? isSectionActive(hash, item) : (hash === href || hash.startsWith(href + '/'));
     __paint(img, isActive);
     a.onmouseenter = a.onmouseleave = a.onfocus = a.onblur = null;
     if (canHover) {
       a.onmouseenter = () => __paint(img, true);
       a.onmouseleave = () => {
         const now = __norm(location.hash || '#/app');
-        const activeNow = (key === 'me') ? __isMeActive(now) : (now === href || now.startsWith(href + '/'));
+        const activeNow = item ? isSectionActive(now, item) : (now === href || now.startsWith(href + '/'));
         __paint(img, activeNow);
       };
       a.onfocus = a.onmouseenter;

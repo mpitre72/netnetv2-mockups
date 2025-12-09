@@ -41,7 +41,7 @@ html.dark #app-main {
     grid-area: main;
     overflow-y: auto;
     padding-top: 0 !important;
-    padding-bottom: 0 !important;
+    padding-bottom: 3.5rem !important;
   }
 }
 
@@ -683,20 +683,10 @@ html.dark .nn-btn.nn-btn--social svg * {
   stroke: #ffffff !important;
 }
 
-/* FINAL WHITE GLYPH OVERRIDE FOR SOCIAL ICONS */
-html.dark .nn-btn.nn-btn--social {
-  color: #ffffff !important;
-}
-
-html.dark .nn-btn.nn-btn--social svg,
-html.dark .nn-btn.nn-btn--social svg *,
+/* GLYPH OVERRIDE FOR SOCIAL ICONS */
 html.dark .nn-btn.nn-btn--social img {
-  color: #ffffff !important;
-  fill: #ffffff !important;
-  stroke: #ffffff !important;
-  --tw-text-opacity: 1 !important;
-  --tw-fill-opacity: 1 !important;
-  --tw-stroke-opacity: 1 !important;
+  /* Turn dark glyphs to bright white in dark mode */
+  filter: invert(1) brightness(2);
 }
 
 /* Dark theme - reuse header icon behavior */

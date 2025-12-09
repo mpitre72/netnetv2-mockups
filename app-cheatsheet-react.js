@@ -1,170 +1,21 @@
 import { netnetLogos, navIcons, socialIcons, timeIcons } from './app-shell/app-icons-config.js';
+import { Section } from './components/Section.js';
+import { NetNetLogo } from './components/NetNetLogo.js';
+import { NavIcon } from './components/NavIcon.js';
+import { SocialIcon } from './components/SocialIcon.js';
+import { NetNetButton } from './components/NetNetButton.js';
+import { Tabs, Tab, NewTabButton } from './components/navigation/tabs.js';
+import { TopBarChromeDemo } from './components/navigation/top-bar.js';
 
-const { createElement: h } = React;
+const { createElement: h, useState } = React;
 const { createRoot } = ReactDOM;
 
-const sizeClasses = { sm: 'h-6', md: 'h-8', lg: 'h-12' };
 const cardBase = 'rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-sm';
-
-function Section({ title, children }) {
-  return h('section', { className: 'space-y-4' }, [
-    h('div', { className: 'flex items-center gap-3' }, [
-      h('h2', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, title),
-      h('div', { className: 'h-px flex-1 bg-slate-200 dark:bg-white/10' }),
-    ]),
-    children,
-  ]);
-}
-
-function NetNetLogo({ mode = 'light', size = 'md' }) {
-  const src = netnetLogos[mode]?.idle;
-  return h('img', {
-    src,
-    alt: 'Net Net logo',
-    className: `${sizeClasses[size] || sizeClasses.md} w-auto drop-shadow-sm`,
-    loading: 'lazy',
-  });
-}
-
-function NavIcon({ section = 'me', mode = 'light', active = false, size = 'md' }) {
-  const entry = navIcons[section];
-  const src = entry?.[mode]?.[active ? 'active' : 'idle'];
-  const cl = {
-    sm: 'h-5 w-5',
-    md: 'h-6 w-6',
-    lg: 'h-8 w-8',
-  }[size] || 'h-6 w-6';
-  return h('img', { src, alt: `${section} icon`, className: `${cl} object-contain`, loading: 'lazy' });
-}
-
-function SocialIcon({ network, mode = 'light' }) {
-  const lightSrc = socialIcons[network]?.light || socialIcons.website?.light;
-  const darkSrc = socialIcons[network]?.dark || socialIcons.website?.dark || lightSrc;
-  const labelMap = {
-    linkedin: 'LinkedIn',
-    x: 'X',
-    facebook: 'Facebook',
-    instagram: 'Instagram',
-    youtube: 'YouTube',
-    tiktok: 'TikTok',
-    whatsapp: 'WhatsApp',
-    snapchat: 'Snapchat',
-    threads: 'Threads',
-    reddit: 'Reddit',
-    pinterest: 'Pinterest',
-    website: 'Website',
-    personalWebsite: 'Personal Website',
-    email: 'Email',
-  };
-  const label = labelMap[network] || (network.charAt(0).toUpperCase() + network.slice(1));
-  return h(
-    'div',
-    { className: 'icon-stack' },
-    [
-      h(
-        'button',
-        { type: 'button', className: 'nn-btn nn-btn--social', 'aria-label': `${network} icon` },
-        [
-          h(
-            'span',
-            { className: 'inline-flex dark:hidden' },
-            h('img', { src: lightSrc, alt: `${network} icon`, className: 'h-5 w-5 object-contain' })
-          ),
-          h(
-            'span',
-            { className: 'hidden dark:inline-flex' },
-            // Dark glyph: ensure explicitly white via separate source
-            h('img', { src: darkSrc, alt: `${network} icon dark`, className: 'h-5 w-5 object-contain' })
-          ),
-        ]
-      ),
-      h('span', { className: 'text-[11px] text-slate-500 dark:text-slate-300' }, label),
-    ]
-  );
-}
-
-function NetNetButton({ variant = 'primary', label = 'Button', size = 'md', state = 'default', fullWidth = false, icon }) {
-  const base =
-    'inline-flex items-center justify-center gap-2 font-semibold rounded-md transition duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900';
-  const sizeMap = { sm: 'px-3 py-2 text-sm', md: 'px-4 py-2.5 text-sm', lg: 'px-5 py-3 text-base' };
-  const common = sizeMap[size] || sizeMap.md;
-  const variantStyles = {
-    primary: {
-      base: 'bg-netnet-purple text-white shadow-md shadow-netnet-purple/25',
-      hover: 'bg-[#5c1ad8] shadow-lg',
-      active: 'bg-[#5116c3] shadow-inner translate-y-[1px]',
-      disabled: 'bg-netnet-purple/50 text-white/70 shadow-none cursor-not-allowed',
-    },
-    secondary: {
-      base: 'bg-white text-slate-900 border border-slate-200 shadow-sm dark:bg-slate-900 dark:text-white dark:border-slate-700',
-      hover: 'bg-slate-50 border-slate-300 dark:bg-slate-800 dark:border-slate-600',
-      active: 'bg-slate-100 border-slate-400 translate-y-[1px] dark:bg-slate-700 dark:border-slate-500',
-      disabled: 'bg-slate-100 text-slate-400 border-slate-200 shadow-none cursor-not-allowed dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700',
-    },
-    ghost: {
-      base: 'bg-transparent text-slate-700 dark:text-white',
-      hover: 'bg-slate-100 dark:bg-white/10',
-      active: 'bg-slate-200 translate-y-[1px] dark:bg-white/15',
-      disabled: 'text-slate-400 cursor-not-allowed dark:text-slate-500',
-    },
-    icon: {
-      base: 'p-2 w-10 h-10 text-slate-700 bg-white border border-slate-200 rounded-full shadow-sm dark:bg-slate-900 dark:text-white dark:border-slate-700',
-      hover: 'bg-slate-50 text-netnet-purple border-slate-300 dark:bg-slate-800 dark:text-netnet-purple dark:border-slate-600',
-      active: 'bg-slate-100 translate-y-[1px] dark:bg-slate-700',
-      disabled: 'text-slate-400 border-slate-200 shadow-none cursor-not-allowed dark:text-slate-500 dark:border-slate-700',
-    },
-  };
-  const v = variantStyles[variant] || variantStyles.primary;
-  const stateClass = state === 'hover' ? v.hover : state === 'active' ? v.active : state === 'disabled' ? v.disabled : v.base;
-  const content = icon ? h('span', { className: 'inline-flex items-center justify-center' }, icon) : h('span', null, label);
-  const width = fullWidth ? 'w-full' : '';
-  return h(
-    'button',
-    {
-      type: 'button',
-      className: [base, common, stateClass, variant === 'icon' ? '' : '', width].filter(Boolean).join(' '),
-      disabled: state === 'disabled',
-      'aria-disabled': state === 'disabled',
-    },
-    content
-  );
-}
-
-function DesktopAppTab({ label, active = false }) {
-  return h(
-    'button',
-    {
-      type: 'button',
-      className: ['workspace-tab', active ? 'workspace-tab--active' : ''].join(' '),
-    },
-    [
-      h('span', { className: 'workspace-tab__label' }, label),
-      h('span', { className: 'workspace-tab__close' }, '\u00d7'),
-    ]
-  );
-}
-
-function DesktopTabBar() {
-  return h(
-    'div',
-    { className: 'rounded-lg overflow-hidden shadow-sm ring-1 ring-slate-200 dark:ring-white/10 bg-netnet-purple px-3 py-2' },
-    h(
-      'div',
-      { id: 'workspaceTabs', className: 'flex items-center gap-2' },
-      [
-        h(DesktopAppTab, { label: 'Components', active: true }),
-        h(DesktopAppTab, { label: 'Me / Tasks' }),
-        h(DesktopAppTab, { label: 'Contacts' }),
-        h('button', { type: 'button', className: 'workspace-tab workspace-tab--new' }, '+'),
-      ]
-    )
-  );
-}
 
 function LogoGrid() {
   const items = [
-    { mode: 'light', label: 'Light / Idle' },
-    { mode: 'dark', label: 'Dark / Idle' },
+    { key: 'light-idle', label: 'Light / Idle', src: netnetLogos.light?.idle, alt: 'Net Net logo – light / idle' },
+    { key: 'dark-idle', label: 'Dark / Idle', src: netnetLogos.dark?.idle, alt: 'Net Net logo – dark / idle' },
   ];
   return h(
     'div',
@@ -173,13 +24,13 @@ function LogoGrid() {
       h(
         'div',
         {
-          key: `${item.mode}-idle`,
+          key: item.key,
           className: `${cardBase} p-5 flex flex-col items-center gap-3`,
         },
         [
-          h(NetNetLogo, { mode: item.mode, size: 'lg' }),
+          h(NetNetLogo, { src: item.src, alt: item.alt, size: 'lg' }),
           h('div', { className: 'text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-white/60 text-center' }, item.label),
-          item.mode === 'dark'
+          item.key === 'dark-idle'
             ? h('div', { className: 'text-[11px] text-slate-500 dark:text-white/60 text-center' }, 'Used in top purple bar')
             : null,
         ]
@@ -216,6 +67,10 @@ function NavIconGrid() {
             { className: 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4' },
             sections.map((section) => {
               const alignClass = section === 'reports' ? 'items-end' : 'items-center';
+              const entry = navIcons[section];
+              const idleSrc = entry?.[mode]?.idle;
+              const activeSrc = entry?.[mode]?.active;
+              const label = labels[section] || section;
               return h(
                 'div',
                 {
@@ -224,13 +79,13 @@ function NavIconGrid() {
                 },
                 [
                   h('div', { className: 'flex items-center gap-2' }, [
-                    h(NavIcon, { section, mode, active: false }),
-                    h(NavIcon, { section, mode, active: true }),
+                    h(NavIcon, { src: idleSrc, alt: `${label} icon (${mode})`, size: 'md' }),
+                    h(NavIcon, { src: activeSrc, alt: `${label} icon (${mode} active)`, size: 'md' }),
                   ]),
                   h(
                     'span',
                     { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/60' },
-                    labels[section] || section
+                    label
                   ),
                 ]
               );
@@ -244,41 +99,23 @@ function NavIconGrid() {
 
 function SocialIconsRow() {
   const socialNetworks = ['linkedin', 'x', 'facebook', 'instagram', 'youtube', 'tiktok', 'whatsapp', 'snapchat', 'threads', 'reddit', 'pinterest'];
+  const socialLabels = {
+    linkedin: 'LinkedIn',
+    x: 'X',
+    facebook: 'Facebook',
+    instagram: 'Instagram',
+    youtube: 'YouTube',
+    tiktok: 'TikTok',
+    whatsapp: 'WhatsApp',
+    snapchat: 'Snapchat',
+    threads: 'Threads',
+    reddit: 'Reddit',
+    pinterest: 'Pinterest',
+  };
   const utilityIcons = [
-    {
-      key: 'website',
-      label: 'Website',
-      build: (strokeColor = 'currentColor') =>
-        h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: strokeColor, strokeWidth: '1.8' }, [
-          h('circle', { cx: '12', cy: '12', r: '9' }),
-          h('path', { d: 'M3 12h18' }),
-          h('path', { d: 'M12 3a15 15 0 0 1 0 18' }),
-          h('path', { d: 'M12 3a15 15 0 0 0 0 18' }),
-        ]),
-    },
-    {
-      key: 'personalWebsite',
-      label: 'Personal Website',
-      build: (strokeColor = 'currentColor') =>
-        h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: strokeColor, strokeWidth: '1.8' }, [
-          h('circle', { cx: '9', cy: '8', r: '3' }),
-          h('path', { d: 'M3 20c0-3 2.5-5 6-5' }),
-          h('circle', { cx: '17', cy: '12', r: '3' }),
-          h('path', { d: 'M17 9v-2' }),
-          h('path', { d: 'M17 21v-2' }),
-          h('path', { d: 'M14 12h-2' }),
-          h('path', { d: 'M22 12h-2' }),
-        ]),
-    },
-    {
-      key: 'email',
-      label: 'Email',
-      build: (strokeColor = 'currentColor') =>
-        h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: strokeColor, strokeWidth: '1.8' }, [
-          h('rect', { x: '3', y: '5', width: '18', height: '14', rx: '2' }),
-          h('path', { d: 'M3 7l9 6 9-6' }),
-        ]),
-    },
+    { key: 'website', label: 'Website' },
+    { key: 'personalWebsite', label: 'Personal Website' },
+    { key: 'email', label: 'Email' },
   ];
   return h(
     'div',
@@ -292,7 +129,16 @@ function SocialIconsRow() {
           h(
             'div',
             { className: 'social-icons-row' },
-            socialNetworks.map((network) => h(SocialIcon, { key: `social-${network}`, network, mode: 'light' }))
+            socialNetworks.map((network) =>
+              h(
+                'div',
+                { key: `social-${network}`, className: 'icon-stack' },
+                [
+                  h(SocialIcon, { src: socialIcons[network]?.light, alt: socialLabels[network] || network }),
+                  h('span', { className: 'text-[11px] text-slate-500 dark:text-slate-300' }, socialLabels[network] || network),
+                ]
+              )
+            )
           ),
           h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-6 mb-3' }, 'Contact / Utility'),
           h(
@@ -303,22 +149,7 @@ function SocialIconsRow() {
                 'div',
                 { key: item.key, className: 'icon-stack' },
                 [
-                  h(
-                    'button',
-                    { type: 'button', className: 'nn-btn nn-btn--social', 'aria-label': item.label },
-                    [
-                      h(
-                        'span',
-                        { className: 'inline-flex dark:hidden' },
-                        item.build()
-                      ),
-                      h(
-                        'span',
-                        { className: 'hidden dark:inline-flex' },
-                        item.build('#ffffff')
-                      ),
-                    ]
-                  ),
+                  h(SocialIcon, { src: socialIcons[item.key]?.light, alt: item.label }),
                   h('span', { className: 'icon-label' }, item.label),
                 ]
               )
@@ -464,60 +295,31 @@ function ButtonsGrid() {
   );
 }
 
-function TabsPreview() {
-  return h(
-    'div',
-    null,
-    h(DesktopTabBar)
-  );
-}
+function DesktopTabsDemo() {
+  const [value, setValue] = useState('components');
 
-function TopBarChromeShowcase() {
   return h(
     'div',
-    { className: `${cardBase} p-4 space-y-3` },
-    [
-      h('div', { className: 'text-sm font-semibold text-slate-700 dark:text-white' }, 'Top Bar Chrome'),
-      h(
-        'div',
-        { className: 'bg-netnet-purple rounded-lg px-3 py-2 flex items-center gap-3 justify-end' },
-        [
-          h(
-            'button',
-            { type: 'button', className: 'time-icon-button relative inline-flex items-center justify-center h-9 w-9', 'aria-label': 'Timer' },
-            [
-              h('img', { src: timeIcons.idle, alt: 'Timer', className: 'h-5 w-5 select-none pointer-events-none' }),
-              h('span', { className: 'time-icon-dot', 'aria-hidden': 'true' }),
-            ]
-          ),
-          h('span', { className: 'h-5 w-px bg-white/25' }),
-          h(
-            'button',
-            { className: 'header-icon-button header-icon-button--small relative', 'aria-label': 'Help and documentation' },
-            h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
-              h('circle', { cx: '12', cy: '12', r: '10' }),
-              h('path', { d: 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 1-1 1.7V14' }),
-              h('circle', { cx: '12', cy: '17', r: '1' }),
-            ])
-          ),
-          h(
-            'button',
-            { className: 'header-icon-button header-icon-button--small relative', 'aria-label': 'Notifications' },
-            h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-              h('path', { d: 'M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9' }),
-              h('path', { d: 'M13.73 21a2 2 0 01-3.46 0' }),
-            ])
-          ),
-          h(
-            'button',
-            { className: 'header-icon-button header-icon-button--small relative', 'aria-label': 'Toggle light and dark theme' },
-            h('svg', { className: 'header-icon-glyph-small', viewBox: '0 0 24 24', fill: 'currentColor' }, [
-              h('path', { d: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z' }),
-            ])
-          ),
-        ]
-      ),
-    ]
+    { className: 'rounded-lg overflow-hidden shadow-sm ring-1 ring-slate-200 dark:ring-white/10 bg-netnet-purple px-3 py-2' },
+    h(
+      Tabs,
+      {
+        value,
+        onChange: setValue,
+        className: 'items-center gap-2',
+      },
+      [
+        h(Tab, { key: 'components', value: 'components', label: 'Components', closable: true }),
+        h(Tab, { key: 'me', value: 'me', label: 'Me / Tasks', closable: true }),
+        h(Tab, { key: 'contacts', value: 'contacts', label: 'Contacts', closable: true }),
+        h(NewTabButton, {
+          key: 'new',
+          onClick: () => {
+            setValue('new');
+          },
+        }),
+      ]
+    )
   );
 }
 
@@ -534,8 +336,8 @@ function ComponentsCheatSheet() {
       h(Section, { title: 'Navigation Icons' }, h(NavIconGrid)),
       h(Section, { title: 'Social Icons' }, h(SocialIconsRow)),
       h(Section, { title: 'Buttons' }, h(ChromeButtonsRow)),
-      h(Section, { title: 'Top Bar Chrome' }, h(TopBarChromeShowcase)),
-      h(Section, { title: 'Desktop Tabs' }, h(TabsPreview)),
+      h(Section, { title: 'Top Bar Chrome' }, h(TopBarChromeDemo)),
+      h(Section, { title: 'Desktop Tabs' }, h(DesktopTabsDemo)),
     ]
   );
 }

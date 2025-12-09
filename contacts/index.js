@@ -6,7 +6,7 @@ import { renderCompanyProfile } from './contacts-profile-company.js';
 import { renderPersonProfile } from './contacts-profile-person.js';
 import { ContactsSearchBar } from '../components/ContactsSearchBar.js';
 import { renderCompanyFormPage, renderPersonFormPage } from './contacts-forms.js';
-import { getContactsData } from './contacts-data.js';
+import { getContactsData, getIndividualsData } from './contacts-data.js';
 import {
   getListState,
   updateListState,
@@ -19,6 +19,30 @@ function buildContactsState({ search = '' } = {}) {
     search: search || '',
     expanded: new Set(),
   };
+}
+
+let expandLabelUpdater = null;
+function setExpandLabelUpdater(fn) {
+  expandLabelUpdater = fn;
+}
+
+function buildContactsGroups() {
+  const companies = getContactsData();
+  const individuals = getIndividualsData()
+    .filter(p => !p.companyId && !p.companyName);
+  const groups = [
+    ...companies,
+    ...(individuals.length ? [{
+      id: 'individuals',
+      name: 'Individuals',
+      people: individuals,
+      phone: '',
+      city: '',
+      state: '',
+      socials: {},
+    }] : []),
+  ];
+  return groups;
 }
 
 function renderLinkIcons(comp) {
@@ -118,12 +142,20 @@ function renderTable(state, scope) {
     console.warn('[ContactsModule] contacts table body not found.');
     return;
   }
-  const data = getContactsData();
+  const data = buildContactsGroups();
   tbody.innerHTML = '';
   const s = state.search.toLowerCase();
   const searchHasTerm = s !== '';
 
+  const notifyExpandState = () => {
+    if (typeof expandLabelUpdater === 'function') {
+      const allExpanded = data.length > 0 && data.every(d => state.expanded.has(d.id));
+      expandLabelUpdater(allExpanded);
+    }
+  };
+
   data.forEach(comp => {
+    const isIndividuals = comp.id === 'individuals';
     const compTextMatch =
       comp.name.toLowerCase().includes(s) ||
       comp.city.toLowerCase().includes(s);
@@ -146,10 +178,14 @@ function renderTable(state, scope) {
       const isExpanded = state.expanded.has(comp.id) || autoExpand;
       const chevronRotation = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
 
+      const baseRowBg = comp.id === 'individuals'
+        ? 'contacts-individuals-header-row'
+        : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750';
+
       const compRow = document.createElement('tr');
       compRow.className =
-        "bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 " +
-        "hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors cursor-pointer group";
+        "contacts-row " + baseRowBg + " border-b border-gray-100 dark:border-gray-700 " +
+        "transition-colors cursor-pointer group";
       compRow.onclick = (e) => {
         if (e.target.closest && e.target.closest('a')) return;
         toggleContactRow(comp.id, state, scope);
@@ -161,9 +197,11 @@ function renderTable(state, scope) {
           </svg>
         </td>
         <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">
-          <a href="#/app/contacts/company/${comp.id}" class="hover:underline hover:text-netnet-purple transition-colors">
+          ${isIndividuals
+            ? `<span class="hover:text-netnet-purple transition-colors">${comp.name}</span>`
+            : `<a href="#/app/contacts/company/${comp.id}" class="hover:underline hover:text-netnet-purple transition-colors">
             ${comp.name}
-          </a>
+          </a>`}
         </td>
         <td class="px-6 py-4">
           ${renderLinkIcons(comp)}
@@ -175,7 +213,7 @@ function renderTable(state, scope) {
 
       if (isExpanded) {
         const detailsRow = document.createElement('tr');
-        detailsRow.className = "bg-gray-50 dark:bg-gray-900/50 shadow-inner";
+        detailsRow.className = "bg-gray-50 dark:bg-gray-900/50 shadow-inner" + (isIndividuals ? " individuals-group" : "");
 
         const peopleToShow = searchHasTerm ? matchingPeople : people;
 
@@ -233,6 +271,8 @@ function renderTable(state, scope) {
         </td>
       </tr>`;
   }
+
+  notifyExpandState();
 }
 
 function toggleContactRow(id, state, scope) {
@@ -249,6 +289,7 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
   const searchInput = scope.querySelector('#contact-search');
   const tbody = scope.querySelector('#contacts-table-body');
   const scrollArea = scope.querySelector('.contacts-scroll');
+  const expandToggleBtn = scope.querySelector('#contacts-expand-toggle');
 
   if (!tbody) {
     console.warn('[ContactsModule] contacts table body not found.');
@@ -289,6 +330,27 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
     }
     updateListState(subview, { search: state.search, scrollY: scrollArea ? scrollArea.scrollTop : 0 });
   });
+
+  if (expandToggleBtn) {
+    setExpandLabelUpdater((allExpanded) => {
+      const icon = allExpanded
+        ? `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 15l-7-7-7 7"/></svg>`
+        : `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>`;
+      expandToggleBtn.innerHTML = icon;
+      expandToggleBtn.setAttribute('aria-label', allExpanded ? 'Collapse all' : 'Expand all');
+      expandToggleBtn.setAttribute('title', allExpanded ? 'Collapse all' : 'Expand all');
+    });
+    expandToggleBtn.addEventListener('click', () => {
+      const groups = buildContactsGroups();
+      const allExpanded = groups.length > 0 && groups.every(g => state.expanded.has(g.id));
+      if (allExpanded) {
+        state.expanded.clear();
+      } else {
+        groups.forEach(g => state.expanded.add(g.id));
+      }
+      renderTable(state, scope);
+    });
+  }
 
   renderTable(state, scope);
 }

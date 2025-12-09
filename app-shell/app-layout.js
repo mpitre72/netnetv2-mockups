@@ -142,10 +142,10 @@ export function applyMainWrapperClass(hash) {
     h.startsWith('#/app/contacts/person/');
 
   const base = isComponents
-    ? 'p-4 sm:p-6 lg:p-8 overflow-y-auto'
+    ? 'p-4 sm:p-6 lg:p-8 pb-14 overflow-y-auto'
     : isReportsOrTable
-    ? 'p-4 sm:p-6 lg:p-8 overflow-hidden'
-    : 'p-4 sm:p-6 lg:p-8 flex items-center justify-center';
+    ? 'p-4 sm:p-6 lg:p-8 pb-14 overflow-hidden'
+    : 'p-4 sm:p-6 lg:p-8 pb-14 flex items-center justify-center';
 
   main.className = base;
 }

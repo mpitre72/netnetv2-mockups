@@ -93,13 +93,16 @@ function parseRoute(hash) {
 function handleRoute(renderers) {
   const hash = location.hash || DEFAULT_HASH;
   const route = parseRoute(hash);
+
   if (route.name === 'auth-login' && hash !== LOGIN_HASH) {
     navigate(LOGIN_HASH);
     return;
   }
+
   if (!route.name.startsWith('auth')) {
     openTabForHash(hash);
   }
+
   if (route.name === 'contacts-root') {
     const targetHash = getContactsEntryHash();
     if (location.hash !== targetHash) {
@@ -140,7 +143,8 @@ function handleRoute(renderers) {
   } else if (route.name.startsWith('auth')) {
     renderers.auth(route.name);
   } else {
-    renderers.contacts({ name: 'contacts-root', subview: 'companies' });
+    // Unknown route fallback: go to login
+    navigate(LOGIN_HASH);
   }
 }
 
@@ -148,12 +152,17 @@ export function initRouter(renderers) {
   const normalizeHashForAuth = (hash) => {
     const currentHash = hash || '';
     const authed = isAuthenticated();
+
+    // ✅ ALWAYS go to login when there's no hash or just "#"
     if (!currentHash || currentHash === '#') {
-      return authed ? APP_DEFAULT_HASH : LOGIN_HASH;
+      return LOGIN_HASH;
     }
+
+    // If not authenticated and trying to hit an /app route, force login
     if (!authed && currentHash.startsWith('#/app')) {
       return LOGIN_HASH;
     }
+
     return currentHash;
   };
 

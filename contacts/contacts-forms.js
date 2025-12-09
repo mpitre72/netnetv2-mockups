@@ -220,7 +220,7 @@ function buildCompanyFormBody(isIntl) {
   `;
 }
 
-function buildPersonFormBody(isIntl, companies) {
+function buildPersonFormBody(isIntl, companies, person = {}) {
   const socialIcons = [
     { name: 'LinkedIn', key: 'linkedin' },
     { name: 'Facebook', key: 'facebook' },
@@ -240,20 +240,24 @@ function buildPersonFormBody(isIntl, companies) {
       <div>
         <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Contact Details</h4>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Email</label>
+            <input name="email" type="email" required placeholder="email@example.com" value="${person.email || ''}" class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+          </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">First Name</label>
-            <input required class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+            <input name="first-name" required class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Last Name</label>
-            <input required class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+            <input name="last-name" required class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
           </div>
           <div class="md:col-span-2">
             <div id="company-lookup-slot"></div>
           </div>
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Title</label>
-            <input class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
+            <input name="title" class="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 focus:ring-2 focus:ring-netnet-purple focus:outline-none" />
           </div>
         </div>
       </div>
@@ -385,13 +389,14 @@ export function renderPersonFormPage({ mode = 'create', id = null, container } =
   const isIntl = boolFromCountry(person?.country);
   const title = mode === 'edit' ? 'Edit Person' : 'New Person';
   const backTarget = mode === 'edit' && id ? `#/app/contacts/person/${id}` : '#/app/contacts/people';
+  const formState = { email: person?.email || '' };
 
   target.innerHTML = `
     <div class="h-full overflow-y-auto p-4 md:p-8 bg-[var(--color-bg-app,#020617)]">
       <div class="max-w-3xl mx-auto">
         ${buildHeader({ title, backTarget, showIntlToggle: false, isIntl })}
         <form id="entity-form" class="space-y-6">
-          ${buildPersonFormBody(isIntl, companies)}
+          ${buildPersonFormBody(isIntl, companies, person || {})}
         </form>
       </div>
     </div>
@@ -410,9 +415,31 @@ export function renderPersonFormPage({ mode = 'create', id = null, container } =
     toggle.addEventListener('change', () => redrawAddress(toggle.checked));
   }
   if (cancelBtn) cancelBtn.onclick = () => navigate(backTarget);
+  const emailInput = form?.querySelector('input[name="email"]');
+  if (emailInput) {
+    emailInput.value = formState.email;
+    emailInput.addEventListener('input', (e) => { formState.email = e.target.value || ''; });
+  }
   if (form) {
     form.onsubmit = (e) => {
       e.preventDefault();
+      const getVal = (name) => (form.querySelector(`input[name="${name}"]`)?.value || '').trim();
+      const payload = {
+        email: (formState.email || '').trim(),
+        firstName: getVal('first-name'),
+        lastName: getVal('last-name'),
+        title: getVal('title'),
+        companyId: person?.companyId || null,
+      };
+      if (!payload.email) {
+        safeToast('Email is required');
+        emailInput?.focus();
+        return;
+      }
+      if (mode === 'edit' && person) {
+        person.email = payload.email;
+      }
+      console.log('[PersonForm] save payload', payload);
       safeToast('Person saved');
       if (mode === 'edit' && id) {
         navigate(`#/app/contacts/person/${id}`);

@@ -1679,6 +1679,216 @@ export const mockContactsData = [
   }
 ]
 
+export const mockIndividualsData = [
+  {
+    "id": 2001,
+    "name": "Ava Mitchell",
+    "title": "Freelance Copywriter",
+    "email": "ava.mitchell@example.com",
+    "mobile": "917-555-0101",
+    "city": "Portland",
+    "state": "OR",
+    "linkedin": "https://www.linkedin.com/in/avamitchell",
+    "instagram": "https://www.instagram.com/ava.writes"
+  },
+  {
+    "id": 2002,
+    "name": "Liam Carter",
+    "title": "Independent UX Researcher",
+    "email": "liam.carter@example.com",
+    "mobile": "512-555-2211",
+    "city": "Austin",
+    "state": "TX",
+    "linkedin": "https://www.linkedin.com/in/liamcarterux"
+  },
+  {
+    "id": 2003,
+    "name": "Maya Chen",
+    "title": "Product Strategy Consultant",
+    "email": "maya.chen@example.com",
+    "mobile": "303-555-4422",
+    "city": "Denver",
+    "state": "CO",
+    "website": "https://maya-chen.com"
+  },
+  {
+    "id": 2004,
+    "name": "Noah Patel",
+    "title": "Fractional CTO",
+    "email": "noah.patel@example.com",
+    "mobile": "305-555-1313",
+    "city": "Miami",
+    "state": "FL",
+    "linkedin": "https://www.linkedin.com/in/noahpatel",
+    "x": "https://x.com/noahcodes"
+  },
+  {
+    "id": 2005,
+    "name": "Isabella Rossi",
+    "title": "Brand Designer",
+    "email": "isabella.rossi@example.com",
+    "mobile": "206-555-9898",
+    "city": "Seattle",
+    "state": "WA",
+    "instagram": "https://www.instagram.com/rossi.studio",
+    "website": "https://www.rossi.studio"
+  },
+  {
+    "id": 2006,
+    "name": "Ethan Brooks",
+    "title": "Technical Writer",
+    "email": "ethan.brooks@example.com",
+    "mobile": "617-555-1003",
+    "city": "Boston",
+    "state": "MA",
+    "linkedin": "https://www.linkedin.com/in/ethanbrooks"
+  },
+  {
+    "id": 2007,
+    "name": "Sofia Nguyen",
+    "title": "SEO Specialist",
+    "email": "sofia.nguyen@example.com",
+    "mobile": "470-555-7788",
+    "city": "Atlanta",
+    "state": "GA",
+    "linkedin": "https://www.linkedin.com/in/sofianguyenseo",
+    "instagram": "https://www.instagram.com/sofia.optimizes"
+  },
+  {
+    "id": 2008,
+    "name": "Jackson Miller",
+    "title": "Mobile App Developer",
+    "email": "jackson.miller@example.com",
+    "mobile": "480-555-6606",
+    "city": "Phoenix",
+    "state": "AZ",
+    "github": "https://github.com/jmillerapps"
+  },
+  {
+    "id": 2009,
+    "name": "Aria Thompson",
+    "title": "Content Strategist",
+    "email": "aria.thompson@example.com",
+    "mobile": "615-555-8899",
+    "city": "Nashville",
+    "state": "TN",
+    "linkedin": "https://www.linkedin.com/in/aria-thompson"
+  },
+  {
+    "id": 2010,
+    "name": "Caleb Foster",
+    "title": "Data Analyst",
+    "email": "caleb.foster@example.com",
+    "mobile": "612-555-4545",
+    "city": "Minneapolis",
+    "state": "MN"
+  },
+  {
+    "id": 2011,
+    "name": "Layla Perez",
+    "title": "Social Media Manager",
+    "email": "layla.perez@example.com",
+    "mobile": "858-555-0202",
+    "city": "San Diego",
+    "state": "CA",
+    "instagram": "https://www.instagram.com/layla.social",
+    "tiktok": "https://www.tiktok.com/@layla.social"
+  },
+  {
+    "id": 2012,
+    "name": "Owen Rivera",
+    "title": "Sales Operations Consultant",
+    "email": "owen.rivera@example.com",
+    "mobile": "312-555-3330",
+    "city": "Chicago",
+    "state": "IL",
+    "linkedin": "https://www.linkedin.com/in/owenrivera"
+  },
+  {
+    "id": 2013,
+    "name": "Chloe Adams",
+    "title": "Event Producer",
+    "email": "chloe.adams@example.com",
+    "mobile": "504-555-2233",
+    "city": "New Orleans",
+    "state": "LA",
+    "instagram": "https://www.instagram.com/chloe.produces"
+  },
+  {
+    "id": 2014,
+    "name": "Benjamin Lee",
+    "title": "Cybersecurity Advisor",
+    "email": "benjamin.lee@example.com",
+    "mobile": "313-555-7070",
+    "city": "Detroit",
+    "state": "MI",
+    "linkedin": "https://www.linkedin.com/in/benjamin-lee-sec"
+  },
+  {
+    "id": 2015,
+    "name": "Harper Collins",
+    "title": "Demand Gen Specialist",
+    "email": "harper.collins@example.com",
+    "mobile": "919-555-5656",
+    "city": "Raleigh",
+    "state": "NC",
+    "linkedin": "https://www.linkedin.com/in/harpercollinsdg"
+  },
+  {
+    "id": 2016,
+    "name": "Lucas Bennett",
+    "title": "AI Solutions Architect",
+    "email": "lucas.bennett@example.com",
+    "mobile": "720-555-5151",
+    "city": "Boulder",
+    "state": "CO",
+    "website": "https://lucasbennett.ai"
+  },
+  {
+    "id": 2017,
+    "name": "Zoey Clark",
+    "title": "Video Producer",
+    "email": "zoey.clark@example.com",
+    "mobile": "816-555-1919",
+    "city": "Kansas City",
+    "state": "MO",
+    "youtube": "https://www.youtube.com/@zoeyshoots"
+  },
+  {
+    "id": 2018,
+    "name": "Elijah Turner",
+    "title": "Full-Stack Engineer",
+    "email": "elijah.turner@example.com",
+    "mobile": "415-555-8800",
+    "city": "San Francisco",
+    "state": "CA",
+    "github": "https://github.com/elijahturner",
+    "website": "https://elijahturner.dev"
+  },
+  {
+    "id": 2019,
+    "name": "Grace Kim",
+    "title": "Operations Consultant",
+    "email": "grace.kim@example.com",
+    "mobile": "801-555-3434",
+    "city": "Salt Lake City",
+    "state": "UT",
+    "linkedin": "https://www.linkedin.com/in/gracekimops"
+  },
+  {
+    "id": 2020,
+    "name": "Miles Johnson",
+    "title": "Marketing Technologist",
+    "email": "miles.johnson@example.com",
+    "mobile": "347-555-6600",
+    "city": "Brooklyn",
+    "state": "NY",
+    "linkedin": "https://www.linkedin.com/in/milesjohnson",
+    "x": "https://x.com/miles_tech"
+  }
+];
+
 if (typeof window !== "undefined") {
   window.mockContactsData = mockContactsData;
+  window.mockIndividualsData = mockIndividualsData;
 }
