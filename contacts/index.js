@@ -26,6 +26,18 @@ function setExpandLabelUpdater(fn) {
   expandLabelUpdater = fn;
 }
 
+let contactsMultiSelectMode = false;
+const selectedPersonIds = new Set();
+
+function clearSelection() {
+  selectedPersonIds.clear();
+}
+
+function togglePersonSelection(id) {
+  if (selectedPersonIds.has(id)) selectedPersonIds.delete(id);
+  else selectedPersonIds.add(id);
+}
+
 function buildContactsGroups() {
   const companies = getContactsData();
   const individuals = getIndividualsData()
@@ -43,6 +55,21 @@ function buildContactsGroups() {
     }] : []),
   ];
   return groups;
+}
+
+function buildFlatPeopleList() {
+  const groups = buildContactsGroups();
+  const people = [];
+  groups.forEach(group => {
+    (group.people || []).forEach(person => {
+      people.push({
+        ...person,
+        companyId: group.id === 'individuals' ? null : group.id,
+        companyName: group.id === 'individuals' ? null : group.name,
+      });
+    });
+  });
+  return people;
 }
 
 function renderLinkIcons(comp) {
@@ -275,6 +302,150 @@ function renderTable(state, scope) {
   notifyExpandState();
 }
 
+function updateImportButton(scope, isExportMode) {
+  const importBtn = scope.querySelector('#contacts-import-btn');
+  const icon = scope.querySelector('#contacts-import-icon');
+  if (!importBtn || !icon) return;
+  if (isExportMode) {
+    importBtn.setAttribute('aria-label', 'Export selected');
+    importBtn.setAttribute('title', 'Export selected');
+    icon.classList.add('contacts-export-icon');
+    icon.classList.remove('rotate-180');
+    importBtn.classList.add('contacts-export-button');
+  } else {
+    importBtn.setAttribute('aria-label', 'Import Contacts');
+    importBtn.setAttribute('title', 'Import Contacts');
+    icon.classList.remove('contacts-export-icon');
+    importBtn.classList.remove('contacts-export-button');
+    if (!icon.classList.contains('rotate-180')) icon.classList.add('rotate-180');
+  }
+}
+
+function updateToolbarForMode(scope) {
+  const expandBtn = scope.querySelector('#contacts-expand-toggle');
+  const newCompany = scope.querySelector('#contacts-new-company-btn');
+  const newPerson = scope.querySelector('#contacts-new-person-btn');
+  const multiselectBtn = scope.querySelector('#contacts-multiselect-toggle');
+  const importBtn = scope.querySelector('#contacts-import-btn');
+  const hasSelection = selectedPersonIds.size > 0;
+  if (contactsMultiSelectMode) {
+    expandBtn?.classList.add('hidden');
+    newCompany?.classList.add('hidden');
+    newPerson?.classList.add('hidden');
+    multiselectBtn?.classList.add('active');
+    updateImportButton(scope, true);
+    if (importBtn) {
+      if (hasSelection) {
+        importBtn.classList.remove('opacity-50', 'pointer-events-none');
+      } else {
+        importBtn.classList.add('opacity-50', 'pointer-events-none');
+      }
+    }
+    if (importBtn) {
+      importBtn.onclick = () => {
+        if (!selectedPersonIds.size) {
+          console.log('[Contacts] Export requested but no contacts selected.');
+          return;
+        }
+        console.log('[Contacts] Export selected IDs:', Array.from(selectedPersonIds));
+        alert(`Exporting ${selectedPersonIds.size} selected contacts`);
+      };
+    }
+  } else {
+    expandBtn?.classList.remove('hidden');
+    newCompany?.classList.remove('hidden');
+    newPerson?.classList.remove('hidden');
+    multiselectBtn?.classList.remove('active');
+    updateImportButton(scope, false);
+    importBtn?.classList.remove('opacity-50', 'pointer-events-none');
+    if (importBtn) importBtn.onclick = () => navigate('#/app/contacts/import');
+  }
+}
+
+function renderFlatTable(state, scope) {
+  const tbody = scope.querySelector('#contacts-flat-body');
+  const selectAll = scope.querySelector('#contacts-flat-select-all');
+  if (!tbody || !selectAll) return;
+  const allPeople = buildFlatPeopleList();
+  const s = (state.search || '').toLowerCase();
+  const filtered = allPeople.filter(p => {
+    if (!s) return true;
+    return (
+      (p.name || '').toLowerCase().includes(s) ||
+      (p.title || '').toLowerCase().includes(s) ||
+      (p.email || '').toLowerCase().includes(s) ||
+      (p.companyName || '').toLowerCase().includes(s) ||
+      ((p.city || '') + (p.state || '')).toLowerCase().includes(s)
+    );
+  });
+
+  const renderLocationStr = (person) => {
+    const city = person.city || '';
+    const state = person.state || '';
+    if (!city && !state) return '<span class="text-gray-400 dark:text-gray-500">-</span>';
+    if (city && state) return `${city}, ${state}`;
+    return city || state;
+  };
+
+  tbody.innerHTML = filtered.map(p => {
+    const checked = selectedPersonIds.has(p.id) ? 'checked' : '';
+    const companyLabel = p.companyName || 'Individual';
+    return `
+      <tr class="hover:bg-gray-100 dark:hover:bg-gray-800/70">
+        <td class="px-4 py-3 text-center align-middle">
+          <input data-person-id="${p.id}" type="checkbox" class="rounded border-gray-300 text-netnet-purple focus:ring-netnet-purple" aria-label="Select ${p.name}" ${checked}>
+        </td>
+        <td class="px-6 py-3 font-medium text-gray-900 dark:text-gray-200">
+          <a href="#/app/contacts/person/${p.id}" class="hover:underline hover:text-netnet-purple transition-colors">
+            ${p.name}
+          </a>
+        </td>
+        <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${companyLabel}</td>
+        <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.title || '-'}</td>
+        <td class="px-6 py-3">${renderPersonLinks({}, p)}</td>
+        <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${renderMobile(p)}</td>
+        <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${renderLocationStr(p)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const allSelected = filtered.length > 0 && filtered.every(p => selectedPersonIds.has(p.id));
+  const noneSelected = filtered.every(p => !selectedPersonIds.has(p.id));
+  selectAll.indeterminate = !allSelected && !noneSelected;
+  selectAll.checked = allSelected;
+
+  Array.from(tbody.querySelectorAll('input[data-person-id]')).forEach(input => {
+    input.addEventListener('change', (e) => {
+      const id = Number(e.target.getAttribute('data-person-id'));
+      togglePersonSelection(id);
+      renderFlatTable(state, scope);
+    });
+  });
+
+  selectAll.onchange = () => {
+    if (selectAll.checked) {
+      filtered.forEach(p => selectedPersonIds.add(p.id));
+    } else {
+      filtered.forEach(p => selectedPersonIds.delete(p.id));
+    }
+    renderFlatTable(state, scope);
+  };
+}
+
+function renderContactsView(state, scope) {
+  const grouped = scope.querySelector('#contacts-grouped-view');
+  const flat = scope.querySelector('#contacts-flat-view');
+  if (contactsMultiSelectMode) {
+    grouped?.classList.add('hidden');
+    flat?.classList.remove('hidden');
+    renderFlatTable(state, scope);
+  } else {
+    grouped?.classList.remove('hidden');
+    flat?.classList.add('hidden');
+    renderTable(state, scope);
+  }
+}
+
 function toggleContactRow(id, state, scope) {
   if (state.expanded.has(id)) {
     state.expanded.delete(id);
@@ -290,6 +461,7 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
   const tbody = scope.querySelector('#contacts-table-body');
   const scrollArea = scope.querySelector('.contacts-scroll');
   const expandToggleBtn = scope.querySelector('#contacts-expand-toggle');
+  const multiselectToggleBtn = scope.querySelector('#contacts-multiselect-toggle');
 
   if (!tbody) {
     console.warn('[ContactsModule] contacts table body not found.');
@@ -308,7 +480,7 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
     searchInput.addEventListener('input', (e) => {
       state.search = e.target.value || '';
       updateListState(subview, { search: state.search });
-      renderTable(state, scope);
+      renderContactsView(state, scope);
     });
   }
 
@@ -352,7 +524,17 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
     });
   }
 
-  renderTable(state, scope);
+  if (multiselectToggleBtn) {
+    multiselectToggleBtn.addEventListener('click', () => {
+      contactsMultiSelectMode = !contactsMultiSelectMode;
+      if (!contactsMultiSelectMode) clearSelection();
+      updateToolbarForMode(scope);
+      renderContactsView(state, scope);
+    });
+  }
+
+  updateToolbarForMode(scope);
+  renderContactsView(state, scope);
 }
 
 // Render + wire in one step (useful for router)

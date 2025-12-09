@@ -76,25 +76,46 @@ html.dark .lookup-menu {
 .company-people-row:hover {
   background: rgba(31, 41, 55, 0.68);
 }
+.contacts-employee-table tbody tr > td {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+}
+.individuals-group .contacts-employee-table tbody tr > td {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
 
 :root {
-  --contacts-company-sticky-top: 48px;
-  --contacts-company-row-height: 56px;
+  --contacts-header-height: 48px;
+  --contacts-company-sticky-top: var(--contacts-header-height, 48px);
+  --contacts-company-row-height: 52px;
+}
+
+.contacts-column-header-row {
+  border-bottom: 1px solid var(--color-border-subtle, rgba(148,163,184,0.35)) !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 .contacts-company-row {
   position: sticky;
-  top: var(--contacts-company-sticky-top, 48px);
+  top: var(--contacts-company-sticky-top, 48px) !important;
   z-index: 9;
+  border-bottom: 1px solid var(--color-border-subtle, rgba(148,163,184,0.35)) !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
 }
 
 .contacts-employee-header-row {
   position: sticky;
-  top: calc(var(--contacts-company-sticky-top, 48px) + var(--contacts-company-row-height, 56px));
+  top: calc(var(--contacts-company-sticky-top, 48px) + var(--contacts-company-row-height, 52px)) !important;
   z-index: 8;
   background: inherit;
-  margin-top: 0;
-  border-top: 0;
+  margin-top: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid var(--color-border-subtle, rgba(148,163,184,0.35)) !important;
 }
 .contacts-employee-table {
   border-collapse: collapse;
@@ -208,6 +229,37 @@ html.dark .lookup-modal__body { color: #cbd5e1; }
   background-color: #242C5D !important;
   cursor: default !important;
 }
-.individuals-group td {
-  padding-bottom: 100px;
+.individuals-group > td {
+  padding-bottom: 0;
+}
+.individuals-group > td::after {
+  content: '';
+  display: block;
+  height: 100px;
+  pointer-events: none;
+}
+
+.contacts-export-icon {
+  transform: rotate(0deg) !important;
+}
+
+.contacts-toolbar-icon-button,
+.contacts-export-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 0.5rem !important;
+  border: 1px solid var(--color-border-subtle, rgba(148,163,184,0.35)) !important;
+  padding: 0 !important;
+  background: transparent;
+  color: var(--color-text, #0f172a);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.contacts-toolbar-icon-button:hover,
+.contacts-export-button:hover {
+  background-color: rgba(148, 163, 184, 0.15) !important;
+  color: var(--color-text, #0f172a) !important;
+  cursor: pointer;
 }
