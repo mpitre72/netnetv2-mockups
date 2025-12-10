@@ -300,6 +300,32 @@ function wireSidebarKeyboardShortcut() {
   });
 }
 
+function debugLogSidebarFlyoutState() {
+  const sidebar = document.getElementById('app-sidebar');
+  const meItem = sidebar?.querySelector('.sidebar-item[data-section-key="me"]');
+  const meFlyout = meItem?.querySelector('.sidebar-flyout');
+  if (!meItem || !meFlyout) {
+    console.warn('[Sidebar] Me flyout missing:', { meItemExists: !!meItem, meFlyoutExists: !!meFlyout });
+  }
+}
+
+function wireSidebarFlyoutFallback() {
+  const sidebar = document.getElementById('app-sidebar');
+  if (!sidebar) return;
+  const items = sidebar.querySelectorAll('.sidebar-item[data-has-subs="true"]');
+  items.forEach(item => {
+    if (item.dataset.flyoutBound === 'true') return;
+    item.dataset.flyoutBound = 'true';
+    const flyout = item.querySelector('.sidebar-flyout');
+    if (!flyout) return;
+    item.addEventListener('mouseenter', () => {
+      if (currentMode !== MODE_COMPACT) return;
+      const top = item.offsetTop;
+      flyout.style.top = `${top}px`;
+    });
+  });
+}
+
 function ensureHashListener() {
   if (sidebarListenersBound) return;
   window.addEventListener('hashchange', () => {
@@ -321,6 +347,8 @@ export function wireSidebar(hash) {
   wireHoverPaint();
   wireSidebarModeToggle();
   wireSidebarKeyboardShortcut();
+  wireSidebarFlyoutFallback();
+  debugLogSidebarFlyoutState();
   ensureHashListener();
 }
 

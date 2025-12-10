@@ -125,6 +125,7 @@ html.dark #app-main {
 }
 #app-sidebar .sidebar-flyout__subs { display: flex; flex-direction: column; gap: 4px; }
 #app-sidebar.sidebar--full .sidebar-flyout { display: none; }
+#app-sidebar.sidebar--compact .sidebar-flyout { display: block; }
 #app-sidebar.sidebar--compact .sidebar-item:hover .sidebar-flyout,
 #app-sidebar.sidebar--compact .sidebar-item:focus-within .sidebar-flyout {
   opacity: 1;
