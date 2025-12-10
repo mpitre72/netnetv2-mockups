@@ -329,7 +329,7 @@ export function wireAppShell(hash) {
       if (shell) shell.classList.remove('drawer-closed');
     };
   }
-  wireSidebarIcons(); wireTopBarLogo(); wireAppTimer(); wireMobileEvents(); 
+  wireSidebarIcons(hash); wireTopBarLogo(); wireAppTimer(); wireMobileEvents(); 
   if (hash.startsWith('#/app/net-net-bot')) {
     // chat events placeholder
   }

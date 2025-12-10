@@ -1,4 +1,4 @@
-import { ICONS, WORKSPACES, WORKSPACE_KEY, THEME_KEY } from './app-constants.js';
+import { ICONS, WORKSPACES, WORKSPACE_KEY, THEME_KEY, SIDEBAR_MODE_KEY } from './app-constants.js';
 
 export function __isDark() {
   return document.documentElement.classList.contains('dark');
@@ -51,4 +51,25 @@ export function applyWorkspaceIcon(imgEl) {
 
 export function getIconSet(key) {
   return ICONS[key];
+}
+
+export function getSidebarMode() {
+  const saved = localStorage.getItem(SIDEBAR_MODE_KEY);
+  if (saved === 'compact' || saved === 'full') return saved;
+  return 'full';
+}
+
+export function setSidebarMode(mode) {
+  const next = mode === 'compact' ? 'compact' : 'full';
+  localStorage.setItem(SIDEBAR_MODE_KEY, next);
+}
+
+export function getOSKind() {
+  const ua = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+  const isMac = /Mac/.test(platform) || /Mac OS/.test(ua);
+  const isWin = /Win/.test(platform) || /Windows/.test(ua);
+  if (isMac) return 'mac';
+  if (isWin) return 'windows';
+  return 'other';
 }

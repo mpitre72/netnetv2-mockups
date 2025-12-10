@@ -63,3 +63,4 @@ export const WORKSPACE_SAMPLE_ICONS = {
 
 export const WORKSPACE_KEY = 'activeWorkspace';
 export const THEME_KEY = 'theme';
+export const SIDEBAR_MODE_KEY = 'netnet_sidebarMode';

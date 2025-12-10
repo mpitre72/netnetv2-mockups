@@ -323,6 +323,56 @@ function DesktopTabsDemo() {
   );
 }
 
+function SidebarModesDemo() {
+  const items = [
+    {
+      key: 'full',
+      title: 'Expanded Mode (full)',
+      points: [
+        '256px wide, icons + labels',
+        'Single-open accordion: active section drives sub-nav',
+        'Click active section again toggles sub-nav closed/open',
+      ],
+    },
+    {
+      key: 'compact',
+      title: 'Collapsed Mode (icon rail)',
+      points: [
+        '76px wide, icon-only rail',
+        'Hover flyout shows label + sub-nav items; browser tooltips for labels',
+        'Toggle via profile chevron or ⌘B / Ctrl+B, persists in storage',
+      ],
+    },
+    {
+      key: 'subnav',
+      title: 'Sub-nav rules',
+      points: [
+        'Only sections with subs render children',
+        'Active section auto-expands when navigated to',
+        'Ready for future subs (Sales, Jobs, Reports)',
+      ],
+    },
+  ];
+  return h(
+    'div',
+    { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' },
+    items.map((item) =>
+      h(
+        'div',
+        { key: item.key, className: `${cardBase} p-4 flex flex-col gap-3` },
+        [
+          h('div', { className: 'text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-white/60' }, item.title),
+          h(
+            'ul',
+            { className: 'space-y-2 text-sm text-slate-700 dark:text-white/80 list-disc list-inside' },
+            item.points.map((point, idx) => h('li', { key: `${item.key}-${idx}` }, point))
+          ),
+        ]
+      )
+    )
+  );
+}
+
 function ComponentsCheatSheet() {
   return h(
     'div',
@@ -334,6 +384,7 @@ function ComponentsCheatSheet() {
       ]),
       h(Section, { title: 'Net Net Logos' }, h(LogoGrid)),
       h(Section, { title: 'Navigation Icons' }, h(NavIconGrid)),
+      h(Section, { title: 'Sidebar Modes' }, h(SidebarModesDemo)),
       h(Section, { title: 'Social Icons' }, h(SocialIconsRow)),
       h(Section, { title: 'Buttons' }, h(ChromeButtonsRow)),
       h(Section, { title: 'Top Bar Chrome' }, h(TopBarChromeDemo)),
