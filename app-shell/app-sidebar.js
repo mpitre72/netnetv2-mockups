@@ -89,8 +89,8 @@ export function renderSidebar(hash) {
           >
             <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-200 text-sm font-semibold">MP</div>
             <div class="flex flex-col">
-              <span class="text-sm font-semibold text-slate-100">Marc Pitre</span>
-              <span class="text-xs text-slate-400">Owner</span>
+              <span class="text-sm font-semibold text-slate-100 sidebar-profile-name">Marc Pitre</span>
+              <span class="text-xs text-slate-400 sidebar-profile-role">Owner</span>
             </div>
           </button>
           <button type="button" id="sidebarModeToggle" class="sidebar-profile-toggle" data-mode="${mode}">

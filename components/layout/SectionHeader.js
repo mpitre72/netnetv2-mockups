@@ -1,12 +1,56 @@
 const { createElement: h, useState, useEffect } = React;
 
+const VIDEO_HELP_ICONS = {
+  light: {
+    idle: 'public/assets/brand/chrome/VidHelp-Idle.svg',
+    active: 'public/assets/brand/chrome/VidHelp-Active.svg',
+  },
+  dark: {
+    idle: 'public/assets/brand/chrome/VidHelp-Idle-white.svg',
+    active: 'public/assets/brand/chrome/VidHelp-Active-white.svg',
+  },
+};
+
+function isDark() {
+  if (typeof document === 'undefined') return false;
+  return document.documentElement.classList.contains('dark');
+}
+
+function VideoHelpIcon({ isActive = false, onClick }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const dark = isDark();
+  const useActive = isActive || isHovered;
+  const src = useActive
+    ? (dark ? VIDEO_HELP_ICONS.dark.active : VIDEO_HELP_ICONS.light.active)
+    : (dark ? VIDEO_HELP_ICONS.dark.idle : VIDEO_HELP_ICONS.light.idle);
+  return h('img', {
+    src,
+    alt: 'Video help',
+    role: 'button',
+    tabIndex: 0,
+    className: 'h-6 w-6 cursor-pointer select-none transition-opacity hover:opacity-90',
+    onClick,
+    onMouseEnter: () => setIsHovered(true),
+    onMouseLeave: () => setIsHovered(false),
+    onKeyDown: (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick && onClick();
+      }
+    },
+    'aria-label': 'Open video help',
+  });
+}
+
 export function SectionHeader({
   title,
   showHelpIcon = false,
   switcherOptions,
   switcherValue,
   onSwitcherChange,
-  actions,
+  leftActions,
+  rightActions,
+  actions, // backward compatibility: treated as rightActions
   showSearch = false,
   searchPlaceholder = 'Search',
   searchValue = '',
@@ -14,12 +58,14 @@ export function SectionHeader({
   className = '',
 }) {
   const [localSearch, setLocalSearch] = useState(searchValue || '');
+  const [helpActive, setHelpActive] = useState(false);
 
   useEffect(() => {
     setLocalSearch(searchValue || '');
   }, [searchValue]);
 
   const openHelp = () => {
+    setHelpActive(true);
     const shell = document.getElementById('app-shell');
     const drawer = document.getElementById('drawer-container');
     if (shell) shell.classList.remove('drawer-closed');
@@ -36,101 +82,81 @@ export function SectionHeader({
           <p class="text-sm text-white/80">A curated library of show-me-how videos will live here for this section.</p>
         </aside>
       `;
+      const close = () => {
+        shell?.classList.add('drawer-closed');
+        setHelpActive(false);
+      };
       const closeBtn = document.getElementById('sectionHelpClose');
-      if (closeBtn) {
-        closeBtn.onclick = () => {
-          shell?.classList.add('drawer-closed');
-        };
-      }
+      if (closeBtn) closeBtn.onclick = close;
       const backdrop = document.getElementById('app-drawer-backdrop');
-      if (backdrop) {
-        backdrop.onclick = () => shell?.classList.add('drawer-closed');
-      }
+      if (backdrop) backdrop.onclick = close;
     }
   };
+
+  const resolvedRightActions = rightActions || actions;
 
   return h(
     'div',
     { className: `w-full flex flex-col gap-3 ${className}` },
     [
+      // Top row: help + title
       h(
         'div',
-        { className: 'flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between' },
+        { className: 'flex items-center gap-3' },
         [
-          h(
-            'div',
-            { className: 'flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4' },
-            [
-              h(
-                'div',
-                { className: 'flex items-center gap-3' },
-                [
-                  showHelpIcon
-                    ? h(
-                        'button',
-                        {
-                          type: 'button',
-                          className: 'inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-white hover:border-slate-500 hover:bg-slate-800 transition-colors',
-                          'aria-label': 'Open video help',
-                          onClick: openHelp,
-                        },
-                        h('svg', { viewBox: '0 0 24 24', className: 'h-5 w-5', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-                          h('circle', { cx: '12', cy: '12', r: '10' }),
-                          h('path', { d: 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 1-1 1.7V15' }),
-                          h('circle', { cx: '12', cy: '18', r: '1' }),
-                        ])
-                      )
-                    : null,
-                  h('h1', { className: 'text-2xl lg:text-3xl font-semibold text-slate-900 dark:text-white' }, title),
-                ]
-              ),
-              switcherOptions && switcherOptions.length
-                ? h(
-                    'div',
-                    { className: 'inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-1 py-1' },
-                    switcherOptions.map((opt) =>
-                      h(
-                        'button',
-                        {
-                          key: opt.value,
-                          type: 'button',
-                          className: [
-                            'px-3 py-1 rounded-full text-sm font-medium transition-colors',
-                            opt.value === switcherValue
-                              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
-                              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
-                          ].join(' '),
-                          onClick: () => onSwitcherChange && onSwitcherChange(opt.value),
-                        },
-                        opt.label
-                      )
-                    )
-                  )
-                : null,
-            ]
-          ),
-          actions
-            ? h('div', { className: 'flex items-center gap-2 justify-start lg:justify-end flex-wrap' }, actions)
-            : null,
-        ]
+          showHelpIcon ? h(VideoHelpIcon, { isActive: helpActive, onClick: openHelp }) : null,
+          h('h1', { className: 'text-2xl font-semibold text-slate-900 dark:text-white leading-tight' }, title),
+        ].filter(Boolean)
       ),
-      showSearch
-        ? h(
-            'div',
-            { className: 'flex items-center w-full lg:w-auto' },
-            h('input', {
-              type: 'search',
-              value: localSearch,
-              onChange: (e) => {
-                setLocalSearch(e.target.value);
-                onSearchChange && onSearchChange(e.target.value);
-              },
-              placeholder: searchPlaceholder,
-              className:
-                'w-full lg:min-w-[280px] rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-white shadow-inner focus:outline-none focus:ring-2 focus:ring-netnet-purple',
-            })
-          )
-        : null,
+      // Bottom row: left actions | switcher | search | right actions
+      h(
+        'div',
+        { className: 'flex flex-wrap items-center gap-3 w-full' },
+        [
+          leftActions ? h('div', { className: 'flex items-center gap-2' }, leftActions) : null,
+          switcherOptions && switcherOptions.length
+            ? h(
+                'div',
+                { className: 'inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-1 py-1' },
+                switcherOptions.map((opt) =>
+                  h(
+                    'button',
+                    {
+                      key: opt.value,
+                      type: 'button',
+                      className: [
+                        'px-3 py-1 rounded-full text-sm font-medium transition-colors',
+                        opt.value === switcherValue
+                          ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
+                      ].join(' '),
+                      onClick: () => onSwitcherChange && onSwitcherChange(opt.value),
+                    },
+                    opt.label
+                  )
+                )
+              )
+            : null,
+          showSearch
+            ? h(
+                'div',
+                { className: 'flex-1 min-w-[200px]' },
+                h('input', {
+                  type: 'search',
+                  value: localSearch,
+                  onChange: (e) => {
+                    setLocalSearch(e.target.value);
+                    onSearchChange && onSearchChange(e.target.value);
+                  },
+                  placeholder: searchPlaceholder,
+                  className:
+                    'w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-white shadow-inner focus:outline-none focus:ring-2 focus:ring-netnet-purple',
+                })
+              )
+            : null,
+          resolvedRightActions ? h('div', { className: 'flex items-center gap-2' }, resolvedRightActions) : null,
+        ].filter(Boolean)
+      ),
     ]
   );
 }

@@ -6,6 +6,8 @@ import { SocialIcon } from './components/SocialIcon.js';
 import { NetNetButton } from './components/NetNetButton.js';
 import { Tabs, Tab, NewTabButton } from './components/navigation/tabs.js';
 import { TopBarChromeDemo } from './components/navigation/top-bar.js';
+import { EffortTimelineMeterReact } from './components/metrics/effort-timeline-meter.js';
+import { SectionHeader } from './components/layout/SectionHeader.js';
 
 const { createElement: h, useState } = React;
 const { createRoot } = ReactDOM;
@@ -295,6 +297,57 @@ function ButtonsGrid() {
   );
 }
 
+function EffortTimelineDocs() {
+  const samples = [
+    { key: 'balanced', label: 'Balanced job', effort: 72, timeline: 68, summary: '144/200h' },
+    { key: 'risk', label: 'At risk', effort: 108, timeline: 97, summary: '108/100h' },
+    { key: 'timeline', label: 'Timeline tight', effort: 82, timeline: 94, summary: '82/100h' },
+  ];
+
+  return h(
+    'div',
+    { className: 'space-y-4' },
+    [
+      h('p', { className: 'text-sm text-slate-600 dark:text-white/70' }, 'Reusable stacked meter: Effort on top, Timeline on bottom. Colors shift at 85% and 100% to highlight risk.'),
+      h(
+        'div',
+        { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' },
+        samples.map((sample) =>
+          h(
+            'div',
+            { key: sample.key, className: `${cardBase} p-4 space-y-3` },
+            [
+              h('div', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, sample.label),
+              h(EffortTimelineMeterReact, {
+                effortPercent: sample.effort,
+                timelinePercent: sample.timeline,
+                summaryText: sample.summary,
+              }),
+            ]
+          )
+        )
+      ),
+      h(
+        'div',
+        { className: `${cardBase} p-4 space-y-2` },
+        [
+          h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold' }, 'Props'),
+          h(
+            'ul',
+            { className: 'list-disc list-inside text-sm text-slate-700 dark:text-white/80 space-y-1' },
+            [
+              h('li', null, '`effortPercent` and `timelinePercent`: numeric percentages (Effort always renders on top).'),
+              h('li', null, '`effortLabel` / `timelineLabel`: optional labels (defaults: Effort, Timeline).'),
+              h('li', null, '`summaryText`: optional mono text for quick ratios (e.g., 80/200h).'),
+              h('li', null, 'Color stops: green < 85%, amber 85–100%, red beyond 100%.'),
+            ]
+          ),
+        ]
+      ),
+    ]
+  );
+}
+
 function DesktopTabsDemo() {
   const [value, setValue] = useState('components');
 
@@ -374,19 +427,140 @@ function SidebarModesDemo() {
 }
 
 function ComponentsCheatSheet() {
+  const [headerTab, setHeaderTab] = useState('overview');
+  const [headerSearch, setHeaderSearch] = useState('');
+
+  const MiniIconButton = ({ keyId, aria, children }) =>
+    h(
+      'button',
+      {
+        key: keyId,
+        type: 'button',
+        className:
+          'nn-btn nn-btn--mini inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors',
+        'aria-label': aria,
+      },
+      children
+    );
+
+  const leftMini = [
+    h(MiniIconButton, {
+      keyId: 'expand',
+      aria: 'Expand all',
+      children: h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+        h('path', { d: 'M12 5v14' }),
+        h('path', { d: 'M5 12h14' }),
+      ]),
+    }),
+    h(MiniIconButton, {
+      keyId: 'select',
+      aria: 'Select all',
+      children: h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+        h('rect', { x: '4', y: '4', width: '16', height: '16', rx: '2' }),
+        h('path', { d: 'M8 12l3 3 5-6' }),
+      ]),
+    }),
+  ];
+
+  const rightMini = [
+    h(MiniIconButton, {
+      keyId: 'docs',
+      aria: 'Open docs',
+      children: h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+        h('path', { d: 'M7 4h7l4 4v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z' }),
+        h('path', { d: 'M14 4v4h4' }),
+      ]),
+    }),
+    h(MiniIconButton, {
+      keyId: 'copy',
+      aria: 'Copy usage',
+      children: h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+        h('rect', { x: '9', y: '9', width: '13', height: '13', rx: '2' }),
+        h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' }),
+      ]),
+    }),
+  ];
+
+  const sectionHeaderVariants = [
+    {
+      title: 'Dashboard header',
+      node: h(SectionHeader, {
+        title: 'Performance Dashboard',
+        showHelpIcon: true,
+        leftActions: leftMini,
+        rightActions: rightMini,
+      }),
+    },
+    {
+      title: 'Header with switcher',
+      node: h(SectionHeader, {
+        title: 'Components',
+        showHelpIcon: true,
+        switcherOptions: [
+          { label: 'Overview', value: 'overview' },
+          { label: 'Buttons', value: 'buttons' },
+          { label: 'Layouts', value: 'layouts' },
+        ],
+        switcherValue: headerTab,
+        onSwitcherChange: setHeaderTab,
+        leftActions: leftMini,
+        rightActions: rightMini.slice(0, 1),
+      }),
+    },
+    {
+      title: 'Header with search',
+      node: h(SectionHeader, {
+        title: 'Library Search',
+        showHelpIcon: true,
+        leftActions: leftMini,
+        rightActions: rightMini,
+        showSearch: true,
+        searchPlaceholder: 'Search components…',
+        searchValue: headerSearch,
+        onSearchChange: setHeaderSearch,
+      }),
+    },
+  ];
+
   return h(
     'div',
-    { className: 'max-w-6xl mx-auto p-6 space-y-8 text-slate-900 dark:text-white' },
+    { className: 'w-full px-4 sm:px-6 lg:px-8 py-6 space-y-8 text-slate-900 dark:text-white' },
     [
-      h('div', { className: 'space-y-2' }, [
-        h('h1', { className: 'text-2xl font-bold' }, 'Components Cheat Sheet'),
-        h('p', { className: 'text-sm text-slate-600 dark:text-white/70' }, 'Canonical reference for Net Net chrome components, states, and themes.'),
+      h(SectionHeader, {
+        title: 'Component Library',
+        showHelpIcon: true,
+        switcherOptions: [
+          { label: 'Overview', value: 'overview' },
+          { label: 'Buttons', value: 'buttons' },
+          { label: 'Layouts', value: 'layouts' },
+          { label: 'Tables', value: 'tables' },
+        ],
+        switcherValue: headerTab,
+        onSwitcherChange: setHeaderTab,
+        leftActions: leftMini,
+        rightActions: rightMini,
+        showSearch: true,
+        searchPlaceholder: 'Search components…',
+        searchValue: headerSearch,
+        onSearchChange: setHeaderSearch,
+        className: 'pb-2',
+      }),
+      h(Section, { title: 'SectionHeader Variations' }, [
+        h('div', { className: 'space-y-6' },
+          sectionHeaderVariants.map((item) =>
+            h('div', { key: item.title, className: 'space-y-2' }, [
+              h('div', { className: 'text-sm font-semibold text-slate-600 dark:text-slate-300' }, item.title),
+              item.node,
+            ])
+          )
+        ),
       ]),
       h(Section, { title: 'Net Net Logos' }, h(LogoGrid)),
       h(Section, { title: 'Navigation Icons' }, h(NavIconGrid)),
       h(Section, { title: 'Sidebar Modes' }, h(SidebarModesDemo)),
       h(Section, { title: 'Social Icons' }, h(SocialIconsRow)),
       h(Section, { title: 'Buttons' }, h(ChromeButtonsRow)),
+      h(Section, { title: 'Effort vs Timeline Meter' }, h(EffortTimelineDocs)),
       h(Section, { title: 'Top Bar Chrome' }, h(TopBarChromeDemo)),
       h(Section, { title: 'Desktop Tabs' }, h(DesktopTabsDemo)),
     ]
