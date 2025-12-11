@@ -222,11 +222,11 @@ html.dark .lookup-modal__body { color: #cbd5e1; }
 
 .contacts-row.contacts-individuals-header-row,
 .contacts-individuals-header-row > td {
-  background-color: #242C5D !important;
+  background-color: #1F194C !important;
   color: #fff !important;
 }
 .contacts-individuals-header-row:hover > td {
-  background-color: #242C5D !important;
+  background-color: #1F194C !important;
   cursor: default !important;
 }
 .individuals-group > td {
