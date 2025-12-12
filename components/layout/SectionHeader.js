@@ -56,6 +56,7 @@ export function SectionHeader({
   searchValue = '',
   onSearchChange,
   videoHelpConfig,
+  showSecondaryRow = true,
   className = '',
 }) {
   const [localSearch, setLocalSearch] = useState(searchValue || '');
@@ -78,29 +79,51 @@ export function SectionHeader({
       setHelpActive(false);
     };
 
-    const renderPlaceholder = () => {
-      drawer.innerHTML = `
-        <div id="app-drawer-backdrop"></div>
-        <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-5 flex flex-col gap-3 w-full max-w-md">
-          <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold">Video Help coming soon</h2>
-            <button type="button" id="sectionHelpClose" class="text-slate-500 hover:text-slate-800 dark:text-white/70 dark:hover:text-white">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-          <p class="text-sm text-slate-600 dark:text-white/80">A curated library of show-me-how videos will live here for this section.</p>
-        </aside>
-      `;
-      const closeBtn = document.getElementById('sectionHelpClose');
-      if (closeBtn) closeBtn.onclick = closeDrawer;
-      const backdrop = document.getElementById('app-drawer-backdrop');
-      if (backdrop) backdrop.onclick = closeDrawer;
-    };
-
     const renderVideoDrawer = () => {
+      const fallbackConfig = {
+        primary: {
+          title: 'Managing Jobs',
+          description: 'Learn how to manage Jobs in Net Net.',
+          videoUrl: 'https://videos.hellonetnet.com/watch/wo5umvj3',
+          thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+        },
+        related: [
+          {
+            title: 'Quick Tasks vs. Job Tasks',
+            description: 'Compare Quick Tasks to full Job Tasks.',
+            videoUrl: 'https://videos.hellonetnet.com/watch/_GCLvxjV',
+            thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+          },
+          {
+            title: 'Deliverables & Tasks',
+            description: 'How grouping tasks into deliverables works.',
+            videoUrl: 'https://videos.hellonetnet.com/watch/SlwetZGk',
+            thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+          },
+          {
+            title: "Job KPI's",
+            description: 'Understand Job-level performance metrics.',
+            videoUrl: 'https://videos.hellonetnet.com/watch/mrN5rbMM',
+            thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+          },
+          {
+            title: 'Activating Estimates To Jobs',
+            description: 'Turn approved estimates into active Jobs.',
+            videoUrl: 'https://videos.hellonetnet.com/watch/USScaUJq',
+            thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+          },
+          {
+            title: 'Utilizing Chat with Smart Mentions!',
+            description: 'Use Smart Mentions to keep Job conversations in context.',
+            videoUrl: 'https://videos.hellonetnet.com/watch/J6L4QHnS',
+            thumbnailSrc: 'public/assets/samples/vid-chat.jpg',
+          },
+        ],
+      };
+      const cfg = videoHelpConfig && videoHelpConfig.primary ? videoHelpConfig : fallbackConfig;
       const videos = [
-        { ...(videoHelpConfig.primary || {}), index: 0 },
-        ...(videoHelpConfig.related || []).map((v, idx) => ({ ...v, index: idx + 1 })),
+        { ...(cfg.primary || {}), index: 0 },
+        ...(cfg.related || []).map((v, idx) => ({ ...v, index: idx + 1 })),
       ].filter(v => v.videoUrl);
 
       drawer.innerHTML = `
@@ -270,14 +293,11 @@ export function SectionHeader({
     };
 
     shell?.classList.remove('drawer-closed');
-    if (videoHelpConfig && videoHelpConfig.primary) {
-      renderVideoDrawer();
-    } else {
-      renderPlaceholder();
-    }
+    renderVideoDrawer();
   };
 
   const resolvedRightActions = rightActions || actions;
+  const secondaryVisible = showSecondaryRow !== false;
 
   return h(
     'div',
@@ -286,7 +306,7 @@ export function SectionHeader({
       // Top row: help + title
       h(
         'div',
-        { className: 'flex items-center gap-3' },
+        { className: 'flex items-center gap-3 section-header-top' },
         [
           showHelpIcon ? h(VideoHelpIcon, { isActive: helpActive, onClick: openHelp }) : null,
           h('h1', { className: 'text-2xl font-semibold text-slate-900 dark:text-white leading-tight' }, title),
@@ -295,7 +315,7 @@ export function SectionHeader({
       // Bottom row: left actions | switcher | search | right actions
       h(
         'div',
-        { className: 'flex flex-wrap items-center gap-3 w-full' },
+        { className: `flex flex-wrap items-center gap-3 w-full section-header-bottom ${secondaryVisible ? '' : 'section-header-bottom--hidden'}` },
         [
           leftActions ? h('div', { className: 'flex items-center gap-2' }, leftActions) : null,
           switcherOptions && switcherOptions.length
@@ -309,10 +329,10 @@ export function SectionHeader({
                       key: opt.value,
                       type: 'button',
                       className: [
-                        'px-3 py-1 rounded-full text-sm font-medium transition-colors',
+                        'px-3 py-1 rounded-full text-sm font-medium transition-colors border',
                         opt.value === switcherValue
-                          ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
-                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
+                          ? 'bg-[var(--color-brand-purple,#711FFF)] dark:bg-[var(--color-brand-purple,#711FFF)] text-white shadow-sm border-transparent'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-transparent border-transparent hover:bg-slate-100 hover:border-slate-300 dark:hover:bg-white/10 dark:hover:border-white/25',
                       ].join(' '),
                       onClick: () => onSwitcherChange && onSwitcherChange(opt.value),
                     },
@@ -324,7 +344,7 @@ export function SectionHeader({
           showSearch
             ? h(
                 'div',
-                { className: 'flex-1 min-w-[200px]' },
+                { className: 'flex-1 min-w-[200px] section-header-search' },
                 h('input', {
                   type: 'search',
                   value: localSearch,

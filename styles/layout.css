@@ -958,3 +958,68 @@ html:not(.dark) .buttons-demo__full:hover {
 html:not(.dark) .buttons-demo__full:active {
   box-shadow: 0 3px 8px rgba(15,23,42,0.16);
 }
+
+
+/* SectionHeader search hover/focus aligns with micro button hover */
+.section-header-search input {
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.section-header-search input:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.section-header-search input:focus,
+.section-header-search input:focus-visible {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 1px var(--color-brand-purple, #711FFF);
+  outline: none;
+}
+
+html.dark .section-header-search input:hover {
+  background-color: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.35);
+}
+
+html.dark .section-header-search input:focus,
+html.dark .section-header-search input:focus-visible {
+  background-color: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.35);
+  box-shadow: 0 0 0 1px var(--color-brand-purple, #711FFF);
+  outline: none;
+}
+
+/* SectionHeader bottom row visibility */
+.section-header-bottom {
+  transition: opacity 150ms ease, transform 150ms ease, max-height 180ms ease;
+  max-height: 500px;
+}
+.section-header-bottom--hidden {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.section-header-top {
+  background-color: var(--color-bg-app-light, #F9FAFB);
+}
+html.dark .section-header-top {
+  background-color: var(--color-bg-app, #020617);
+}
+
+/* Sticky wrapper for reports header */
+.reports-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  background-color: var(--color-bg-app-light, #F9FAFB);
+  padding-top: 0.25rem;
+  padding-bottom: 0.5rem;
+}
+html.dark .reports-header-sticky {
+  background-color: var(--color-bg-app, #020617);
+}

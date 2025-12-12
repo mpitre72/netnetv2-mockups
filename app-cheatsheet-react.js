@@ -478,7 +478,7 @@ function ComponentsCheatSheet() {
         key: keyId,
         type: 'button',
         className:
-          'nn-btn nn-btn--mini inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors',
+          'nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors',
         'aria-label': aria,
       },
       children

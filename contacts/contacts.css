@@ -122,6 +122,38 @@ html.dark .lookup-menu {
   border-spacing: 0;
 }
 
+/* Light mode “Bizarro dark” palette overrides */
+html:not(.dark) .contacts-scroll {
+  background: #F3F4F6;
+}
+html:not(.dark) .contacts-column-header-row {
+  background: #E5E7EB !important;
+  color: #4b5563 !important;
+  border-bottom: 1px solid var(--color-border-subtle-light, #e5e7eb) !important;
+}
+html:not(.dark) .contacts-company-row {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--color-border-subtle-light, #e5e7eb) !important;
+  color: #111827 !important;
+}
+html:not(.dark) .contacts-company-row:hover {
+  background: #f3f4f6 !important;
+}
+html:not(.dark) .contacts-employee-header-row {
+  background: #E5E7EB !important;
+  color: #4b5563 !important;
+  border-bottom: 1px solid var(--color-border-subtle-light, #e5e7eb) !important;
+}
+html:not(.dark) .contacts-employee-table tbody tr {
+  background: #ffffff;
+  color: #111827;
+}
+html:not(.dark) .contacts-employee-table tbody tr:hover {
+  background: #f3f4f6;
+}
+html:not(.dark) .contacts-employee-table tbody tr > td {
+  border-color: var(--color-border-subtle-light, #e5e7eb);
+}
 .company-people-links {
   display: flex;
   flex-wrap: wrap;

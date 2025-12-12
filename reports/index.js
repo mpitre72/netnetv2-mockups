@@ -1,5 +1,9 @@
 import { mockReportData } from '../data/mock-reports.js';
 import { renderEffortTimelineMeter } from '../components/metrics/effort-timeline-meter.js';
+import { SectionHeader } from '../components/layout/SectionHeader.js';
+
+const { createElement: h } = React;
+const { createRoot } = ReactDOM;
 
 const REPORT_TABS = [
   { value: 'performance', label: 'Performance' },
@@ -296,7 +300,6 @@ function buildPerformanceDashboard(data = mockReportData) {
   return `
     <div class="space-y-8">
       <header class="space-y-1">
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Performance Dashboard</h1>
         <p class="text-sm text-slate-600 dark:text-slate-400">Real-time overview of effort, timeline, and team capacity.</p>
       </header>
       ${buildKpiRow(metrics)}
@@ -322,36 +325,60 @@ export function renderReportsPage(container = document.getElementById('app-main'
   }
 
   const activeTab = getActiveTabFromHash();
-  const tabButtons = REPORT_TABS.map((tab) => {
-    const isActive = tab.value === activeTab;
-    const baseClasses = 'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold border transition-colors';
-    const activeClasses = 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white';
-    const idleClasses = 'bg-white text-slate-700 dark:bg-slate-900/60 dark:text-white border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800/70';
-    return `<button type="button" role="tab" aria-selected="${isActive ? 'true' : 'false'}" data-report-tab="${tab.value}" class="${baseClasses} ${isActive ? activeClasses : idleClasses}">${tab.label}</button>`;
-  }).join('');
-
   const content = activeTab === DEFAULT_TAB
     ? buildPerformanceDashboard(mockReportData)
     : buildPlaceholder(REPORT_TABS.find((t) => t.value === activeTab)?.label || 'This');
 
   container.innerHTML = `
     <div class="max-w-6xl mx-auto px-4 py-6 lg:py-8 space-y-6">
-      <div class="flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reports</div>
-        </div>
-        <div role="tablist" aria-label="Reports dashboards" class="flex flex-wrap gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
-          ${tabButtons}
-        </div>
+      <div class="reports-header-sticky">
+        <div id="section-header-root"></div>
       </div>
       ${content}
     </div>
   `;
 
-  container.querySelectorAll('[data-report-tab]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const next = btn.getAttribute('data-report-tab') || DEFAULT_TAB;
-      setActiveTab(next);
-    });
-  });
+  const headerRoot = document.getElementById('section-header-root');
+  if (headerRoot) {
+    const root = createRoot(headerRoot);
+    let showSecondaryRow = true;
+    const renderHeader = () => {
+      root.render(h(SectionHeader, {
+        title: 'Performance Dashboard',
+        showHelpIcon: true,
+        switcherOptions: REPORT_TABS,
+        switcherValue: activeTab,
+        onSwitcherChange: setActiveTab,
+        showSecondaryRow,
+      }));
+    };
+    renderHeader();
+
+    if (typeof window !== 'undefined') {
+      if (window.__reportsScrollHandler) {
+        window.removeEventListener('scroll', window.__reportsScrollHandler);
+      }
+      let lastY = window.scrollY || 0;
+      const threshold = 64;
+      const handler = () => {
+        const current = window.scrollY || 0;
+        const delta = current - lastY;
+        let nextVisible = showSecondaryRow;
+        if (current <= threshold) {
+          nextVisible = true;
+        } else if (delta > 0) {
+          nextVisible = false;
+        } else if (delta < 0) {
+          nextVisible = true;
+        }
+        if (nextVisible !== showSecondaryRow) {
+          showSecondaryRow = nextVisible;
+          renderHeader();
+        }
+        lastY = current;
+      };
+      window.__reportsScrollHandler = handler;
+      window.addEventListener('scroll', handler, { passive: true });
+    }
+  }
 }
