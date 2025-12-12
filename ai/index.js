@@ -36,7 +36,7 @@ function renderBotLayout() {
       <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-[#0B1120]">
         <div class="flex gap-3 chat-msg-container">
           <div class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center shrink-0"><img src="${iconSrc}" class="w-5 h-5 object-contain"></div>
-          <div class="flex flex-col gap-2 max-w-[85%]"><div class="bg-white dark:bg-gray-800 p-3 rounded-2xl rounded-tl-none shadow-sm text-gray-800 dark:text-gray-200 text-sm chat-msg-text">Hello! I can help you with tasks, time tracking, or performance insights. What's on your mind?</div></div>
+          <div class="flex flex-col gap-2 max-w-[85%]"><div class="bg-[#E1D6F7] dark:bg-gray-800 p-3 rounded-2xl rounded-tl-none shadow-sm text-gray-800 dark:text-gray-200 text-sm chat-msg-text">Hello! I can help you with tasks, time tracking, or performance insights. What's on your mind?</div></div>
         </div>
       </div>
       <div class="p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shrink-0">
@@ -60,7 +60,7 @@ function renderBotMessage(msgList, htmlContent) {
       <img src="${iconSrc}" class="w-5 h-5 object-contain">
     </div>
     <div class="flex flex-col gap-2 max-w-[85%]">
-      <div class="bg-white dark:bg-gray-800 p-3 rounded-2xl rounded-tl-none shadow-sm text-gray-800 dark:text-gray-200 text-sm chat-msg-text">${htmlContent}</div>
+      <div class="bg-[#E1D6F7] dark:bg-gray-800 p-3 rounded-2xl rounded-tl-none shadow-sm text-gray-800 dark:text-gray-200 text-sm chat-msg-text">${htmlContent}</div>
       <div class="flex items-center gap-3 px-1">
         <button class="chat-action-copy p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         <button class="chat-action-up p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors" title="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>
@@ -130,7 +130,7 @@ export function renderNetNetBot(container = document.getElementById('app-main'))
     msgList.innerHTML = `
       <div class="flex gap-3 chat-msg-container">
         <div class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center shrink-0"><img src="${iconSrc}" class="w-5 h-5 object-contain"></div>
-        <div class="flex flex-col gap-2 max-w-[85%]"><div class="bg-white dark:bg-gray-800 p-3 rounded-2xl rounded-tl-none shadow-sm text-gray-800 dark:text-gray-200 text-sm chat-msg-text">Hello! I can help you with tasks, time tracking, or performance insights. What's on your mind?</div></div>
+        <div class="flex flex-col gap-2 max-w-[85%]"><div class="bg-[#E1D6F7] dark:bg-gray-800 p-3 rounded-2xl rounded-tl-none shadow-sm text-gray-800 dark:text-gray-200 text-sm chat-msg-text">Hello! I can help you with tasks, time tracking, or performance insights. What's on your mind?</div></div>
       </div>`;
     chatStage = 0;
     greetingIndex = 0;
@@ -153,9 +153,19 @@ export function renderNetNetBot(container = document.getElementById('app-main'))
     if (!input || !msgList) return;
     const text = input.value.trim();
     if (!text) return;
+    const userInitials = (() => {
+      const badge = document.querySelector('#app-sidebar .sidebar-profile-main > div:first-child');
+      const initials = badge ? badge.textContent.trim() : '';
+      return initials || 'You';
+    })();
     const userDiv = document.createElement('div');
-    userDiv.className = "flex gap-3 justify-end chat-msg-container";
-    userDiv.innerHTML = `<div class="bg-netnet-purple p-3 rounded-2xl rounded-tr-none shadow-sm text-white text-sm max-w-[85%] break-words chat-msg-text">${text.replace(/\n/g, '<br>')}</div>`;
+    userDiv.className = "flex gap-3 justify-end chat-msg-container items-end";
+    userDiv.innerHTML = `
+      <div class="flex flex-col gap-2 max-w-[85%] items-end">
+        <div class="bg-netnet-purple p-3 rounded-2xl rounded-tr-none shadow-sm text-white text-sm break-words chat-msg-text">${text.replace(/\n/g, '<br>')}</div>
+      </div>
+      <div class="w-8 h-8 rounded-full bg-netnet-purple text-white text-sm font-semibold flex items-center justify-center shrink-0">${userInitials}</div>
+    `;
     msgList.appendChild(userDiv);
     input.value = ''; input.style.height = 'auto'; check(); msgList.scrollTop = msgList.scrollHeight;
     setTimeout(() => {

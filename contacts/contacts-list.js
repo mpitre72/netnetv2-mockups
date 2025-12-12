@@ -18,6 +18,7 @@ export function renderContactsLayout(data = [], subview = 'companies') {
                 <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700">Links</th>
                 <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700">Phone</th>
                 <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700">Location</th>
+                <th class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 w-10 text-right"></th>
               </tr>
             </thead>
             <tbody id="contacts-table-body" class="divide-y divide-gray-100 dark:divide-gray-800"></tbody>
@@ -36,6 +37,7 @@ export function renderContactsLayout(data = [], subview = 'companies') {
                 <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700">Links</th>
                 <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700">Mobile</th>
                 <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700">Location</th>
+                <th class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 w-10 text-right"></th>
               </tr>
             </thead>
             <tbody id="contacts-flat-body" class="divide-y divide-gray-100 dark:divide-gray-800"></tbody>

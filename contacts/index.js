@@ -33,6 +33,21 @@ let refreshContactsHeader = () => {};
 
 let contactsMultiSelectMode = false;
 const selectedPersonIds = new Set();
+let openMenuRef = null;
+
+function ensureActiveFlags() {
+  const companies = getContactsData();
+  companies.forEach(c => {
+    (c.people || []).forEach(p => {
+      if (typeof p.isActive !== 'boolean') p.isActive = true;
+    });
+  });
+  const individuals = getIndividualsData();
+  individuals.forEach(p => {
+    if (typeof p.isActive !== 'boolean') p.isActive = true;
+  });
+}
+ensureActiveFlags();
 
 function clearSelection() {
   selectedPersonIds.clear();
@@ -75,6 +90,54 @@ function buildFlatPeopleList() {
     });
   });
   return people;
+}
+
+function deleteCompany(id) {
+  const companies = getContactsData();
+  const idx = companies.findIndex(c => String(c.id) === String(id));
+  if (idx >= 0) companies.splice(idx, 1);
+}
+
+function deletePerson(id) {
+  const companies = getContactsData();
+  companies.forEach(c => {
+    if (Array.isArray(c.people)) {
+      const idx = c.people.findIndex(p => String(p.id) === String(id));
+      if (idx >= 0) c.people.splice(idx, 1);
+    }
+  });
+  const individuals = getIndividualsData();
+  const idxInd = individuals.findIndex(p => String(p.id) === String(id));
+  if (idxInd >= 0) individuals.splice(idxInd, 1);
+  selectedPersonIds.delete(id);
+}
+
+function setPersonActive(id, active) {
+  const companies = getContactsData();
+  companies.forEach(c => {
+    (c.people || []).forEach(p => {
+      if (String(p.id) === String(id)) p.isActive = !!active;
+    });
+  });
+  const individuals = getIndividualsData();
+  individuals.forEach(p => {
+    if (String(p.id) === String(id)) p.isActive = !!active;
+  });
+}
+
+function getPersonById(id) {
+  let found = null;
+  const companies = getContactsData();
+  companies.forEach(c => {
+    (c.people || []).forEach(p => {
+      if (String(p.id) === String(id)) found = p;
+    });
+  });
+  if (!found) {
+    const individuals = getIndividualsData();
+    individuals.forEach(p => { if (String(p.id) === String(id)) found = p; });
+  }
+  return found;
 }
 
 function renderLinkIcons(comp) {
@@ -168,6 +231,235 @@ function renderMobile(person) {
   if (!person.mobile) return `<span class="text-gray-400 dark:text-gray-500">-</span>`;
   return person.mobile;
 }
+
+function renderInactiveChip(person) {
+  if (person.isActive === false) {
+    return ` <span class="contacts-inactive-chip">Inactive</span>`;
+  }
+  return '';
+}
+
+function startCompanyDeleteFlow(comp, state, scope) {
+  const choose = () => {
+    const layer = ensureConfirmModal();
+    layer.innerHTML = `
+      <div class="nn-modal-overlay" role="presentation">
+        <div class="nn-modal-card" role="dialog" aria-modal="true" aria-label="Delete company">
+          <div class="lookup-modal__header">
+            <h3>Delete company?</h3>
+          </div>
+          <p class="lookup-modal__body">What should happen to the people at <strong>${comp.name}</strong>?</p>
+          <div class="lookup-modal__actions">
+            <button type="button" class="lookup-btn ghost" data-action="cancel">Cancel</button>
+            <button type="button" class="lookup-btn primary" data-action="unassign">Unassign people</button>
+            <button type="button" class="lookup-btn primary" data-action="delete-people">Delete people</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const hide = () => { layer.innerHTML = ''; };
+    const overlay = layer.querySelector('.nn-modal-overlay');
+    overlay.onclick = (e) => { if (e.target === overlay) hide(); };
+    layer.querySelector('[data-action="cancel"]').onclick = hide;
+    const confirmFlow = (mode) => {
+      hide();
+      const message = mode === 'delete-people'
+        ? 'This will delete the company and all its people. This action cannot be undone.'
+        : 'This will remove the company and move its people to Individuals.';
+      showConfirm({
+        title: 'Type DELETE to confirm',
+        message,
+        requireDeleteTyping: true,
+        confirmLabel: 'Confirm',
+        onConfirm: () => {
+          const companies = getContactsData();
+          const idx = companies.findIndex(c => c.id === comp.id);
+          if (idx >= 0) {
+            const people = companies[idx].people || [];
+            if (mode === 'delete-people') {
+              people.forEach(p => selectedPersonIds.delete(p.id));
+            } else {
+              const individuals = getIndividualsData();
+              people.forEach(p => {
+                p.companyId = null;
+                p.companyName = null;
+                if (typeof p.isActive !== 'boolean') p.isActive = true;
+                individuals.push(p);
+              });
+            }
+            companies.splice(idx, 1);
+          }
+          renderContactsView(state, scope);
+          refreshContactsHeader();
+        },
+      });
+    };
+    layer.querySelector('[data-action="unassign"]').onclick = () => confirmFlow('unassign');
+    layer.querySelector('[data-action="delete-people"]').onclick = () => confirmFlow('delete-people');
+    document.addEventListener('keydown', function esc(e) {
+      if (e.key === 'Escape') {
+        hide();
+        document.removeEventListener('keydown', esc);
+      }
+    });
+  };
+  choose();
+}
+
+function closeOpenMenu() {
+  if (openMenuRef && openMenuRef.menu && openMenuRef.button) {
+    const menu = openMenuRef.menu;
+    if (menu && menu.parentNode) menu.parentNode.removeChild(menu);
+  }
+  openMenuRef = null;
+}
+
+function showActionMenu(buttonEl, items = []) {
+  closeOpenMenu();
+  const menu = document.createElement('div');
+  menu.className = 'contacts-action-menu';
+  menu.innerHTML = items.map(item => `<button type="button" data-action="${item.key}">${item.label}</button>`).join('');
+  const cleanup = () => {
+    closeOpenMenu();
+    document.removeEventListener('click', outsideHandler, true);
+    document.removeEventListener('keydown', escHandler, true);
+  };
+  const outsideHandler = (e) => {
+    if (!menu.contains(e.target) && e.target !== buttonEl) cleanup();
+  };
+  const escHandler = (e) => {
+    if (e.key === 'Escape') cleanup();
+  };
+  menu.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.getAttribute('data-action');
+      const found = items.find(i => i.key === key);
+      cleanup();
+      if (found && typeof found.onClick === 'function') found.onClick();
+    };
+  });
+  buttonEl.parentElement.style.position = 'relative';
+  buttonEl.parentElement.appendChild(menu);
+  openMenuRef = { menu, button: buttonEl };
+  setTimeout(() => {
+    document.addEventListener('click', outsideHandler, true);
+    document.addEventListener('keydown', escHandler, true);
+  }, 0);
+}
+
+function ensureConfirmModal() {
+  let layer = document.getElementById('contacts-confirm-layer');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'contacts-confirm-layer';
+    document.body.appendChild(layer);
+  }
+  return layer;
+}
+
+function showConfirm({ title, message, onConfirm, requireDeleteTyping = false, confirmLabel = 'Delete' }) {
+  const layer = ensureConfirmModal();
+  layer.innerHTML = `
+    <div class="nn-modal-overlay" role="presentation">
+      <div class="nn-modal-card" role="dialog" aria-modal="true" aria-label="${title}">
+        <div class="lookup-modal__header">
+          <h3>${title}</h3>
+        </div>
+        <p class="lookup-modal__body">${message}</p>
+        ${requireDeleteTyping ? `
+          <label class="lookup-modal__label">Type DELETE to confirm</label>
+          <input type="text" id="confirm-delete-input" class="lookup-input" placeholder="DELETE" />
+        ` : ''}
+        <div class="lookup-modal__actions">
+          <button type="button" class="lookup-btn ghost" data-action="cancel">Cancel</button>
+          <button type="button" class="lookup-btn primary" data-action="confirm" ${requireDeleteTyping ? 'disabled' : ''}>${confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  `;
+  const hide = () => { layer.innerHTML = ''; };
+  const overlay = layer.querySelector('.nn-modal-overlay');
+  overlay.onclick = (e) => { if (e.target === overlay) hide(); };
+  layer.querySelector('[data-action="cancel"]').onclick = hide;
+  const confirmBtn = layer.querySelector('[data-action="confirm"]');
+  const input = layer.querySelector('#confirm-delete-input');
+  if (input) {
+    const check = () => {
+      confirmBtn.disabled = input.value !== 'DELETE';
+    };
+    input.addEventListener('input', check);
+    check();
+  }
+  confirmBtn.onclick = () => {
+    hide();
+    if (onConfirm) onConfirm();
+  };
+  document.addEventListener('keydown', function esc(e) {
+    if (e.key === 'Escape') {
+      hide();
+      document.removeEventListener('keydown', esc);
+    }
+  });
+}
+
+function bindActionMenus(root, state, scope) {
+  root.querySelectorAll('.contacts-more-btn[data-action-type]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const type = btn.getAttribute('data-action-type');
+      const id = btn.getAttribute('data-id');
+      const name = btn.getAttribute('data-name') || '';
+      const person = type === 'person' ? getPersonById(id) : null;
+      const menuItems = [];
+      if (type === 'company') {
+        menuItems.push({
+          key: 'delete-company',
+          label: 'Delete company…',
+          onClick: () => {
+            const comp = getContactsData().find(c => String(c.id) === String(id));
+            if (comp) startCompanyDeleteFlow(comp, state, scope);
+          },
+        });
+      } else if (type === 'person') {
+        if (person && person.isActive !== false) {
+          menuItems.push({
+            key: 'deactivate',
+            label: 'Deactivate',
+            onClick: () => {
+              setPersonActive(id, false);
+              renderContactsView(state, scope);
+            },
+          });
+        } else {
+          menuItems.push({
+            key: 'reactivate',
+            label: 'Reactivate',
+            onClick: () => {
+              setPersonActive(id, true);
+              renderContactsView(state, scope);
+            },
+          });
+        }
+        menuItems.push({
+          key: 'delete',
+          label: 'Delete',
+          onClick: () => {
+            showConfirm({
+              title: 'Delete this person?',
+              message: 'This action cannot be undone.',
+              onConfirm: () => {
+                deletePerson(Number(id));
+                renderContactsView(state, scope);
+                refreshContactsHeader();
+              },
+            });
+          },
+        });
+      }
+      showActionMenu(btn, menuItems);
+    };
+  });
+}
 function renderTable(state, scope) {
   const tbody = scope.querySelector('#contacts-table-body');
   if (!tbody) {
@@ -240,6 +532,15 @@ function renderTable(state, scope) {
         </td>
         <td class="px-6 py-4 text-gray-600 dark:text-gray-300">${renderPhone(comp)}</td>
         <td class="px-6 py-4 text-gray-600 dark:text-gray-300">${renderLocation(comp)}</td>
+        <td class="px-4 py-4 text-right">
+          <button type="button" class="nn-btn nn-btn--micro contacts-more-btn" data-action-type="company" data-id="${comp.id}" data-name="${comp.name}" aria-label="More options" title="More options" onclick="event.stopPropagation();">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="5" r="1.5"></circle>
+              <circle cx="12" cy="12" r="1.5"></circle>
+              <circle cx="12" cy="19" r="1.5"></circle>
+            </svg>
+          </button>
+        </td>
       `;
       tbody.appendChild(compRow);
 
@@ -266,6 +567,7 @@ function renderTable(state, scope) {
                   <th class="px-6 py-2">Links</th>
                   <th class="px-6 py-2">Mobile</th>
                   <th class="px-6 py-2">Location</th>
+                  <th class="px-4 py-2 text-right"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -277,17 +579,26 @@ function renderTable(state, scope) {
                         ${p.name}
                       </a>
                     </td>
-                    <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.title}</td>
+                    <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.title || ''}${renderInactiveChip(p)}</td>
                     <td class="px-6 py-3">${renderPersonLinks(comp, p)}</td>
                     <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${renderMobile(p)}</td>
                     <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.city}, ${p.state}</td>
+                    <td class="px-4 py-3 text-right">
+                      <button type="button" class="nn-btn nn-btn--micro contacts-more-btn" data-action-type="person" data-id="${p.id}" data-name="${p.name}" aria-label="More options" title="More options" onclick="event.stopPropagation();">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="5" r="1.5"></circle>
+                          <circle cx="12" cy="12" r="1.5"></circle>
+                          <circle cx="12" cy="19" r="1.5"></circle>
+                        </svg>
+                      </button>
+                    </td>
                   </tr>`).join('')}
               </tbody>
             </table>`;
         }
 
         detailsRow.innerHTML = `
-          <td colspan="5" class="p-0 border-b border-gray-200 dark:border-gray-700">
+          <td colspan="6" class="p-0 border-b border-gray-200 dark:border-gray-700">
             ${innerContent}
           </td>`;
         tbody.appendChild(detailsRow);
@@ -298,13 +609,14 @@ function renderTable(state, scope) {
   if (tbody.children.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="p-8 text-center text-gray-500">
+        <td colspan="6" class="p-8 text-center text-gray-500">
           No contacts match your search.
         </td>
       </tr>`;
   }
 
   notifyExpandState();
+  bindActionMenus(tbody, state, scope);
   refreshContactsHeader();
 }
 
@@ -366,10 +678,19 @@ function renderFlatTable(state, scope) {
           </a>
         </td>
         <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${companyLabel}</td>
-        <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.title || '-'}</td>
+        <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${p.title || '-'}${renderInactiveChip(p)}</td>
         <td class="px-6 py-3">${renderPersonLinks({}, p)}</td>
         <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${renderMobile(p)}</td>
         <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${renderLocationStr(p)}</td>
+        <td class="px-4 py-3 text-right">
+          <button type="button" class="nn-btn nn-btn--micro contacts-more-btn" data-action-type="person" data-id="${p.id}" data-name="${p.name}" aria-label="More options" title="More options">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="5" r="1.5"></circle>
+              <circle cx="12" cy="12" r="1.5"></circle>
+              <circle cx="12" cy="19" r="1.5"></circle>
+            </svg>
+          </button>
+        </td>
       </tr>
     `;
   }).join('');
@@ -395,6 +716,7 @@ function renderFlatTable(state, scope) {
     }
     renderFlatTable(state, scope);
   };
+  bindActionMenus(tbody, state, scope);
   refreshContactsHeader();
 }
 
@@ -507,6 +829,32 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
 
     const rightActions = contactsMultiSelectMode
       ? [
+          h('button', {
+            type: 'button',
+            className: `${baseBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
+            'aria-label': 'Delete selected',
+            title: 'Delete selected',
+            onClick: () => {
+              if (!selectedPersonIds.size) return;
+              showConfirm({
+                title: 'Delete selected people?',
+                message: 'Type DELETE to confirm. This action cannot be undone.',
+                requireDeleteTyping: true,
+                confirmLabel: 'Confirm',
+                onConfirm: () => {
+                  Array.from(selectedPersonIds).forEach(id => deletePerson(Number(id)));
+                  renderContactsView(state, scope);
+                  refreshContactsHeader();
+                },
+              });
+            },
+          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+            h('path', { d: 'M3 6h18' }),
+            h('path', { d: 'M8 6v12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6' }),
+            h('path', { d: 'M10 10v6' }),
+            h('path', { d: 'M14 10v6' }),
+            h('path', { d: 'M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2' }),
+          ])),
           h('button', {
             type: 'button',
             className: `${baseBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
