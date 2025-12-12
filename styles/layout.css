@@ -193,6 +193,20 @@ html.dark #app-main {
 #app-sidebar .sidebar-profile-role {
   color: #5B5B5C;
 }
+html:not(.dark) #app-sidebar .sidebar-profile-role {
+  color: var(--color-brand-purple, #711FFF);
+}
+html.dark #app-sidebar .sidebar-profile-name,
+html.dark #app-sidebar .sidebar-profile-role {
+  color: #ffffff !important;
+}
+html.dark .sidebar-profile-name,
+html.dark .sidebar-profile-role {
+  color: #ffffff !important;
+}
+#app-sidebar .sidebar-profile-main > div:first-child {
+  background-color: var(--color-brand-purple, #711FFF) !important;
+}
 #app-sidebar.sidebar--compact .sidebar-profile {
   padding: 8px 10px;
 }

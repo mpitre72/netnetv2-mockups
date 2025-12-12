@@ -122,7 +122,7 @@ html.dark .lookup-menu {
   border-spacing: 0;
 }
 
-/* Light mode “Bizarro dark” palette overrides */
+/* Light mode palette overrides */
 html:not(.dark) .contacts-scroll {
   background: #F3F4F6;
 }
@@ -143,6 +143,14 @@ html:not(.dark) .contacts-employee-header-row {
   background: #E5E7EB !important;
   color: #4b5563 !important;
   border-bottom: 1px solid var(--color-border-subtle-light, #e5e7eb) !important;
+}
+
+/* Align Contacts header wrapper to Components in light mode */
+html:not(.dark) .contacts-header-shell {
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
 }
 html:not(.dark) .contacts-employee-table tbody tr {
   background: #ffffff;
@@ -273,25 +281,4 @@ html.dark .lookup-modal__body { color: #cbd5e1; }
 
 .contacts-export-icon {
   transform: rotate(0deg) !important;
-}
-
-.contacts-toolbar-icon-button,
-.contacts-export-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 0.5rem !important;
-  border: 1px solid var(--color-border-subtle, rgba(148,163,184,0.35)) !important;
-  padding: 0 !important;
-  background: transparent;
-  color: var(--color-text, #0f172a);
-  transition: background-color 150ms ease, color 150ms ease;
-}
-.contacts-toolbar-icon-button:hover,
-.contacts-export-button:hover {
-  background-color: rgba(148, 163, 184, 0.15) !important;
-  color: var(--color-text, #0f172a) !important;
-  cursor: pointer;
 }

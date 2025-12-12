@@ -40,9 +40,9 @@ function renderBotLayout() {
         </div>
       </div>
       <div class="p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shrink-0">
-        <div class="relative flex items-end gap-2 bg-gray-100 dark:bg-gray-800 rounded-3xl px-2 py-2">
+        <div class="relative flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-3xl px-3 py-2.5">
           <button class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full transition-colors h-10 w-10 flex items-center justify-center" onclick="showToast('File upload simulated')">${CHAT_UI_ICONS.clip}</button>
-          <textarea id="chat-input" rows="1" class="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-gray-900 dark:text-white placeholder-gray-500 text-sm resize-none py-2.5 max-h-[200px] overflow-y-auto" placeholder="Ask the AI Bot about tasks, time, or performance..."></textarea>
+          <textarea id="chat-input" rows="1" class="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-gray-900 dark:text-white placeholder-gray-500 text-sm leading-5 resize-none py-2 max-h-[200px] overflow-y-auto min-h-[44px]" placeholder="Ask the AI Bot about tasks, time, or performance..."></textarea>
           <button class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full transition-colors h-10 w-10 flex items-center justify-center" onclick="showToast('Voice input simulated')">${CHAT_UI_ICONS.mic}</button>
           <button id="chat-send-btn" disabled class="p-2 bg-gray-300 dark:bg-gray-700 text-white rounded-full disabled:opacity-50 enabled:bg-netnet-purple transition-all h-10 w-10 flex items-center justify-center">${CHAT_UI_ICONS.send}</button>
         </div>
@@ -114,7 +114,13 @@ export function renderNetNetBot(container = document.getElementById('app-main'))
   let chatStage = 0;
   let greetingIndex = 0;
 
-  const autoResize = () => { if (!input) return; input.style.height = 'auto'; input.style.height = input.scrollHeight + 'px'; };
+  const MIN_INPUT_HEIGHT = 44;
+  const autoResize = () => {
+    if (!input) return;
+    input.style.height = 'auto';
+    const nextHeight = Math.max(input.scrollHeight, MIN_INPUT_HEIGHT);
+    input.style.height = nextHeight + 'px';
+  };
   const check = () => { if (!btn || !input) return; btn.disabled = input.value.trim().length === 0; autoResize(); };
 
   wireChatActions(msgList);

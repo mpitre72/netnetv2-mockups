@@ -4,15 +4,18 @@
 import { renderContactsLayout } from './contacts-list.js';
 import { renderCompanyProfile } from './contacts-profile-company.js';
 import { renderPersonProfile } from './contacts-profile-person.js';
-import { ContactsSearchBar } from '../components/ContactsSearchBar.js';
 import { renderCompanyFormPage, renderPersonFormPage } from './contacts-forms.js';
 import { getContactsData, getIndividualsData } from './contacts-data.js';
+import { SectionHeader } from '../components/layout/SectionHeader.js';
 import {
   getListState,
   updateListState,
   setLastSubview,
   getContactsEntryHash,
 } from './contacts-ui-state.js';
+
+const { createElement: h } = React;
+const { createRoot } = ReactDOM;
 
 function buildContactsState({ search = '' } = {}) {
   return {
@@ -25,6 +28,8 @@ let expandLabelUpdater = null;
 function setExpandLabelUpdater(fn) {
   expandLabelUpdater = fn;
 }
+
+let refreshContactsHeader = () => {};
 
 let contactsMultiSelectMode = false;
 const selectedPersonIds = new Set();
@@ -300,6 +305,7 @@ function renderTable(state, scope) {
   }
 
   notifyExpandState();
+  refreshContactsHeader();
 }
 
 function updateImportButton(scope, isExportMode) {
@@ -318,47 +324,6 @@ function updateImportButton(scope, isExportMode) {
     icon.classList.remove('contacts-export-icon');
     importBtn.classList.remove('contacts-export-button');
     if (!icon.classList.contains('rotate-180')) icon.classList.add('rotate-180');
-  }
-}
-
-function updateToolbarForMode(scope) {
-  const expandBtn = scope.querySelector('#contacts-expand-toggle');
-  const newCompany = scope.querySelector('#contacts-new-company-btn');
-  const newPerson = scope.querySelector('#contacts-new-person-btn');
-  const multiselectBtn = scope.querySelector('#contacts-multiselect-toggle');
-  const importBtn = scope.querySelector('#contacts-import-btn');
-  const hasSelection = selectedPersonIds.size > 0;
-  if (contactsMultiSelectMode) {
-    expandBtn?.classList.add('hidden');
-    newCompany?.classList.add('hidden');
-    newPerson?.classList.add('hidden');
-    multiselectBtn?.classList.add('active');
-    updateImportButton(scope, true);
-    if (importBtn) {
-      if (hasSelection) {
-        importBtn.classList.remove('opacity-50', 'pointer-events-none');
-      } else {
-        importBtn.classList.add('opacity-50', 'pointer-events-none');
-      }
-    }
-    if (importBtn) {
-      importBtn.onclick = () => {
-        if (!selectedPersonIds.size) {
-          console.log('[Contacts] Export requested but no contacts selected.');
-          return;
-        }
-        console.log('[Contacts] Export selected IDs:', Array.from(selectedPersonIds));
-        alert(`Exporting ${selectedPersonIds.size} selected contacts`);
-      };
-    }
-  } else {
-    expandBtn?.classList.remove('hidden');
-    newCompany?.classList.remove('hidden');
-    newPerson?.classList.remove('hidden');
-    multiselectBtn?.classList.remove('active');
-    updateImportButton(scope, false);
-    importBtn?.classList.remove('opacity-50', 'pointer-events-none');
-    if (importBtn) importBtn.onclick = () => navigate('#/app/contacts/import');
   }
 }
 
@@ -430,6 +395,7 @@ function renderFlatTable(state, scope) {
     }
     renderFlatTable(state, scope);
   };
+  refreshContactsHeader();
 }
 
 function renderContactsView(state, scope) {
@@ -457,11 +423,11 @@ function toggleContactRow(id, state, scope) {
 
 export function initContactsModule(rootEl, { subview = 'companies', listState = {} } = {}) {
   const scope = rootEl || document;
-  const searchInput = scope.querySelector('#contact-search');
   const tbody = scope.querySelector('#contacts-table-body');
   const scrollArea = scope.querySelector('.contacts-scroll');
-  const expandToggleBtn = scope.querySelector('#contacts-expand-toggle');
-  const multiselectToggleBtn = scope.querySelector('#contacts-multiselect-toggle');
+  const headerRootEl = scope.querySelector('#contacts-section-header-root');
+  const headerRoot = headerRootEl && typeof createRoot === 'function' ? createRoot(headerRootEl) : null;
+  let currentSubview = subview === 'people' ? 'people' : 'companies';
 
   if (!tbody) {
     console.warn('[ContactsModule] contacts table body not found.');
@@ -470,18 +436,144 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
 
   const state = buildContactsState({ search: listState.search });
 
+  const handleSearchChange = (value) => {
+    state.search = value || '';
+    updateListState(currentSubview, { search: state.search });
+    renderContactsView(state, scope);
+    refreshContactsHeader();
+  };
+
+  const handleExpandToggle = () => {
+    const groups = buildContactsGroups();
+    const allExpanded = groups.length > 0 && groups.every(g => state.expanded.has(g.id));
+    if (allExpanded) {
+      state.expanded.clear();
+    } else {
+      groups.forEach(g => state.expanded.add(g.id));
+    }
+    renderTable(state, scope);
+    refreshContactsHeader();
+  };
+
+  const handleMultiselectToggle = () => {
+    contactsMultiSelectMode = !contactsMultiSelectMode;
+    if (!contactsMultiSelectMode) clearSelection();
+    renderContactsView(state, scope);
+    refreshContactsHeader();
+  };
+
+  const handleExport = () => {
+    if (!selectedPersonIds.size) {
+      console.log('[Contacts] Export requested but no contacts selected.');
+      return;
+    }
+    console.log('[Contacts] Export selected IDs:', Array.from(selectedPersonIds));
+    alert(`Exporting ${selectedPersonIds.size} selected contacts`);
+  };
+
+  const handleImport = () => navigate('#/app/contacts/import');
+  const handleNewCompany = () => navigate('#/app/contacts/companies/new');
+  const handleNewPerson = () => navigate('#/app/contacts/people/new');
+
+  const renderHeader = () => {
+    if (!headerRoot) return;
+    const groups = buildContactsGroups();
+    const allExpanded = groups.length > 0 && groups.every(g => state.expanded.has(g.id));
+    const baseBtnClass = 'nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
+    const leftActions = [
+      !contactsMultiSelectMode
+        ? h('button', {
+            type: 'button',
+            className: baseBtnClass,
+            'aria-label': allExpanded ? 'Collapse all' : 'Expand all',
+            title: allExpanded ? 'Collapse all' : 'Expand all',
+            onClick: handleExpandToggle,
+          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+            h('path', { d: allExpanded ? 'M12 19V5' : 'M12 5v14' }),
+            h('path', { d: 'M5 12h14' }),
+          ]))
+        : null,
+      h('button', {
+        type: 'button',
+        className: baseBtnClass,
+        'aria-label': contactsMultiSelectMode ? 'Exit multi-select mode' : 'Enter multi-select mode',
+        title: contactsMultiSelectMode ? 'Exit multi-select mode' : 'Enter multi-select mode',
+        onClick: handleMultiselectToggle,
+      }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+        h('rect', { x: '4', y: '4', width: '16', height: '16', rx: '2' }),
+        h('path', { d: 'M8 12l3 3 5-6' }),
+      ])),
+    ].filter(Boolean);
+
+    const rightActions = contactsMultiSelectMode
+      ? [
+          h('button', {
+            type: 'button',
+            className: `${baseBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
+            'aria-label': 'Export selected',
+            title: 'Export selected',
+            onClick: handleExport,
+          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+            h('path', { d: 'M12 3v12' }),
+            h('path', { d: 'M16 11l-4 4-4-4' }),
+            h('path', { d: 'M6 19h12' }),
+          ])),
+        ]
+      : [
+          h('button', {
+            type: 'button',
+            className: baseBtnClass,
+            'aria-label': '+ New Company',
+            title: '+ New Company',
+            onClick: handleNewCompany,
+          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+            h('path', { d: 'M3 21h18' }),
+            h('path', { d: 'M6 21V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v13' }),
+            h('path', { d: 'M9 21v-4h6v4' }),
+            h('path', { d: 'M9 12h6' }),
+            h('path', { d: 'M9 9h6' }),
+          ])),
+          h('button', {
+            type: 'button',
+            className: baseBtnClass,
+            'aria-label': '+ New Person',
+            title: '+ New Person',
+            onClick: handleNewPerson,
+          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+            h('path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }),
+            h('circle', { cx: '9', cy: '7', r: '4' }),
+            h('path', { d: 'M17 11v6m3-3h-6' }),
+          ])),
+          h('button', {
+            type: 'button',
+            className: baseBtnClass,
+            'aria-label': 'Import Contacts',
+            title: 'Import Contacts',
+            onClick: handleImport,
+          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+            h('path', { d: 'M12 21V9' }),
+            h('path', { d: 'M8 13l4-4 4 4' }),
+            h('path', { d: 'M6 3h12' }),
+          ])),
+        ];
+
+    headerRoot.render(h(SectionHeader, {
+      title: 'Contacts',
+      showHelpIcon: true,
+      showSearch: true,
+      searchPlaceholder: 'Search contacts...',
+      searchValue: state.search || '',
+      onSearchChange: handleSearchChange,
+      leftActions,
+      rightActions,
+    }));
+  };
+
+  refreshContactsHeader = renderHeader;
+
   // Expose global handlers so legacy code can still call them if needed
   if (typeof window !== 'undefined') {
     window.toggleContactRow = (id) => toggleContactRow(id, state, scope);
-  }
-
-  if (searchInput) {
-    searchInput.value = state.search;
-    searchInput.addEventListener('input', (e) => {
-      state.search = e.target.value || '';
-      updateListState(subview, { search: state.search });
-      renderContactsView(state, scope);
-    });
   }
 
   if (scrollArea) {
@@ -497,44 +589,16 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
     const href = link.getAttribute('href') || '';
     if (href.includes('/company/')) {
       setLastSubview('companies');
+      currentSubview = 'companies';
     } else if (href.includes('/person/')) {
       setLastSubview('people');
+      currentSubview = 'people';
     }
     updateListState(subview, { search: state.search, scrollY: scrollArea ? scrollArea.scrollTop : 0 });
   });
 
-  if (expandToggleBtn) {
-    setExpandLabelUpdater((allExpanded) => {
-      const icon = allExpanded
-        ? `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 15l-7-7-7 7"/></svg>`
-        : `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>`;
-      expandToggleBtn.innerHTML = icon;
-      expandToggleBtn.setAttribute('aria-label', allExpanded ? 'Collapse all' : 'Expand all');
-      expandToggleBtn.setAttribute('title', allExpanded ? 'Collapse all' : 'Expand all');
-    });
-    expandToggleBtn.addEventListener('click', () => {
-      const groups = buildContactsGroups();
-      const allExpanded = groups.length > 0 && groups.every(g => state.expanded.has(g.id));
-      if (allExpanded) {
-        state.expanded.clear();
-      } else {
-        groups.forEach(g => state.expanded.add(g.id));
-      }
-      renderTable(state, scope);
-    });
-  }
-
-  if (multiselectToggleBtn) {
-    multiselectToggleBtn.addEventListener('click', () => {
-      contactsMultiSelectMode = !contactsMultiSelectMode;
-      if (!contactsMultiSelectMode) clearSelection();
-      updateToolbarForMode(scope);
-      renderContactsView(state, scope);
-    });
-  }
-
-  updateToolbarForMode(scope);
   renderContactsView(state, scope);
+  renderHeader();
 }
 
 // Render + wire in one step (useful for router)
