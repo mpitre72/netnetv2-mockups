@@ -154,7 +154,7 @@ export function applyMainWrapperClass(hash) {
 
   const isComponents = h.startsWith('#/app/components');
   const isReportsOrTable =
-    h.startsWith('#/app/reports') ||
+    h.startsWith('#/app/performance') ||
     h.startsWith('#/app/contacts') ||
     h.startsWith('#/app/net-net-bot') ||
     h.startsWith('#/app/settings') ||
@@ -392,11 +392,11 @@ function refreshDynamicIcons() {
   wireSidebarIcons();
   wireTopBarLogo();
   wireMobileHeaderLogo();
-  const reportsIcon = document.getElementById('reportsFeaturedIcon');
-  if (reportsIcon) {
+  const performanceIcon = document.getElementById('performanceFeaturedIcon');
+  if (performanceIcon) {
     const dark = __isDark();
-    const src = reportsIcon.getAttribute(dark ? 'data-dark-idle' : 'data-light-idle');
-    if (src && reportsIcon.getAttribute('src') !== src) reportsIcon.setAttribute('src', src);
+    const src = performanceIcon.getAttribute(dark ? 'data-dark-idle' : 'data-light-idle');
+    if (src && performanceIcon.getAttribute('src') !== src) performanceIcon.setAttribute('src', src);
   }
   const ti = document.getElementById('timerIcon');
   const tb = document.getElementById('timerBtn');

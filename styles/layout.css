@@ -509,20 +509,20 @@ html:not(.dark) .toast-msg { background: #fff; color: #111; border: 1px solid #e
 }
 html:not(.dark) [data-tooltip]:hover::after { background: #333; }
 
-html.dark #app-sidebar img[data-icon="reports"] { filter: brightness(0) invert(1); }
+html.dark #app-sidebar img[data-icon="performance"] { filter: brightness(0) invert(1); }
 
-.reports-inline-action {
+.performance-inline-action {
   color: #711FFF;
   font-weight: 600;
   background: transparent;
   border: 0;
   padding: 0;
 }
-.reports-inline-action:hover { text-decoration: underline; }
-html.dark .reports-inline-action {
+.performance-inline-action:hover { text-decoration: underline; }
+html.dark .performance-inline-action {
   color: #ffffff;
 }
-html.dark .reports-inline-action:hover {
+html.dark .performance-inline-action:hover {
   color: #ffffff;
   text-decoration: underline;
 }
@@ -1025,8 +1025,8 @@ html.dark .section-header-top {
   background-color: var(--color-bg-app, #020617);
 }
 
-/* Sticky wrapper for reports header */
-.reports-header-sticky {
+/* Sticky wrapper for performance header */
+.performance-header-sticky {
   position: sticky;
   top: 0;
   z-index: 25;
@@ -1034,6 +1034,6 @@ html.dark .section-header-top {
   padding-top: 0.25rem;
   padding-bottom: 0.5rem;
 }
-html.dark .reports-header-sticky {
+html.dark .performance-header-sticky {
   background-color: var(--color-bg-app, #020617);
 }

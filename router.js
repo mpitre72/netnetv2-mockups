@@ -32,6 +32,7 @@ function parseRoute(hash) {
   const personMatch = h.match(/^#\/app\/contacts\/person\/(\d+)$/);
   const personEdit = h.match(/^#\/app\/contacts\/people\/(\d+)\/edit$/);
   const personNew = h === '#/app/contacts/people/new';
+  const contactsImport = h === '#/app/contacts/import';
   const contactsCompanies = /^#\/app\/contacts\/companies\/?$/.test(h);
   const contactsPeople = /^#\/app\/contacts\/people\/?$/.test(h);
   const contactsRoot = /^#\/app\/contacts\/?$/.test(h);
@@ -42,7 +43,8 @@ function parseRoute(hash) {
   const sales = h.startsWith('#/app/sales');
   const quick = h.startsWith('#/app/quick-tasks');
   const chat = h.startsWith('#/app/chat');
-  const reports = h.startsWith('#/app/reports');
+  const performance = h.startsWith('#/app/performance');
+  const legacyReports = h.startsWith('#/app/reports');
   const components = h.startsWith('#/app/components');
   const settings = h.startsWith('#/app/settings');
   const profile = h.startsWith('#/app/profile');
@@ -63,6 +65,7 @@ function parseRoute(hash) {
   if (personEdit) return { name: 'person-edit', id: parseInt(personEdit[1], 10) };
   if (personNew) return { name: 'person-new' };
   if (personMatch) return { name: 'person', id: parseInt(personMatch[1], 10) };
+  if (contactsImport) return { name: 'contacts-import' };
   if (contactsCompanies) return { name: 'contacts-companies', subview: 'companies' };
   if (contactsPeople) return { name: 'contacts-people', subview: 'people' };
   if (contactsRoot) return { name: 'contacts-root' };
@@ -73,7 +76,7 @@ function parseRoute(hash) {
   if (sales) return { name: 'sales' };
   if (quick) return { name: 'quick' };
   if (chat) return { name: 'chat' };
-  if (reports) return { name: 'reports' };
+  if (performance || legacyReports) return { name: 'performance', legacy: legacyReports };
   if (components) return { name: 'components' };
   if (settings) return { name: 'settings' };
   if (profile) return { name: 'profile' };
@@ -128,8 +131,15 @@ function handleRoute(renderers) {
     renderers.quick();
   } else if (route.name === 'chat') {
     renderers.chat();
-  } else if (route.name === 'reports') {
-    renderers.reports();
+  } else if (route.name === 'performance') {
+    if (route.legacy) {
+      const newHash = (location.hash || '').replace('#/app/reports', '#/app/performance');
+      if (newHash && newHash !== location.hash) {
+        navigate(newHash);
+        return;
+      }
+    }
+    renderers.performance();
   } else if (route.name === 'components') {
     renderers.components();
   } else if (route.name === 'settings') {

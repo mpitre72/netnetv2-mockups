@@ -16,7 +16,8 @@ export const navIcons = {
   quickTasks: { ...ICONS.quick },
   quick: { ...ICONS.quick },
   chat: { ...ICONS.chat },
-  reports: { ...ICONS.reports },
+  performance: { ...ICONS.performance },
+  reports: { ...ICONS.reports }, // legacy alias
   netNetU: { ...ICONS.nnu },
   nnu: { ...ICONS.nnu },
   bot: { ...ICONS.bot },

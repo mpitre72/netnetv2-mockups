@@ -5,6 +5,8 @@ export const APP_ICONS = {
   close: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
 };
 
+const REPORTS_ICON_SET = { light:  { idle: 'public/assets/brand/nav/Reports-Idle.svg', active: 'public/assets/brand/nav/Reports-Active.svg' }, dark:   { idle: 'public/assets/brand/nav/Reports-Idle-white.svg', active: 'public/assets/brand/nav/Reports-Active-white.svg' } };
+
 export const ICONS = {
   me: { light: { idle: 'public/assets/brand/nav/Me-Idle.svg', active: 'public/assets/brand/nav/Me-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Me-Idle-white.svg', active: 'public/assets/brand/nav/Me-Active-white.svg' } },
   contacts: { light: { idle: 'public/assets/brand/nav/Contacts-Idle.svg', active: 'public/assets/brand/nav/Contacts-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Contacts-Idle-white.svg', active: 'public/assets/brand/nav/Contacts-Active-white.svg' } },
@@ -12,7 +14,8 @@ export const ICONS = {
   jobs: { light: { idle: 'public/assets/brand/nav/Jobs-Idle.svg', active: 'public/assets/brand/nav/Jobs-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Jobs-Idle-white.svg', active: 'public/assets/brand/nav/Jobs-Active-white.svg' } },
   quick: { light: { idle: 'public/assets/brand/nav/QuickTasks-Idle.svg', active: 'public/assets/brand/nav/QuickTasks-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/QuickTasks-Idle-white.svg', active: 'public/assets/brand/nav/QuickTasks-Active-white.svg' } },
   chat: { light: { idle: 'public/assets/brand/nav/Chat-Idle.svg', active: 'public/assets/brand/nav/Chat-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/Chat-Idle-white.svg', active: 'public/assets/brand/nav/Chat-Active-white.svg' } },
-  reports: { light:  { idle: 'public/assets/brand/nav/Reports-Idle.svg', active: 'public/assets/brand/nav/Reports-Active.svg' }, dark:   { idle: 'public/assets/brand/nav/Reports-Idle-white.svg', active: 'public/assets/brand/nav/Reports-Active-white.svg' } },
+  performance: { ...REPORTS_ICON_SET },
+  reports: { ...REPORTS_ICON_SET }, // legacy alias
   nnu: { light: { idle: 'public/assets/brand/nav/NNU-Idle.svg', active: 'public/assets/brand/nav/NNU-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/NNU-Idle-white.svg', active: 'public/assets/brand/nav/NNU-Active-white.svg' } },
   bot: { light: { idle: 'public/assets/brand/nav/AI-Idle.svg', active: 'public/assets/brand/nav/AI-Active.svg' }, dark:  { idle: 'public/assets/brand/nav/AI-Idle-white.svg', active: 'public/assets/brand/nav/AI-Active-white.svg' } }
 };
@@ -45,7 +48,7 @@ export const SIDEBAR_LINKS = [
   { name: 'Jobs', path: '#/app/jobs', basePath: '#/app/jobs', key: 'jobs' },
   { name: 'Quick Tasks', path: '#/app/quick-tasks', basePath: '#/app/quick-tasks', key: 'quick' },
   { name: 'Chat', path: '#/app/chat', basePath: '#/app/chat', key: 'chat' },
-  { name: 'Reports', path: '#/app/reports', basePath: '#/app/reports', key: 'reports' },
+  { name: 'Performance', path: '#/app/performance', basePath: '#/app/performance', key: 'performance' },
   { name: 'Net Net U', path: '#/app/net-net-u', basePath: '#/app/net-net-u', key: 'nnu' },
 ];
 

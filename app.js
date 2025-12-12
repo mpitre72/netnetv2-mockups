@@ -6,7 +6,7 @@ import { renderJobsPage } from './jobs/index.js';
 import { renderSalesPage } from './sales/index.js';
 import { renderQuickTasksPage } from './quick-tasks/index.js';
 import { renderChatPage } from './chat/index.js';
-import { renderReportsPage } from './reports/index.js';
+import { renderPerformancePage } from './reports/index.js';
 import { renderSettingsPage } from './settings/index.js';
 import { renderProfilePage } from './profile/index.js';
 import { renderNnuPage } from './net-net-u/index.js';
@@ -118,8 +118,8 @@ function renderRoute(route) {
     renderQuickTasksPage(main);
   } else if (route.name === 'chat') {
     renderChatPage(main);
-  } else if (route.name === 'reports') {
-    renderReportsPage(main);
+  } else if (route.name === 'performance') {
+    renderPerformancePage(main);
   } else if (route.name === 'settings') {
     renderSettingsPage(main);
   } else if (route.name === 'profile') {
@@ -128,6 +128,8 @@ function renderRoute(route) {
     renderNnuPage(main);
   } else if (route.name === 'bot') {
     renderNetNetBot(main);
+  } else if (route.name === 'contacts-import') {
+    renderContacts(main, 'import');
   } else if (route.name === 'contacts-companies' || route.name === 'contacts-people' || route.name === 'contacts-root') {
     const subview = route.subview || (route.name === 'contacts-people' ? 'people' : 'companies');
     renderContacts(main, subview);
@@ -158,7 +160,7 @@ function mountApp() {
     sales: () => renderRoute({ name: 'sales' }),
     quick: () => renderRoute({ name: 'quick' }),
     chat: () => renderRoute({ name: 'chat' }),
-    reports: () => renderRoute({ name: 'reports' }),
+    performance: () => renderRoute({ name: 'performance' }),
     components: () => renderRoute({ name: 'components' }),
     settings: () => renderRoute({ name: 'settings' }),
     profilePage: () => renderRoute({ name: 'profile' }),

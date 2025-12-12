@@ -390,8 +390,8 @@
     }
     html:not(.dark) [data-tooltip]:hover::after { background: #333; }
 
-    /* Fix for Reports icon in dark mode using filter on light icon */
-    html.dark #app-sidebar img[data-icon="reports"] {
+    /* Fix for Performance icon in dark mode using filter on light icon */
+    html.dark #app-sidebar img[data-icon="performance"] {
       filter: brightness(0) invert(1);
     }
     
@@ -854,7 +854,7 @@
             renderWorkspaceTabs();
             wireAppShell(h);
             installSafeNavOnce();
-            if (h === '#/app/reports') wireReportsEvents();
+            if (h === '#/app/performance') wireReportsEvents();
             if (h === '#/app/contacts') wireContactsEvents();
             
             const companyMatch = h.match(/^#\/app\/contacts\/company\/(\d+)$/);
@@ -1177,6 +1177,7 @@
       jobs: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Jobs-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Jobs-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Jobs-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Jobs-Active-white.svg' } },
       quick: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/QuickTasks-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/QuickTasks-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/QuickTasks-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/QuickTasks-Active-white.svg' } },
       chat: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Chat-Active-white.svg' } },
+      performance: { light:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Active.svg' }, dark:   { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Active.svg' } },
       reports: { light:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Active.svg' }, dark:   { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/Reports-Active.svg' } },
       nnu: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/NNU-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/NNU-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/NNU-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/NNU-Active-white.svg' } },
       bot: { light: { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/AI-Idle.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/AI-Active.svg' }, dark:  { idle: 'https://hellonetnet.com/wp-content/uploads/2025/11/AI-Idle-white.svg', active: 'https://hellonetnet.com/wp-content/uploads/2025/11/AI-Active-white.svg' } }
@@ -1285,7 +1286,7 @@
       { name: 'Jobs', path: '#/app/jobs', key: 'jobs' },
       { name: 'Quick Tasks', path: '#/app/quick-tasks', key: 'quick' },
       { name: 'Chat', path: '#/app/chat', key: 'chat' },
-      { name: 'Reports', path: '#/app/reports', key: 'reports' },
+      { name: 'Performance', path: '#/app/performance', key: 'performance' },
       { name: 'Net Net U', path: '#/app/net-net-u', key: 'nnu' },
     ];
     
@@ -3207,7 +3208,7 @@
               </div>
             </div>
           </section>`;
-      } else if (currentItem.path === '#/app/reports') {
+      } else if (currentItem.path === '#/app/performance') {
         const today = new Date();
         const oneDay = 24*60*60*1000;
         const onTimeRatio = 92; 
@@ -3298,7 +3299,7 @@
         contentHtml = `<div class="text-center"><h1 class="text-2xl font-bold text-gray-900 dark:text-white">${currentItem.name || "Page Not Found"}</h1><p class="mt-2 text-gray-600 dark:text-gray-400">This page is under construction.</p></div>`;
       }
       
-      const mainWrapperClass = (currentItem.path === '#/app/reports' || currentItem.path === '#/app/contacts' || currentItem.path === '#/app/net-net-bot' || companyMatch || personMatch)
+      const mainWrapperClass = (currentItem.path === '#/app/performance' || currentItem.path === '#/app/contacts' || currentItem.path === '#/app/net-net-bot' || companyMatch || personMatch)
         ? (currentItem.path === '#/app/contacts' || currentItem.path === '#/app/net-net-bot' || companyMatch || personMatch ? 'h-full overflow-hidden bg-white dark:bg-gray-900' : 'p-4 sm:p-6 lg:p-8')
         : 'p-4 sm:p-6 lg:p-8 flex items-center justify-center';
 

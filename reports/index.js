@@ -1,11 +1,11 @@
-import { mockReportData } from '../data/mock-reports.js';
+import { mockReportData as mockPerformanceData } from '../data/mock-reports.js';
 import { renderEffortTimelineMeter } from '../components/metrics/effort-timeline-meter.js';
 import { SectionHeader } from '../components/layout/SectionHeader.js';
 
 const { createElement: h } = React;
 const { createRoot } = ReactDOM;
 
-const REPORT_TABS = [
+const DASHBOARD_TABS = [
   { value: 'performance', label: 'Performance' },
   { value: 'jobs-deliverables', label: 'Jobs & Deliverables' },
   { value: 'capacity-forecast', label: 'Capacity & Forecast' },
@@ -13,7 +13,15 @@ const REPORT_TABS = [
   { value: 'executive-pulse', label: 'Executive Pulse' },
 ];
 
+const MODE_OPTIONS = [
+  { value: 'dashboards', label: 'Dashboards' },
+  { value: 'reports', label: 'Reports' },
+];
+
 const DEFAULT_TAB = 'performance';
+
+let performanceMode = 'dashboards';
+let performanceSearch = '';
 
 function clampPercent(value) {
   const num = Number.isFinite(value) ? value : 0;
@@ -34,14 +42,14 @@ function getTimelinePercent(start, end) {
 
 function getActiveTabFromHash() {
   const hash = typeof window !== 'undefined' ? window.location.hash : '';
-  const match = hash.match(/^#\/app\/reports\/([^/]+)/);
-  const found = match ? match[1] : '';
-  const isValid = REPORT_TABS.some((tab) => tab.value === found);
+  const match = hash.match(/^#\/app\/(performance|reports)\/([^/]+)/);
+  const found = match ? match[2] : '';
+  const isValid = DASHBOARD_TABS.some((tab) => tab.value === found);
   return isValid ? found : DEFAULT_TAB;
 }
 
 function setActiveTab(value) {
-  const base = '#/app/reports';
+  const base = '#/app/performance';
   const target = value === DEFAULT_TAB ? base : `${base}/${value}`;
   if (typeof window !== 'undefined' && typeof window.navigate === 'function') {
     window.navigate(target);
@@ -63,7 +71,7 @@ function getBadgeClasses(value) {
 }
 
 function buildKpiRow(metrics) {
-  const bars = `
+  return `
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-slate-900/80 shadow-sm p-5 flex flex-col gap-3">
         <div>
@@ -109,7 +117,6 @@ function buildKpiRow(metrics) {
       </div>
     </div>
   `;
-  return bars;
 }
 
 function buildPortfolioTable(rows) {
@@ -193,11 +200,11 @@ function buildDeliverablesTable(rows) {
           <td class="px-5 py-4 whitespace-nowrap ${overdue ? 'text-red-600 dark:text-red-300 font-semibold' : 'text-slate-700 dark:text-slate-200'}">${formatDate(d.due)}</td>
           <td class="px-5 py-4 text-right whitespace-nowrap">
             <div class="flex items-center justify-end gap-3 text-sm">
-              <button type="button" class="reports-inline-action">Reassign</button>
+              <button type="button" class="performance-inline-action">Reassign</button>
               <span class="text-slate-300 dark:text-white/30">|</span>
-              <button type="button" class="reports-inline-action">Re-scope</button>
+              <button type="button" class="performance-inline-action">Re-scope</button>
               <span class="text-slate-300 dark:text-white/30">|</span>
-              <button type="button" class="reports-inline-action">Move Date</button>
+              <button type="button" class="performance-inline-action">Move Date</button>
             </div>
           </td>
         </tr>
@@ -247,7 +254,23 @@ function buildDeliverablesTable(rows) {
   `;
 }
 
-function buildPerformanceDashboard(data = mockReportData) {
+function buildDashboardSwitcher(activeTab) {
+  const buttons = DASHBOARD_TABS.map((tab) => {
+    const isActive = tab.value === activeTab;
+    const baseClasses = 'px-3 py-1 rounded-full text-sm font-medium transition-colors border';
+    const activeClasses = 'bg-[var(--color-brand-purple,#711FFF)] dark:bg-[var(--color-brand-purple,#711FFF)] text-white shadow-sm border-transparent';
+    const idleClasses = 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-transparent border-transparent hover:bg-slate-100 hover:border-slate-300 dark:hover:bg-white/10 dark:hover:border-white/25';
+    return `<button type="button" data-dashboard-tab="${tab.value}" class="${baseClasses} ${isActive ? activeClasses : idleClasses}">${tab.label}</button>`;
+  }).join('');
+
+  return `
+    <div class="inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-1 py-1 w-full md:w-auto overflow-auto">
+      ${buttons}
+    </div>
+  `;
+}
+
+function buildPerformanceDashboard(data = mockPerformanceData) {
   const today = new Date();
   const next7 = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
   const next14 = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -300,6 +323,7 @@ function buildPerformanceDashboard(data = mockReportData) {
   return `
     <div class="space-y-8">
       <header class="space-y-1">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Performance Dashboard</h2>
         <p class="text-sm text-slate-600 dark:text-slate-400">Real-time overview of effort, timeline, and team capacity.</p>
       </header>
       ${buildKpiRow(metrics)}
@@ -318,23 +342,74 @@ function buildPlaceholder(label) {
   `;
 }
 
-export function renderReportsPage(container = document.getElementById('app-main')) {
+function buildReportsList() {
+  const items = [
+    { title: 'Weekly Pulse', desc: 'Coming soon' },
+    { title: 'Monthly Pack', desc: 'Coming soon' },
+    { title: 'Exports', desc: 'Coming soon' },
+  ];
+  return `
+    <div class="space-y-4">
+      <div>
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Reports</h2>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Saved report artifacts for Performance.</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        ${items.map((item) => `
+          <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 shadow-sm p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-slate-900 dark:text-white">${item.title}</h3>
+              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">Coming soon</span>
+            </div>
+            <p class="text-sm text-slate-600 dark:text-slate-400">${item.desc}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderHeader(container, root, showSecondaryRow) {
+  root.render(
+    h(SectionHeader, {
+      title: 'Performance',
+      showHelpIcon: true,
+      switcherOptions: MODE_OPTIONS,
+      switcherValue: performanceMode,
+      onSwitcherChange: (next) => {
+        performanceMode = next === 'reports' ? 'reports' : 'dashboards';
+        renderPerformancePage(container);
+      },
+      showSearch: true,
+      searchPlaceholder: 'Search Performance…',
+      searchValue: performanceSearch,
+      onSearchChange: (next) => { performanceSearch = next || ''; },
+      showSecondaryRow,
+    })
+  );
+}
+
+export function renderPerformancePage(container = document.getElementById('app-main')) {
   if (!container) {
-    console.warn('[ReportsModule] container not found for renderReportsPage.');
+    console.warn('[PerformanceModule] container not found for renderPerformancePage.');
     return;
   }
 
   const activeTab = getActiveTabFromHash();
-  const content = activeTab === DEFAULT_TAB
-    ? buildPerformanceDashboard(mockReportData)
-    : buildPlaceholder(REPORT_TABS.find((t) => t.value === activeTab)?.label || 'This');
+  const dashboardsContent = activeTab === DEFAULT_TAB
+    ? buildPerformanceDashboard(mockPerformanceData)
+    : buildPlaceholder(DASHBOARD_TABS.find((t) => t.value === activeTab)?.label || 'This');
+
+  const body = performanceMode === 'dashboards'
+    ? `<div class="space-y-6">${buildDashboardSwitcher(activeTab)}${dashboardsContent}</div>`
+    : buildReportsList();
 
   container.innerHTML = `
     <div class="max-w-6xl mx-auto px-4 py-6 lg:py-8 space-y-6">
-      <div class="reports-header-sticky">
+      <div class="performance-header-sticky">
         <div id="section-header-root"></div>
       </div>
-      ${content}
+      ${body}
     </div>
   `;
 
@@ -342,21 +417,11 @@ export function renderReportsPage(container = document.getElementById('app-main'
   if (headerRoot) {
     const root = createRoot(headerRoot);
     let showSecondaryRow = true;
-    const renderHeader = () => {
-      root.render(h(SectionHeader, {
-        title: 'Performance Dashboard',
-        showHelpIcon: true,
-        switcherOptions: REPORT_TABS,
-        switcherValue: activeTab,
-        onSwitcherChange: setActiveTab,
-        showSecondaryRow,
-      }));
-    };
-    renderHeader();
+    renderHeader(container, root, showSecondaryRow);
 
     if (typeof window !== 'undefined') {
-      if (window.__reportsScrollHandler) {
-        window.removeEventListener('scroll', window.__reportsScrollHandler);
+      if (window.__performanceScrollHandler) {
+        window.removeEventListener('scroll', window.__performanceScrollHandler);
       }
       let lastY = window.scrollY || 0;
       const threshold = 64;
@@ -373,12 +438,19 @@ export function renderReportsPage(container = document.getElementById('app-main'
         }
         if (nextVisible !== showSecondaryRow) {
           showSecondaryRow = nextVisible;
-          renderHeader();
+          renderHeader(container, root, showSecondaryRow);
         }
         lastY = current;
       };
-      window.__reportsScrollHandler = handler;
+      window.__performanceScrollHandler = handler;
       window.addEventListener('scroll', handler, { passive: true });
     }
   }
+
+  container.querySelectorAll('[data-dashboard-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.getAttribute('data-dashboard-tab') || DEFAULT_TAB;
+      setActiveTab(next);
+    });
+  });
 }

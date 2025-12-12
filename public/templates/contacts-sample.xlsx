@@ -1,0 +1,7 @@
+Placeholder XLSX template.
+Headers:
+Email | First Name | Last Name | Title | Mobile | Company | City | State | LinkedIn | Instagram | Notes
+
+Sample rows:
+ava.mitchell@example.com | Ava | Mitchell | Freelance Copywriter | 917-555-0101 | Indie North | Portland | OR | https://www.linkedin.com/in/avamitchell | @ava.writes | Met at SXSW
+leo.garcia@example.com | Leo | Garcia | Producer | 415-555-0132 | Studio Lumen | San Francisco | CA | https://www.linkedin.com/in/leogarcia | @leo.producer | Prefers SMS

@@ -42,7 +42,7 @@ function LogoGrid() {
 }
 
 function NavIconGrid() {
-  const sections = ['me', 'bot', 'contacts', 'sales', 'jobs', 'quickTasks', 'chat', 'reports', 'netNetU'];
+  const sections = ['me', 'bot', 'contacts', 'sales', 'jobs', 'quickTasks', 'chat', 'performance', 'netNetU'];
   const themes = ['light', 'dark'];
   const labels = {
     me: 'Me',
@@ -52,7 +52,7 @@ function NavIconGrid() {
     jobs: 'Jobs',
     quickTasks: 'Quick Tasks',
     chat: 'Chat',
-    reports: 'Reports',
+    performance: 'Performance',
     netNetU: 'Net Net U',
   };
   return h(
@@ -68,7 +68,7 @@ function NavIconGrid() {
             'div',
             { className: 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4' },
             sections.map((section) => {
-              const alignClass = section === 'reports' ? 'items-end' : 'items-center';
+              const alignClass = section === 'performance' ? 'items-end' : 'items-center';
               const entry = navIcons[section];
               const idleSrc = entry?.[mode]?.idle;
               const activeSrc = entry?.[mode]?.active;
@@ -402,7 +402,7 @@ function SidebarModesDemo() {
       points: [
         'Only sections with subs render children',
         'Active section auto-expands when navigated to',
-        'Ready for future subs (Sales, Jobs, Reports)',
+        'Ready for future subs (Sales, Jobs, Performance)',
       ],
     },
   ];

@@ -17,7 +17,7 @@ function labelForRoute(hash) {
   if (h.startsWith('#/app/jobs')) return 'Jobs';
   if (h.startsWith('#/app/quick')) return 'Quick Tasks';
   if (h.startsWith('#/app/chat')) return 'Chat';
-  if (h.startsWith('#/app/reports')) return 'Reports';
+  if (h.startsWith('#/app/performance') || h.startsWith('#/app/reports')) return 'Performance';
   if (h.startsWith('#/app/components')) return 'Components';
   if (h.startsWith('#/app/net-net-u')) return 'Net Net U';
   return 'Net Net';

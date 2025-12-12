@@ -52,7 +52,7 @@ function renderSection(item) {
 
 export function renderSidebar(hash) {
   const mode = getSidebarMode();
-  const order = ['me', 'bot', 'contacts', 'sales', 'jobs', 'quick', 'chat', 'reports', 'nnu'];
+  const order = ['me', 'bot', 'contacts', 'sales', 'jobs', 'quick', 'chat', 'performance', 'nnu'];
   const orderedLinks = order
     .map(key => SIDEBAR_LINKS.find(item => item.key === key))
     .filter(Boolean);

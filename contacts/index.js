@@ -7,6 +7,7 @@ import { renderPersonProfile } from './contacts-profile-person.js';
 import { renderCompanyFormPage, renderPersonFormPage } from './contacts-forms.js';
 import { getContactsData, getIndividualsData } from './contacts-data.js';
 import { SectionHeader } from '../components/layout/SectionHeader.js';
+import { renderContactsImport } from './contacts-import.js';
 import {
   getListState,
   updateListState,
@@ -954,6 +955,10 @@ export function renderContacts(rootEl, subview = 'companies', id = null) {
   const container = rootEl || document.getElementById('app-main');
   if (!container) {
     console.warn('[ContactsModule] container not found for renderContacts.');
+    return;
+  }
+  if (subview === 'import') {
+    renderContactsImport(container);
     return;
   }
   if (subview === 'company-new' || subview === 'company-edit') {
