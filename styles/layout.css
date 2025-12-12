@@ -35,7 +35,7 @@ html.dark #app-main {
       "sidebar main";
     --top-bar-height: 56px;
   }
-  #app-top-bar { grid-area: header; height: calc(var(--top-bar-height) * 0.8); z-index: var(--z-topbar); }
+  #app-top-bar { grid-area: header; height: var(--top-bar-height); z-index: var(--z-topbar); }
   #app-sidebar { grid-area: sidebar; width: var(--sidebar-width); z-index: 20; }
   #app-main {
     grid-area: main;
@@ -541,6 +541,7 @@ html.dark .reports-inline-action:hover {
 .mobile-menu-overlay.open { transform: translateY(0); }
 
 #workspaceTabs {
+  margin-left: 2.5rem;
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
@@ -564,7 +565,12 @@ html.dark .reports-inline-action:hover {
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.12s ease;
 }
 .workspace-tab:hover {
   background-color: rgba(255,255,255,0.16);
@@ -605,14 +611,19 @@ html.dark .reports-inline-action:hover {
   line-height: 1;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.18s ease, background-color 0.15s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    background-color 0.15s ease,
+    transform 0.18s ease;
 }
 .workspace-tab:hover .workspace-tab__close {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(-50%);
 }
-.workspace-tab__close:hover { background-color: rgba(0,0,0,0.10); }
+.workspace-tab__close:hover {
+  background-color: rgba(0,0,0,0.10);
+}
 .workspace-tab:hover .workspace-tab__label {
   padding-right: 18px;
 }
@@ -632,20 +643,6 @@ html.dark .reports-inline-action:hover {
   background-color: rgba(255,255,255,0.18);
   border-color: rgba(255,255,255,0.35);
 }
-
-html:not(.dark) .workspace-tab {
-  border-color: var(--color-border-subtle-light, rgba(148,163,184,0.45));
-  background-color: rgba(255,255,255,0.85);
-  color: #0f172a;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.08);
-}
-html:not(.dark) .workspace-tab--active {
-  background-color: rgba(113, 31, 255, 0.18);
-  border-color: rgba(113, 31, 255, 0.32);
-  color: #0b1023;
-  box-shadow: 0 6px 16px rgba(15,23,42,0.12);
-}
-html:not(.dark) .workspace-tab__close:hover { background-color: rgba(15,23,42,0.08); }
 
 #workspaceSwitcherMenu {
   position: fixed;

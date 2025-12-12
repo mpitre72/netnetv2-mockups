@@ -8,9 +8,7 @@ export function renderTopBar() {
           <img src="${LOGO_ASSETS.dark.idle}" id="top-bar-logo-img" alt="Net Net" class="h-[30px] w-auto" />
         </a>
       </div>
-      <div class="hidden lg:flex flex-1 items-center h-full">
-        <div id="workspaceTabs" class="flex items-center gap-2 overflow-x-auto scrollbar-none w-full h-full"></div>
-      </div>
+      <div id="workspaceTabs" class="hidden lg:flex items-end gap-2 ml-10 overflow-x-auto scrollbar-none self-stretch h-full flex-1"></div>
       <div class="flex items-center h-full gap-3 pr-3 justify-end" style="width: var(--sidebar-width); min-width: var(--sidebar-width);">
         <button id="timerBtn" type="button" aria-label="Open time tracking" class="time-icon-button relative inline-flex items-center justify-center h-9 w-9">
           <img id="timerIcon" alt="Timer" class="h-5 w-5 select-none pointer-events-none" />
