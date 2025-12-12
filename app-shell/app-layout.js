@@ -91,31 +91,56 @@ export function renderAppShell(hash = '#/app/me/tasks') {
 function renderNotificationsDrawer() {
   return `
     <div id="app-drawer-backdrop"></div>
-    <aside id="app-drawer" class="bg-[#111827] text-white p-5 flex flex-col gap-4 w-full max-w-md">
+    <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-5 flex flex-col gap-4 w-full max-w-md">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-semibold">Notifications</h2>
-        <button type="button" id="drawerCloseBtn" class="text-white/70 hover:text-white">
+        <button type="button" id="drawerCloseBtn" class="text-slate-500 hover:text-slate-800 dark:text-white/70 dark:hover:text-white">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <div class="flex flex-col gap-3 text-sm">
-        <div class="rounded-lg border border-white/10 bg-white/5 p-3">
-          <p class="text-white"><strong class="text-white">Marc</strong> assigned to work on <a href="#" class="text-netnet-purple underline">Job 1234 Website Redesign</a> for Globex Corporation.</p>
-          <p class="text-white/60 text-xs mt-1">10 minutes ago</p>
+        <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-3">
+          <p class="text-slate-900 dark:text-white"><strong class="text-slate-900 dark:text-white">Marc</strong> assigned to work on <a href="#" class="text-netnet-purple underline">Job 1234 Website Redesign</a> for Globex Corporation.</p>
+          <p class="text-slate-500 dark:text-white/60 text-xs mt-1">10 minutes ago</p>
         </div>
-        <div class="rounded-lg border border-white/10 bg-white/5 p-3">
-          <p class="text-white"><strong class="text-white">Sherri</strong> mentioned you in a chat:</p>
-          <p class="text-white/80 italic mt-1">"Hey @Arthur, the design comps look good."</p>
-          <p class="text-white/60 text-xs mt-1">1 hour ago</p>
+        <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-3">
+          <p class="text-slate-900 dark:text-white"><strong class="text-slate-900 dark:text-white">Sherri</strong> mentioned you in a chat:</p>
+          <p class="text-slate-800 dark:text-white/80 italic mt-1">"Hey @Arthur, the design comps look good."</p>
+          <p class="text-slate-500 dark:text-white/60 text-xs mt-1">1 hour ago</p>
         </div>
-        <div class="rounded-lg border border-white/10 bg-white/5 p-3">
-          <p class="text-white"><strong class="text-white">Bill</strong> completed the task <strong class="text-white">"New Hamburger Menu"</strong> in ITK Redesign Job.</p>
-          <p class="text-white/60 text-xs mt-1">2 hours ago</p>
+        <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-3">
+          <p class="text-slate-900 dark:text-white"><strong class="text-slate-900 dark:text-white">Bill</strong> completed the task <strong class="text-slate-900 dark:text-white">"New Hamburger Menu"</strong> in ITK Redesign Job.</p>
+          <p class="text-slate-500 dark:text-white/60 text-xs mt-1">2 hours ago</p>
         </div>
-        <div class="rounded-lg border border-white/10 bg-white/5 p-3">
-          <p class="text-white">You have <span class="text-orange-300 font-semibold">3 tasks</span> that are due tomorrow. <a href="#" class="text-netnet-purple underline">View them?</a></p>
-          <p class="text-white/60 text-xs mt-1">5 hours ago</p>
+        <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-3">
+          <p class="text-slate-900 dark:text-white">You have <span class="text-orange-500 font-semibold">3 tasks</span> that are due tomorrow. <a href="#" class="text-netnet-purple underline">View them?</a></p>
+          <p class="text-slate-500 dark:text-white/60 text-xs mt-1">5 hours ago</p>
         </div>
+      </div>
+    </aside>
+  `;
+}
+
+function renderContextPanelDrawer(sectionName = 'this section') {
+  return `
+    <div id="app-drawer-backdrop"></div>
+    <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-5 flex flex-col gap-3 w-full max-w-md">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold">Context Panel</h2>
+          <p class="text-xs text-slate-500 dark:text-white/70 mt-0.5">Additional context for ${sectionName}</p>
+        </div>
+        <button type="button" id="drawerCloseBtn" class="text-slate-500 hover:text-slate-800 dark:text-white/70 dark:hover:text-white">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="space-y-2 text-sm">
+        <p class="text-slate-700 dark:text-white/80">This is a generic context panel placeholder. In the full product it will show related details, quick actions, and helpful links for this section.</p>
+        <ul class="list-disc list-inside text-slate-600 dark:text-white/70 space-y-1">
+          <li>Contextual tips and next steps</li>
+          <li>Shortcuts to related records</li>
+          <li>Inline actions without leaving the page</li>
+        </ul>
       </div>
     </aside>
   `;
@@ -299,8 +324,15 @@ export function wireAppShell(hash) {
   const openDrawerBtn = document.getElementById('openDrawerBtn');
   if (openDrawerBtn) {
     openDrawerBtn.onclick = () => {
+      const lb = document.getElementById('video-help-lightbox');
+      if (lb) lb.remove();
+      const drawer = document.getElementById('drawer-container');
       const shell = document.getElementById('app-shell');
+      if (drawer) {
+        drawer.innerHTML = renderContextPanelDrawer('This section');
+      }
       if (shell) shell.classList.remove('drawer-closed');
+      wireGenericDrawerClose();
     };
   }
   const cheatSheetBtn = document.getElementById('settingsCheatSheetBtn');
@@ -325,8 +357,15 @@ export function wireAppShell(hash) {
   const notifBtn = document.getElementById('notifBtn');
   if (notifBtn) {
     notifBtn.onclick = () => {
+      const lb = document.getElementById('video-help-lightbox');
+      if (lb) lb.remove();
       const shell = document.getElementById('app-shell');
+      const drawer = document.getElementById('drawer-container');
+      if (drawer) {
+        drawer.innerHTML = renderNotificationsDrawer();
+      }
       if (shell) shell.classList.remove('drawer-closed');
+      wireGenericDrawerClose();
     };
   }
   wireSidebarIcons(hash); wireTopBarLogo(); wireAppTimer(); wireMobileEvents(); 
@@ -335,6 +374,18 @@ export function wireAppShell(hash) {
   }
   initWorkspaceSwitcher(); initMobileWorkspaceSwitcher(); 
   refreshDynamicIcons();
+}
+
+function wireGenericDrawerClose() {
+  const shell = document.getElementById('app-shell');
+  const closeBtn = document.querySelector('#app-drawer #drawerCloseBtn, #app-drawer #sectionHelpClose, #app-drawer #notificationsClose');
+  const backdrop = document.getElementById('app-drawer-backdrop');
+  const cleanupVideo = () => {
+    const lb = document.getElementById('video-help-lightbox');
+    if (lb) lb.remove();
+  };
+  if (closeBtn) closeBtn.onclick = () => { shell?.classList.add('drawer-closed'); cleanupVideo(); };
+  if (backdrop) backdrop.onclick = () => { shell?.classList.add('drawer-closed'); cleanupVideo(); };
 }
 
 function refreshDynamicIcons() {

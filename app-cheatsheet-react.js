@@ -430,6 +430,47 @@ function ComponentsCheatSheet() {
   const [headerTab, setHeaderTab] = useState('overview');
   const [headerSearch, setHeaderSearch] = useState('');
 
+  const jobsVideoHelpConfig = {
+    primary: {
+      title: 'Managing Jobs',
+      description: 'Learn how to manage Jobs in Net Net.',
+      videoUrl: 'https://videos.hellonetnet.com/watch/wo5umvj3',
+      thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+    },
+    related: [
+      {
+        title: 'Quick Tasks vs. Job Tasks',
+        description: 'Compare Quick Tasks to full Job Tasks.',
+        videoUrl: 'https://videos.hellonetnet.com/watch/_GCLvxjV',
+        thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+      },
+      {
+        title: 'Deliverables & Tasks',
+        description: 'How grouping tasks into deliverables works.',
+        videoUrl: 'https://videos.hellonetnet.com/watch/SlwetZGk',
+        thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+      },
+      {
+        title: "Job KPI's",
+        description: 'Understand Job-level performance metrics.',
+        videoUrl: 'https://videos.hellonetnet.com/watch/mrN5rbMM',
+        thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+      },
+      {
+        title: 'Activating Estimates To Jobs',
+        description: 'Turn approved estimates into active Jobs.',
+        videoUrl: 'https://videos.hellonetnet.com/watch/USScaUJq',
+        thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+      },
+      {
+        title: 'Utilizing Chat with Smart Mentions!',
+        description: 'Use Smart Mentions to keep Job conversations in context.',
+        videoUrl: 'https://videos.hellonetnet.com/watch/J6L4QHnS',
+        thumbnailSrc: 'public/assets/samples/vid-chat.jpg',
+      },
+    ],
+  };
+
   const MiniIconButton = ({ keyId, aria, children }) =>
     h(
       'button',
@@ -543,6 +584,7 @@ function ComponentsCheatSheet() {
         searchPlaceholder: 'Search components…',
         searchValue: headerSearch,
         onSearchChange: setHeaderSearch,
+        videoHelpConfig: jobsVideoHelpConfig,
         className: 'pb-2',
       }),
       h(Section, { title: 'SectionHeader Variations' }, [
