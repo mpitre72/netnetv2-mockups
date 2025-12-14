@@ -4,7 +4,8 @@ const { createElement: h } = React;
 const { createRoot } = ReactDOM;
 
 const LISTS_STORAGE_KEY = 'netnet_lists_v1';
-const LIST_NODES_STORAGE_KEY = 'netnet_list_nodes_v1';
+const LIST_NODES_STORAGE_KEY = 'netnet_folders_v1';
+const LEGACY_NODES_STORAGE_KEY = 'netnet_list_nodes_v1';
 const LIST_ITEMS_STORAGE_KEY = 'netnet_list_items_v1';
 const SELECTED_LIST_KEY = 'netnet_selected_list_v1';
 
@@ -35,7 +36,7 @@ function hydrateLists() {
     { id: 'ideas', name: 'Ideas', sortOrder: 1, type: 'list', parentId: null },
     { id: 'personal', name: 'Personal', sortOrder: 2, type: 'list', parentId: null },
   ];
-  const storedNodes = safeLoad(LIST_NODES_STORAGE_KEY, null);
+  const storedNodes = safeLoad(LIST_NODES_STORAGE_KEY, null) || safeLoad(LEGACY_NODES_STORAGE_KEY, null);
   if (Array.isArray(storedNodes) && storedNodes.length) return storedNodes;
   const stored = safeLoad(LISTS_STORAGE_KEY, fallback);
   if (!Array.isArray(stored) || !stored.length) return fallback;
@@ -81,6 +82,8 @@ const listsState = {
   panelOpen: false,
   micActive: false,
   folderCollapsed: {},
+  activeNodeId: '',
+  addingChildFor: null,
 };
 
 function saveLists(lists) {
@@ -97,6 +100,7 @@ function saveSelected(id) {
 
 function setSelectedList(id) {
   listsState.selectedListId = id;
+  listsState.activeNodeId = id;
   saveSelected(id);
 }
 
@@ -139,7 +143,8 @@ function getActiveItems(includeArchived = false) {
 function addList(name, parentId = null) {
   const trimmed = (name || '').trim();
   if (!trimmed) return;
-  const maxOrder = listsState.lists.reduce((acc, l) => Math.max(acc, l.sortOrder ?? 0), 0);
+  const siblings = listsState.lists.filter((n) => (n.parentId ?? null) === (parentId ?? null));
+  const maxOrder = siblings.reduce((acc, l) => Math.max(acc, l.sortOrder ?? 0), -1);
   const list = { id: uid('list'), name: trimmed, sortOrder: maxOrder + 1, type: 'list', parentId };
   listsState.lists.push(list);
   saveLists(listsState.lists);
@@ -158,7 +163,8 @@ function renameList(id, name) {
 function addFolder(name, parentId = null) {
   const trimmed = (name || '').trim();
   if (!trimmed) return;
-  const maxOrder = listsState.lists.reduce((acc, l) => Math.max(acc, l.sortOrder ?? 0), 0);
+  const siblings = listsState.lists.filter((n) => (n.parentId ?? null) === (parentId ?? null));
+  const maxOrder = siblings.reduce((acc, l) => Math.max(acc, l.sortOrder ?? 0), -1);
   const folder = { id: uid('folder'), name: trimmed, sortOrder: maxOrder + 1, type: 'folder', parentId };
   listsState.lists.push(folder);
   saveLists(listsState.lists);
@@ -271,6 +277,10 @@ let openMenu = null;
 let composerContainer = null;
 let dragItemId = null;
 let panelContainer = null;
+
+function isDarkTheme() {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+}
 
 function closeOpenMenu() {
   if (openMenu && openMenu.remove) openMenu.remove();
@@ -403,44 +413,83 @@ function renderManagePanel() {
   panel.innerHTML = `
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-white/10">
       <div>
-        <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">Lists</p>
-        <p class="text-base font-semibold text-slate-900 dark:text-white">Manage</p>
+        <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">YOUR</p>
+        <p class="text-base font-semibold text-slate-900 dark:text-white">Folders</p>
       </div>
       <button type="button" id="meListsPanelClose" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close lists panel">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2" id="meListsPanelBody"></div>
-    <div class="border-t border-slate-100 dark:border-white/10 px-3 py-2 flex items-center gap-2">
-      <input id="meListsPanelNewFolder" type="text" placeholder="New folder" class="flex-1 rounded-md border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-netnet-purple" />
-    </div>
+      <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2" id="meListsPanelBody"></div>
+      <div class="border-t border-slate-100 dark:border-white/10 px-3 py-2 flex flex-col gap-2">
+        <input id="meListsPanelNewFolder" type="text" placeholder="New folder" class="flex-1 rounded-md border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-netnet-purple" />
+        <input id="meListsPanelNewList" type="text" placeholder="New list" class="flex-1 rounded-md border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-netnet-purple" />
+      </div>
   `;
   panelContainer.appendChild(panel);
 
   const body = panel.querySelector('#meListsPanelBody');
-  const nodes = [...listsState.lists].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const dragState = { id: null };
-  body.innerHTML = nodes.map((list) => `
-    <div class="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-white/10 px-2 py-2 bg-white/80 dark:bg-slate-800/70" data-list-id="${list.id}" draggable="true">
-      <button type="button" data-role="drag-handle" aria-label="Drag to reorder" class="cursor-grab p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="19" r="1"/></svg>
-      </button>
-      <button type="button" data-role="switch" data-id="${list.id}" class="flex-1 text-left text-sm ${list.id === listsState.selectedListId ? 'font-semibold text-emerald-400' : 'text-slate-800 dark:text-white'}">${list.name}</button>
-      <div class="flex items-center gap-1">
-        <button type="button" data-role="delete" data-id="${list.id}" class="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/40 text-red-500" aria-label="Delete list" ${(list.type === 'list' && nodes.filter((n) => n.type === 'list').length <= 1) ? 'disabled' : ''}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        </button>
-      </div>
-    </div>
-  `).join('');
+  const renderTree = (parentId = null, depth = 0) => {
+    const children = getChildren(parentId);
+    return children.map((node) => {
+      const isFolder = node.type === 'folder';
+      const isActive = node.id === listsState.activeNodeId;
+      const nameClass = isActive ? (isDarkTheme() ? 'font-semibold text-emerald-400' : 'font-semibold text-netnet-purple') : 'text-slate-800 dark:text-white';
+      const indent = depth * 14;
+      const collapsed = !!listsState.folderCollapsed[node.id];
+      const handleColor = isDarkTheme() ? 'text-white' : 'text-netnet-purple';
+      return `
+        <div class="space-y-1" data-node="${node.id}">
+          <div class="group flex items-center gap-2 rounded-lg border border-slate-200 dark:border-white/10 px-2 py-2 bg-white/80 dark:bg-slate-800/70" style="margin-left:${indent}px" data-list-id="${node.id}" draggable="true" data-type="${node.type}">
+            <button type="button" data-role="drag-handle" aria-label="Drag to reorder" class="cursor-grab p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 opacity-70 group-hover:opacity-100">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="${handleColor}"><circle cx="9" cy="5" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+            </button>
+            ${isFolder ? `
+              <button type="button" data-role="toggle" data-id="${node.id}" aria-label="Toggle folder" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${collapsed ? '' : 'rotate-90'} transition-transform"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            ` : '<div class="w-6"></div>'}
+            <button type="button" data-role="switch" data-id="${node.id}" class="flex-1 text-left text-sm ${nameClass}">${node.name}</button>
+            <div class="flex items-center gap-1">
+              ${isFolder ? `
+                <button type="button" data-role="add-subfolder" data-id="${node.id}" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700" aria-label="Add subfolder">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                </button>
+              ` : ''}
+              <button type="button" data-role="delete" data-id="${node.id}" class="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/40 text-red-500" aria-label="Delete" ${(node.type === 'list' && listsState.lists.filter((n) => n.type === 'list').length <= 1) ? 'disabled' : ''}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              </button>
+            </div>
+          </div>
+          ${isFolder && listsState.addingChildFor === node.id ? `
+            <div class="flex items-center gap-2" style="margin-left:${indent + 14}px">
+              <input data-role="new-subfolder-input" data-parent="${node.id}" type="text" placeholder="New sub-folder" class="flex-1 rounded-md border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-netnet-purple" />
+            </div>
+          ` : ''}
+          ${isFolder && collapsed ? '' : renderTree(node.id, depth + 1)}
+        </div>
+      `;
+    }).join('');
+  };
+  body.innerHTML = renderTree(null, 0);
 
   panel.querySelectorAll('[data-role="switch"]').forEach((btn) => {
     btn.onclick = () => {
-      setSelectedList(btn.getAttribute('data-id'));
-      listsState.expandedItemId = null;
-      listsState.selectedIds = new Set();
-      renderItemsPanel();
-      renderComposer(false);
+      const id = btn.getAttribute('data-id');
+      const node = listsState.lists.find((n) => n.id === id);
+      if (node?.type === 'list') {
+        setSelectedList(node.id);
+        listsState.activeNodeId = node.id;
+        listsState.expandedItemId = null;
+        listsState.selectedIds = new Set();
+        renderItemsPanel();
+        renderComposer(false);
+      } else if (node?.type === 'folder') {
+        listsState.activeNodeId = node.id;
+        listsState.folderCollapsed[id] = !listsState.folderCollapsed[id];
+        renderManagePanel();
+      }
     };
   });
   const rows = panel.querySelectorAll('[data-list-id]');
@@ -451,25 +500,35 @@ function renderManagePanel() {
     });
     row.addEventListener('dragover', (e) => {
       e.preventDefault();
-      row.classList.add('border-emerald-400');
+      row.classList.add(isDarkTheme() ? 'border-emerald-400' : 'border-netnet-purple');
     });
-    row.addEventListener('dragleave', () => row.classList.remove('border-emerald-400'));
+    row.addEventListener('dragleave', () => row.classList.remove('border-emerald-400', 'border-netnet-purple'));
     row.addEventListener('drop', (e) => {
       e.preventDefault();
-      row.classList.remove('border-emerald-400');
+      row.classList.remove('border-emerald-400', 'border-netnet-purple');
       const targetId = row.getAttribute('data-list-id');
       if (!dragState.id || dragState.id === targetId) return;
-      const ordered = [...listsState.lists].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-      const fromIdx = ordered.findIndex((l) => l.id === dragState.id);
-      const toIdx = ordered.findIndex((l) => l.id === targetId);
-      if (fromIdx === -1 || toIdx === -1) return;
-      const [moved] = ordered.splice(fromIdx, 1);
-      ordered.splice(toIdx, 0, moved);
-      ordered.forEach((l, idx) => { l.sortOrder = idx; });
-      listsState.lists = listsState.lists.map((l) => {
-        const updated = ordered.find((o) => o.id === l.id);
-        return updated ? { ...l, sortOrder: updated.sortOrder } : l;
-      });
+      const moving = listsState.lists.find((n) => n.id === dragState.id);
+      const target = listsState.lists.find((n) => n.id === targetId);
+      if (!moving || !target) return;
+      // Prevent cycles
+      if (target.type === 'folder' && isDescendant(target.id, moving.id)) return;
+
+      // Reparent if dropping onto folder
+      const newParent = target.type === 'folder' ? target.id : target.parentId ?? null;
+      moving.parentId = newParent;
+
+      // Reorder within new parent
+      const siblings = listsState.lists
+        .filter((n) => (n.parentId ?? null) === (newParent ?? null))
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      const fromIdx = siblings.findIndex((n) => n.id === moving.id);
+      if (fromIdx > -1) siblings.splice(fromIdx, 1);
+      const toIdx = siblings.findIndex((n) => n.id === target.id);
+      const insertAt = target.type === 'folder' ? siblings.length : Math.max(0, toIdx);
+      siblings.splice(insertAt, 0, moving);
+      siblings.forEach((n, idx) => { n.sortOrder = idx; });
+
       saveLists(listsState.lists);
       renderManagePanel();
     });
@@ -483,123 +542,63 @@ function renderManagePanel() {
       }
     };
   });
+  panel.querySelectorAll('[data-role="add-subfolder"]').forEach((btn) => {
+    btn.onclick = () => {
+      listsState.addingChildFor = btn.getAttribute('data-id');
+      renderManagePanel();
+    };
+  });
 
   const closeBtn = panel.querySelector('#meListsPanelClose');
   if (closeBtn) closeBtn.onclick = () => { listsState.panelOpen = false; renderManagePanel(); };
-  const addInput = panel.querySelector('#meListsPanelNewFolder');
-  const handleAdd = () => {
-    if (!addInput) return;
-    addFolder(addInput.value);
-    addInput.value = '';
+  const addFolderInput = panel.querySelector('#meListsPanelNewFolder');
+  const addListInput = panel.querySelector('#meListsPanelNewList');
+  const handleAddFolder = () => {
+    if (!addFolderInput) return;
+    addFolder(addFolderInput.value);
+    addFolderInput.value = '';
+    renderManagePanel();
+  };
+  const handleAddList = () => {
+    if (!addListInput) return;
+    addList(addListInput.value);
+    addListInput.value = '';
     renderItemsPanel();
     renderManagePanel();
   };
-  if (addInput) {
-    addInput.onkeydown = (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
-      if (e.key === 'Escape') { addInput.value = ''; }
+  if (addFolderInput) {
+    addFolderInput.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); handleAddFolder(); }
+      if (e.key === 'Escape') { addFolderInput.value = ''; }
     };
   }
+  if (addListInput) {
+    addListInput.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); handleAddList(); }
+      if (e.key === 'Escape') { addListInput.value = ''; }
+    };
+  }
+  body.querySelectorAll('[data-role="new-subfolder-input"]').forEach((input) => {
+    const parentId = input.getAttribute('data-parent');
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addFolder(input.value, parentId);
+        listsState.addingChildFor = null;
+        renderManagePanel();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        listsState.addingChildFor = null;
+        renderManagePanel();
+      }
+    };
+    setTimeout(() => input.focus(), 20);
+  });
 }
 function renderManageOverlay() {
-  const existing = document.getElementById('meListsManageOverlay');
-  if (existing) existing.remove();
-  const overlay = document.createElement('div');
-  overlay.id = 'meListsManageOverlay';
-  overlay.className = 'fixed inset-0 z-50 flex items-center justify-center px-4';
-  overlay.innerHTML = `
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-    <div class="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-white/10 p-4 space-y-4">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">Manage Lists</p>
-          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Folders</h3>
-        </div>
-        <button type="button" id="meListsManageClose" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close manage lists">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="space-y-2 max-h-[320px] overflow-y-auto pr-1" id="meListsManageBody"></div>
-      <div class="flex items-center gap-2">
-        <input type="text" id="meListsManageAdd" placeholder="New list name" class="flex-1 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-netnet-purple" />
-        <button type="button" id="meListsManageAddBtn" class="px-3 py-2 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:bg-[#6020df]">Add</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  const body = overlay.querySelector('#meListsManageBody');
-  const renderListRows = () => {
-    if (!body) return;
-    const lists = getSortedLists();
-    body.innerHTML = lists.map((list, idx) => `
-      <div class="flex items-center gap-2 rounded-lg border border-slate-100 dark:border-white/10 bg-white/70 dark:bg-slate-800/70 px-2 py-2">
-        <input data-role="rename" data-id="${list.id}" value="${list.name.replace(/"/g, '&quot;')}" class="flex-1 bg-transparent border-none text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-netnet-purple rounded" />
-        <div class="flex items-center gap-1">
-          <button type="button" data-role="reorder-up" data-id="${list.id}" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700" aria-label="Move up" ${idx === 0 ? 'disabled' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-          </button>
-          <button type="button" data-role="reorder-down" data-id="${list.id}" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700" aria-label="Move down" ${idx === lists.length - 1 ? 'disabled' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
-          </button>
-          <button type="button" data-role="delete" data-id="${list.id}" class="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/40 text-red-500" aria-label="Delete list" ${lists.length <= 1 ? 'disabled' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-          </button>
-        </div>
-      </div>
-    `).join('');
-
-    body.querySelectorAll('[data-role="rename"]').forEach((input) => {
-      const id = input.getAttribute('data-id');
-      const commit = () => {
-        renameList(id, input.value);
-        renderItemsPanel();
-      };
-      input.onkeydown = (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); commit(); }
-        if (e.key === 'Escape') { input.blur(); }
-      };
-      input.onblur = commit;
-    });
-
-    body.querySelectorAll('[data-role="reorder-up"]').forEach((btn) => {
-      btn.onclick = () => { reorderList(btn.getAttribute('data-id'), -1); renderItemsPanel(); renderComposer(false); renderListRows(); };
-    });
-    body.querySelectorAll('[data-role="reorder-down"]').forEach((btn) => {
-      btn.onclick = () => { reorderList(btn.getAttribute('data-id'), 1); renderItemsPanel(); renderComposer(false); renderListRows(); };
-    });
-    body.querySelectorAll('[data-role="delete"]').forEach((btn) => {
-      btn.onclick = () => {
-        const id = btn.getAttribute('data-id');
-        if (confirm('Delete this list? Items in it will be removed.')) {
-          deleteList(id);
-          renderItemsPanel();
-          renderComposer(false);
-          renderListRows();
-        }
-      };
-    });
-  };
-
-  renderListRows();
-
-  const close = () => overlay.remove();
-  const addInput = overlay.querySelector('#meListsManageAdd');
-  const addBtn = overlay.querySelector('#meListsManageAddBtn');
-  const closeBtn = overlay.querySelector('#meListsManageClose');
-  overlay.querySelector('.absolute')?.addEventListener('click', close);
-  if (closeBtn) closeBtn.onclick = close;
-  const handleAdd = () => {
-    if (!addInput) return;
-    addList(addInput.value);
-    addInput.value = '';
-    renderItemsPanel();
-    renderManageOverlay();
-  };
-  if (addBtn) addBtn.onclick = handleAdd;
-  if (addInput) {
-    addInput.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } };
-    setTimeout(() => addInput.focus(), 50);
-  }
+  // Deprecated overlay (arrows removed)
+  return null;
 }
 
 function renderHeader() {
@@ -1290,6 +1289,7 @@ export function renderMeListsPage(container = document.getElementById('app-main'
   saveLists(listsState.lists);
   saveItems(listsState.items);
   listsState.selectedListId = hydrateSelected(listsState.lists);
+  listsState.activeNodeId = listsState.selectedListId || '';
   listsState.selectedIds = new Set();
   listsState.multiSelect = false;
 

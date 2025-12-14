@@ -80,7 +80,19 @@ export function renderMePage(page, container = document.getElementById('app-main
       'aria-label': aria,
       title: aria,
     }, child);
-    const folderIcon = h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', className: state.panelOpen ? 'text-emerald-400' : 'text-slate-700 dark:text-white' }, [
+    const folderIcon = h('svg', {
+      width: 16,
+      height: 16,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth: 1.8,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      className: state.panelOpen
+        ? (__isDark() ? 'text-emerald-400' : 'text-netnet-purple')
+        : 'text-slate-700 dark:text-white',
+    }, [
       h('path', { d: 'M3 6h5l2 2h11v10a2 2 0 0 1-2 2H3z' }),
       h('path', { d: 'M3 6h5l2 2h9a2 2 0 0 1 2 2' }),
     ]);
