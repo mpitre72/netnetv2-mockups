@@ -238,7 +238,7 @@ function buildPersonFormBody(isIntl, companies, person = {}) {
   return `
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6 space-y-8">
       <div>
-        <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Contact Details</h4>
+        <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Person Details</h4>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">Email</label>
@@ -263,7 +263,7 @@ function buildPersonFormBody(isIntl, companies, person = {}) {
       </div>
       <div>
         <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">
-          <h4 class="text-sm font-bold text-gray-900 dark:text-white">Contact Info</h4>
+          <h4 class="text-sm font-bold text-gray-900 dark:text-white">Person Info</h4>
           <label class="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
             <span>US</span>
             <input type="checkbox" id="contact-intl-toggle" class="sr-only peer">

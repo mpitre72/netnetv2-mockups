@@ -13,6 +13,7 @@ import { renderNnuPage } from './net-net-u/index.js';
 import { renderNetNetBot } from './ai/index.js';
 import { renderAuthScreen, mountAuthShell } from './auth/auth-shell.js';
 import { initRouter, navigate } from './router.js';
+import { installCrashOverlay } from './utils/crash-overlay.js';
 import { mountShell, applyMainWrapperClass } from './app-shell/app-layout.js';
 import { setTheme, getTheme } from './app-shell/app-helpers.js';
 
@@ -130,6 +131,8 @@ function renderRoute(route) {
     renderNetNetBot(main);
   } else if (route.name === 'contacts-import') {
     renderContacts(main, 'import');
+  } else if (route.name === 'contacts-import-history') {
+    renderContacts(main, 'contacts-import-history');
   } else if (route.name === 'contacts-companies' || route.name === 'contacts-people' || route.name === 'contacts-root') {
     const subview = route.subview || (route.name === 'contacts-people' ? 'people' : 'companies');
     renderContacts(main, subview);
@@ -139,35 +142,44 @@ function renderRoute(route) {
 }
 
 function mountApp() {
-  setTheme(getTheme());
-  ensureToast();
-  window.navigate = navigate;
-  window.showToast = showToast;
-  const initialHash = '#/auth/login';
-  if (initialHash.startsWith('#/auth')) {
-    mountAuthShell();
-    currentShell = 'auth';
-  } else {
-    mountShell(initialHash);
-    applyMainWrapperClass(initialHash);
-    currentShell = 'app';
+  installCrashOverlay();
+  try {
+    setTheme(getTheme());
+    ensureToast();
+    window.navigate = navigate;
+    window.showToast = showToast;
+    const initialHash = '#/auth/login';
+    if (initialHash.startsWith('#/auth')) {
+      mountAuthShell();
+      currentShell = 'auth';
+    } else {
+      mountShell(initialHash);
+      applyMainWrapperClass(initialHash);
+      currentShell = 'app';
+    }
+    initRouter({
+      contacts: (route) => renderRoute(route || { name: 'contacts-root', subview: 'companies' }),
+      profile: (type, id) => renderRoute({ name: type, id }),
+      me: (page) => renderRoute({ name: 'me', page }),
+      jobs: () => renderRoute({ name: 'jobs' }),
+      sales: () => renderRoute({ name: 'sales' }),
+      quick: () => renderRoute({ name: 'quick' }),
+      chat: () => renderRoute({ name: 'chat' }),
+      performance: () => renderRoute({ name: 'performance' }),
+      components: () => renderRoute({ name: 'components' }),
+      settings: () => renderRoute({ name: 'settings' }),
+      profilePage: () => renderRoute({ name: 'profile' }),
+      nnu: () => renderRoute({ name: 'nnu' }),
+      bot: () => renderRoute({ name: 'bot' }),
+      auth: (name) => renderRoute({ name }),
+    });
+  } catch (err) {
+    if (typeof window.showCrashOverlay === 'function') {
+      window.showCrashOverlay(err?.stack || err?.message || String(err));
+    } else {
+      console.error(err);
+    }
   }
-  initRouter({
-    contacts: (route) => renderRoute(route || { name: 'contacts-root', subview: 'companies' }),
-    profile: (type, id) => renderRoute({ name: type, id }),
-    me: (page) => renderRoute({ name: 'me', page }),
-    jobs: () => renderRoute({ name: 'jobs' }),
-    sales: () => renderRoute({ name: 'sales' }),
-    quick: () => renderRoute({ name: 'quick' }),
-    chat: () => renderRoute({ name: 'chat' }),
-    performance: () => renderRoute({ name: 'performance' }),
-    components: () => renderRoute({ name: 'components' }),
-    settings: () => renderRoute({ name: 'settings' }),
-    profilePage: () => renderRoute({ name: 'profile' }),
-    nnu: () => renderRoute({ name: 'nnu' }),
-    bot: () => renderRoute({ name: 'bot' }),
-    auth: (name) => renderRoute({ name }),
-  });
 }
 
 if (document.readyState === 'loading') {

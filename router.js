@@ -32,10 +32,12 @@ function parseRoute(hash) {
   const personMatch = h.match(/^#\/app\/contacts\/person\/(\d+)$/);
   const personEdit = h.match(/^#\/app\/contacts\/people\/(\d+)\/edit$/);
   const personNew = h === '#/app/contacts/people/new';
-  const contactsImport = h === '#/app/contacts/import';
+  const contactsImport = /^#\/app\/contacts\/import\/?$/.test(h);
+  const contactsImportHistory = /^#\/app\/contacts\/import\/history\/?$/.test(h);
   const contactsCompanies = /^#\/app\/contacts\/companies\/?$/.test(h);
   const contactsPeople = /^#\/app\/contacts\/people\/?$/.test(h);
   const contactsRoot = /^#\/app\/contacts\/?$/.test(h);
+  const meLists = h.startsWith('#/app/me/lists');
   const meTime = h.startsWith('#/app/me/time');
   const mePerf = h.startsWith('#/app/me/performance');
   const meTasks = h.startsWith('#/app/me') || h === '#/app/me' || h === '#/app/me/';
@@ -65,10 +67,12 @@ function parseRoute(hash) {
   if (personEdit) return { name: 'person-edit', id: parseInt(personEdit[1], 10) };
   if (personNew) return { name: 'person-new' };
   if (personMatch) return { name: 'person', id: parseInt(personMatch[1], 10) };
+  if (contactsImportHistory) return { name: 'contacts-import-history' };
   if (contactsImport) return { name: 'contacts-import' };
   if (contactsCompanies) return { name: 'contacts-companies', subview: 'companies' };
   if (contactsPeople) return { name: 'contacts-people', subview: 'people' };
   if (contactsRoot) return { name: 'contacts-root' };
+  if (meLists) return { name: 'me', page: 'lists' };
   if (meTime) return { name: 'me', page: 'time' };
   if (mePerf) return { name: 'me', page: 'performance' };
   if (meTasks) return { name: 'me', page: 'tasks' };
@@ -114,6 +118,8 @@ function handleRoute(renderers) {
     }
     renderers.contacts({ name: 'contacts-companies', subview: 'companies' });
   } else if (route.name === 'contacts-companies' || route.name === 'contacts-people') {
+    renderers.contacts(route);
+  } else if (route.name === 'contacts-import' || route.name === 'contacts-import-history') {
     renderers.contacts(route);
   } else if (route.name === 'company-new' || route.name === 'company-edit') {
     renderers.contacts({ name: route.name, id: route.id });

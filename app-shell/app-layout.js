@@ -4,7 +4,7 @@ import { renderSidebar, wireSidebarIcons } from './app-sidebar.js';
 import { renderMobileBottomNav } from './app-bottom-nav.js';
 import { initWorkspaceTabs, renderWorkspaceTabs } from './app-tabs.js';
 import { __isDark, getActiveWorkspace, setActiveWorkspace, setTheme } from './app-helpers.js';
-import { setAuthenticated } from '../router.js';
+import { setAuthenticated, navigate } from '../router.js';
 
 function renderMobileHeader() {
   return `
@@ -153,6 +153,7 @@ export function applyMainWrapperClass(hash) {
   const h = hash || '#/app/me/tasks';
 
   const isComponents = h.startsWith('#/app/components');
+  const isMeLists = h.startsWith('#/app/me/lists');
   const isReportsOrTable =
     h.startsWith('#/app/performance') ||
     h.startsWith('#/app/contacts') ||
@@ -166,7 +167,7 @@ export function applyMainWrapperClass(hash) {
     h.startsWith('#/app/contacts/company/') ||
     h.startsWith('#/app/contacts/person/');
 
-  const base = isComponents
+  const base = (isComponents || isMeLists)
     ? 'p-4 sm:p-6 lg:p-8 pb-14 overflow-y-auto'
     : isReportsOrTable
     ? 'p-4 sm:p-6 lg:p-8 pb-14 overflow-hidden'

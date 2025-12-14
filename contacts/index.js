@@ -7,7 +7,9 @@ import { renderPersonProfile } from './contacts-profile-person.js';
 import { renderCompanyFormPage, renderPersonFormPage } from './contacts-forms.js';
 import { getContactsData, getIndividualsData } from './contacts-data.js';
 import { SectionHeader } from '../components/layout/SectionHeader.js';
-import { renderContactsImport } from './contacts-import.js';
+import { renderContactsImport, resetImportSession } from './contacts-import.js';
+import { renderContactsImportHistory } from './contacts-import-history.js';
+import { navigate } from '../router.js';
 import {
   getListState,
   updateListState,
@@ -794,7 +796,14 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
     alert(`Exporting ${selectedPersonIds.size} selected contacts`);
   };
 
-  const handleImport = () => navigate('#/app/contacts/import');
+  const handleImport = () => {
+    resetImportSession();
+    if (typeof navigate === 'function') {
+      navigate('#/app/contacts/import');
+    } else {
+      window.location.hash = '#/app/contacts/import';
+    }
+  };
   const handleNewCompany = () => navigate('#/app/contacts/companies/new');
   const handleNewPerson = () => navigate('#/app/contacts/people/new');
 
@@ -802,12 +811,13 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
     if (!headerRoot) return;
     const groups = buildContactsGroups();
     const allExpanded = groups.length > 0 && groups.every(g => state.expanded.has(g.id));
-    const baseBtnClass = 'nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
+    const baseMicroBtnClass = 'nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
+    const baseMiniBtnClass = 'nn-btn nn-btn--mini inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
     const leftActions = [
       !contactsMultiSelectMode
         ? h('button', {
             type: 'button',
-            className: baseBtnClass,
+            className: baseMicroBtnClass,
             'aria-label': allExpanded ? 'Collapse all' : 'Expand all',
             title: allExpanded ? 'Collapse all' : 'Expand all',
             onClick: handleExpandToggle,
@@ -818,7 +828,7 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
         : null,
       h('button', {
         type: 'button',
-        className: baseBtnClass,
+        className: baseMicroBtnClass,
         'aria-label': contactsMultiSelectMode ? 'Exit multi-select mode' : 'Enter multi-select mode',
         title: contactsMultiSelectMode ? 'Exit multi-select mode' : 'Enter multi-select mode',
         onClick: handleMultiselectToggle,
@@ -832,7 +842,7 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
       ? [
           h('button', {
             type: 'button',
-            className: `${baseBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
+            className: `${baseMicroBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
             'aria-label': 'Delete selected',
             title: 'Delete selected',
             onClick: () => {
@@ -858,7 +868,7 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
           ])),
           h('button', {
             type: 'button',
-            className: `${baseBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
+            className: `${baseMicroBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
             'aria-label': 'Export selected',
             title: 'Export selected',
             onClick: handleExport,
@@ -871,7 +881,7 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
       : [
           h('button', {
             type: 'button',
-            className: baseBtnClass,
+            className: baseMiniBtnClass,
             'aria-label': '+ New Company',
             title: '+ New Company',
             onClick: handleNewCompany,
@@ -884,7 +894,7 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
           ])),
           h('button', {
             type: 'button',
-            className: baseBtnClass,
+            className: baseMiniBtnClass,
             'aria-label': '+ New Person',
             title: '+ New Person',
             onClick: handleNewPerson,
@@ -893,12 +903,16 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
             h('circle', { cx: '9', cy: '7', r: '4' }),
             h('path', { d: 'M17 11v6m3-3h-6' }),
           ])),
-          h('button', {
-            type: 'button',
-            className: baseBtnClass,
+          h('a', {
+            href: '#/app/contacts/import',
+            className: baseMiniBtnClass,
+            role: 'button',
             'aria-label': 'Import Contacts',
             title: 'Import Contacts',
-            onClick: handleImport,
+            onClick: (e) => {
+              e.preventDefault();
+              handleImport();
+            },
           }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
             h('path', { d: 'M12 21V9' }),
             h('path', { d: 'M8 13l4-4 4 4' }),
@@ -957,8 +971,12 @@ export function renderContacts(rootEl, subview = 'companies', id = null) {
     console.warn('[ContactsModule] container not found for renderContacts.');
     return;
   }
-  if (subview === 'import') {
-    renderContactsImport(container);
+  if (subview === 'import' || subview === 'contacts-import-history') {
+    if (subview === 'contacts-import-history') {
+      renderContactsImportHistory(container);
+    } else {
+      renderContactsImport(container);
+    }
     return;
   }
   if (subview === 'company-new' || subview === 'company-edit') {

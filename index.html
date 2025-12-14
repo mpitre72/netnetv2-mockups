@@ -43,6 +43,43 @@
       <div id="mobileWorkspaceOptions" class="flex items-center justify-around pb-2"></div>
     </div>
   </div>
+  <script>
+    (function() {
+      function show(msg) {
+        var el = document.getElementById('nn-preboot-crash');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'nn-preboot-crash';
+          el.style.position = 'fixed';
+          el.style.top = '10px';
+          el.style.left = '10px';
+          el.style.zIndex = '99999';
+          el.style.padding = '12px 14px';
+          el.style.maxWidth = '420px';
+          el.style.background = 'rgba(15,23,42,0.95)';
+          el.style.color = '#f8fafc';
+          el.style.fontFamily = 'Inter, system-ui, sans-serif';
+          el.style.fontSize = '13px';
+          el.style.borderRadius = '10px';
+          el.style.boxShadow = '0 10px 30px rgba(0,0,0,0.4)';
+          el.style.border = '1px solid rgba(255,255,255,0.18)';
+          el.style.whiteSpace = 'pre-wrap';
+        }
+        el.innerHTML = '<strong>Net Net crashed</strong><div style="margin-top:6px;">' + msg + '</div>';
+        document.body.appendChild(el);
+      }
+      window.addEventListener('error', function(evt) {
+        var m = (evt && evt.error && evt.error.stack) || (evt && evt.message) || 'Unknown error';
+        if (evt && evt.filename) m += '\\n' + evt.filename + ':' + (evt.lineno || '') + ':' + (evt.colno || '');
+        show(m);
+      });
+      window.addEventListener('unhandledrejection', function(evt) {
+        var reason = evt && evt.reason;
+        var m = (reason && reason.stack) || (reason && reason.message) || String(reason);
+        show(m);
+      });
+    })();
+  </script>
   <script type="module" src="./app-cheatsheet-react.js"></script>
   <script type="module" src="./app.js"></script>
 </body>

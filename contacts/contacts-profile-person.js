@@ -100,7 +100,7 @@ export function renderPersonProfile(data, profileState, mockReportData) {
           </div>
           <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6 space-y-8">
             <div>
-              <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Contact Details</h4>
+              <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Person Details</h4>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div class="md:col-span-2">
                   <label class="${labelClass}">Name</label>
@@ -117,7 +117,7 @@ export function renderPersonProfile(data, profileState, mockReportData) {
               </div>
             </div>
             <div>
-              <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Contact Info</h4>
+              <h4 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1 mb-3">Person Info</h4>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div><label class="${labelClass}">Email</label><a href="mailto:${data.email}" class="text-netnet-purple hover:underline break-all">${data.email}</a></div>
                 <div><label class="${labelClass}">Mobile</label><div class="${viewValueClass}">${data.phone || '-'}</div></div>
