@@ -1,7 +1,7 @@
 import { ICONS } from '../app-shell/app-constants.js';
 import { __isDark } from '../app-shell/app-helpers.js';
 import { SectionHeader } from '../components/layout/SectionHeader.js';
-import { renderMeListsPage } from './lists.js';
+import { renderMeListsPage, getListsHeaderState, setListsSearch, toggleListsPanel, toggleListsArchive, toggleListsMultiSelect, refreshListsBody } from './lists.js';
 import { navigate } from '../router.js';
 
 const { createElement: h } = React;
@@ -37,42 +37,106 @@ export function renderMePage(page, container = document.getElementById('app-main
   const activePage = ME_SWITCHER.find((m) => m.value === page)?.value || 'tasks';
   container.classList.remove('flex', 'items-center', 'justify-center', 'h-full');
   container.innerHTML = `
-    <div class="w-full max-w-6xl mx-auto space-y-6">
-      <div id="meHeaderRoot"></div>
-      <div id="meBody"></div>
+    <div class="w-full h-full flex flex-col gap-4">
+      <div id="meHeaderRoot" class="px-4 pt-2 pb-3 md:pt-3 md:pb-2"></div>
+      <div id="meBody" class="flex-1"></div>
     </div>
   `;
 
   const headerRootEl = document.getElementById('meHeaderRoot');
-  if (headerRootEl) {
-    const renderPlain = () => {
-      headerRootEl.innerHTML = `
-        <div class="flex flex-col gap-2">
-          <div class="flex items-center gap-2">
-            <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">Me</h1>
-            <span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" aria-label="Me sub-nav debug">Me Sub-Nav Active (Debug)</span>
-          </div>
-          <div class="inline-flex flex-wrap items-center gap-2">
-            ${ME_SWITCHER.map(opt => `
-              <button data-plain-me-nav="${opt.value}" class="px-3 py-1 rounded-full text-sm font-medium border ${opt.value === activePage ? 'bg-[var(--color-brand-purple,#711FFF)] text-white border-transparent shadow-sm' : 'border-slate-200 dark:border-white/20 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}">
-                ${opt.label}
-              </button>
-            `).join('')}
-          </div>
+  const renderPlain = () => {
+    if (!headerRootEl) return;
+    headerRootEl.innerHTML = `
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">Me</h1>
         </div>
-      `;
-      headerRootEl.querySelectorAll('[data-plain-me-nav]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const val = btn.getAttribute('data-plain-me-nav');
-          const match = ME_SWITCHER.find(m => m.value === val);
-          navigate(match?.hash || '#/app/me/tasks');
-        });
+        <div class="inline-flex flex-wrap items-center gap-2">
+          ${ME_SWITCHER.map(opt => `
+            <button data-plain-me-nav="${opt.value}" class="px-3 py-1 rounded-full text-sm font-medium border ${opt.value === activePage ? 'bg-[var(--color-brand-purple,#711FFF)] text-white border-transparent shadow-sm' : 'border-slate-200 dark:border-white/20 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}">
+              ${opt.label}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    headerRootEl.querySelectorAll('[data-plain-me-nav]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.getAttribute('data-plain-me-nav');
+        const match = ME_SWITCHER.find(m => m.value === val);
+        navigate(match?.hash || '#/app/me/tasks');
       });
-    };
-    try {
-      if (!SectionHeader || !createRoot || !h) {
-        renderPlain();
-      } else {
+    });
+  };
+
+  const renderListsHeader = () => {
+    if (!headerRootEl) return;
+    const state = getListsHeaderState();
+    const rightIcons = [];
+    const micro = (child, onClick, aria) => h('button', {
+      type: 'button',
+      className: 'nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-netnet-purple',
+      onClick,
+      'aria-label': aria,
+      title: aria,
+    }, child);
+    const folderIcon = h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', className: state.panelOpen ? 'text-emerald-400' : 'text-slate-700 dark:text-white' }, [
+      h('path', { d: 'M3 6h5l2 2h11v10a2 2 0 0 1-2 2H3z' }),
+      h('path', { d: 'M3 6h5l2 2h9a2 2 0 0 1 2 2' }),
+    ]);
+    const archiveIcon = h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', className: state.showArchived ? 'text-netnet-purple' : 'text-slate-700 dark:text-white' }, [
+      h('rect', { x: 3, y: 4, width: 18, height: 4, rx: 1 }),
+      h('path', { d: 'M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8' }),
+      h('line', { x1: 10, y1: 12, x2: 14, y2: 12 }),
+    ]);
+    rightIcons.push(micro(folderIcon, () => { toggleListsPanel(); renderListsHeader(); refreshListsBody(); }, 'Manage lists'));
+    rightIcons.push(micro(archiveIcon, () => { toggleListsArchive(); renderListsHeader(); refreshListsBody(); }, state.showArchived ? 'Hide archive' : 'Show archive'));
+
+    const leftActions = [
+      h('button', {
+        type: 'button',
+        className: 'nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-netnet-purple',
+        onClick: () => { toggleListsMultiSelect(); renderListsHeader(); refreshListsBody(); },
+        'aria-pressed': state.multiSelect ? 'true' : 'false',
+        'aria-label': state.multiSelect ? 'Exit multi-select mode' : 'Enter multi-select mode',
+        title: state.multiSelect ? 'Exit multi-select mode' : 'Enter multi-select mode',
+      }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+        h('rect', { x: '4', y: '4', width: '16', height: '16', rx: '2' }),
+        h('path', { d: 'M8 12l3 3 5-6' }),
+      ])),
+    ];
+
+    const root = createRoot(headerRootEl);
+    root.render(h(SectionHeader, {
+      title: h('div', { className: 'flex items-center gap-2' }, [
+        h('span', { className: 'text-sm text-slate-500 dark:text-white/70' }, 'Me'),
+        h('span', { className: 'text-slate-400 dark:text-white/50' }, '›'),
+        h('span', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Lists'),
+      ]),
+      showHelpIcon: true,
+      showSecondaryRow: true,
+      leftActions,
+      showSearch: true,
+      searchPlaceholder: 'Search list…',
+      searchValue: state.search,
+      onSearchChange: (val) => { setListsSearch(val); refreshListsBody(); },
+      videoHelpConfig: {
+        primary: {
+          title: 'Lists overview',
+          description: 'Capture and organize pre-task items.',
+          videoUrl: 'https://videos.hellonetnet.com/watch/wo5umvj3',
+          thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+        },
+      },
+      rightActions: rightIcons,
+    }));
+  };
+
+  if (activePage === 'lists') {
+    renderListsHeader();
+  } else {
+    if (headerRootEl) {
+      try {
         const root = createRoot(headerRootEl);
         root.render(h(SectionHeader, {
           title: 'Me',
@@ -84,16 +148,11 @@ export function renderMePage(page, container = document.getElementById('app-main
             navigate(match?.hash || '#/app/me/tasks');
           },
           showSecondaryRow: true,
-          leftActions: [
-            h('span', {
-              className: 'text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-            }, 'Me Sub-Nav Active (Debug)'), // TODO: remove debug label after verification
-          ],
+          leftActions: [],
         }));
+      } catch (e) {
+        renderPlain();
       }
-    } catch (e) {
-      console.warn('[MeModule] Falling back to plain header render', e);
-      renderPlain();
     }
   }
 
