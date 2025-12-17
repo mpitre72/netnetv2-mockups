@@ -1,4 +1,7 @@
 import { SectionHeader } from '../components/layout/SectionHeader.js';
+import { mountCompanyLookup } from '../contacts/company-lookup.js';
+import { mountPersonLookup } from '../contacts/person-lookup.js';
+import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
 
 const { createElement: h } = React;
 const { createRoot } = ReactDOM;
@@ -8,6 +11,7 @@ const LIST_NODES_STORAGE_KEY = 'netnet_folders_v1';
 const LEGACY_NODES_STORAGE_KEY = 'netnet_list_nodes_v1';
 const LIST_ITEMS_STORAGE_KEY = 'netnet_list_items_v1';
 const SELECTED_LIST_KEY = 'netnet_selected_list_v1';
+const QUICK_TASK_ASSIGN_KEY = 'netnet_quick_task_assign_v1';
 
 function safeLoad(key, fallback) {
   try {
@@ -69,6 +73,15 @@ function hydrateSelected(lists) {
   return exists ? exists.id : (firstList?.id || '');
 }
 
+function hydrateQuickTaskAssign() {
+  const stored = safeLoad(QUICK_TASK_ASSIGN_KEY, null);
+  if (!stored || typeof stored !== 'object') return { companyId: null, personId: null };
+  return {
+    companyId: stored.companyId || null,
+    personId: stored.personId || null,
+  };
+}
+
 const listsState = {
   lists: [],
   items: [],
@@ -84,6 +97,7 @@ const listsState = {
   folderCollapsed: {},
   activeNodeId: '',
   addingChildFor: null,
+  quickTaskAssignment: hydrateQuickTaskAssign(),
 };
 
 function saveLists(lists) {
@@ -96,6 +110,10 @@ function saveItems(items) {
 
 function saveSelected(id) {
   safeSave(SELECTED_LIST_KEY, id);
+}
+
+function saveQuickTaskAssign(assign) {
+  safeSave(QUICK_TASK_ASSIGN_KEY, assign);
 }
 
 function setSelectedList(id) {
@@ -405,8 +423,8 @@ function renderManagePanel() {
   if (!panelContainer) return;
   panelContainer.innerHTML = '';
   panelContainer.className = listsState.panelOpen
-    ? 'w-80 flex-shrink-0 transition-all duration-200'
-    : 'w-0 overflow-hidden transition-all duration-200';
+    ? 'w-80 h-full flex-shrink-0 transition-all duration-200'
+    : 'w-0 h-full overflow-hidden transition-all duration-200';
   if (!listsState.panelOpen) return;
   const panel = document.createElement('div');
   panel.className = 'h-full flex flex-col bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-white/10 shadow-lg';
@@ -418,12 +436,18 @@ function renderManagePanel() {
       </div>
       <button type="button" id="meListsPanelClose" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close lists panel">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
+        </button>
+      </div>
       <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2" id="meListsPanelBody"></div>
-      <div class="border-t border-slate-100 dark:border-white/10 px-3 py-2 flex flex-col gap-2">
-        <input id="meListsPanelNewFolder" type="text" placeholder="New folder" class="flex-1 rounded-md border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-netnet-purple" />
-        <input id="meListsPanelNewList" type="text" placeholder="New list" class="flex-1 rounded-md border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-netnet-purple" />
+      <div class="border-t border-slate-100 dark:border-white/10 px-3 py-2 flex items-center gap-2 sticky bottom-0 bg-white dark:bg-slate-900">
+        <input id="meListsPanelComposerInput" type="text" placeholder="New folder" class="flex-1 rounded-md border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-netnet-purple" />
+        <button type="button" id="meListsPanelSubfolderBtn" class="nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-netnet-purple" title="Sub-folder" aria-label="Sub-folder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h5l2 2h11v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><path d="M8 7V5a2 2 0 0 1 2-2h3" /></svg>
+        </button>
+        <button type="button" id="meListsPanelAddFolderBtn" class="nn-btn nn-btn--micro inline-flex items-center justify-center text-white bg-netnet-purple border border-slate-300 dark:border-white/10 hover:bg-[#6020df] focus-visible:ring-2 focus-visible:ring-netnet-purple" title="Add folder" aria-label="Add folder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <span class="text-[11px] text-slate-400 dark:text-white/60">Composer OK — Build E</span>
       </div>
   `;
   panelContainer.appendChild(panel);
@@ -551,33 +575,69 @@ function renderManagePanel() {
 
   const closeBtn = panel.querySelector('#meListsPanelClose');
   if (closeBtn) closeBtn.onclick = () => { listsState.panelOpen = false; renderManagePanel(); };
-  const addFolderInput = panel.querySelector('#meListsPanelNewFolder');
-  const addListInput = panel.querySelector('#meListsPanelNewList');
-  const handleAddFolder = () => {
-    if (!addFolderInput) return;
-    addFolder(addFolderInput.value);
-    addFolderInput.value = '';
+  const composerInput = panel.querySelector('#meListsPanelComposerInput');
+  const subfolderBtn = panel.querySelector('#meListsPanelSubfolderBtn');
+  const addFolderBtn = panel.querySelector('#meListsPanelAddFolderBtn');
+
+  const getTrimmedName = () => (composerInput?.value || '').trim();
+  const isActiveFolder = () => {
+    const active = listsState.lists.find((n) => n.id === listsState.activeNodeId);
+    return active && active.type === 'folder';
+  };
+  const updateComposerDisabled = () => {
+    const name = getTrimmedName();
+    const hasName = !!name;
+    const hasActiveFolder = isActiveFolder();
+    if (subfolderBtn) {
+      subfolderBtn.disabled = !hasName || !hasActiveFolder;
+      subfolderBtn.classList.toggle('opacity-50', subfolderBtn.disabled);
+    }
+    if (addFolderBtn) {
+      addFolderBtn.disabled = !hasName;
+      addFolderBtn.classList.toggle('opacity-50', addFolderBtn.disabled);
+    }
+  };
+
+  const createRootFolder = () => {
+    const name = getTrimmedName();
+    if (!name) return;
+    addFolder(name, null);
+    if (composerInput) {
+      composerInput.value = '';
+      composerInput.focus();
+    }
     renderManagePanel();
   };
-  const handleAddList = () => {
-    if (!addListInput) return;
-    addList(addListInput.value);
-    addListInput.value = '';
-    renderItemsPanel();
+
+  const createSubFolder = () => {
+    const name = getTrimmedName();
+    const active = listsState.lists.find((n) => n.id === listsState.activeNodeId);
+    if (!name || !active || active.type !== 'folder') return;
+    addFolder(name, active.id);
+    if (composerInput) {
+      composerInput.value = '';
+      composerInput.focus();
+    }
     renderManagePanel();
   };
-  if (addFolderInput) {
-    addFolderInput.onkeydown = (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); handleAddFolder(); }
-      if (e.key === 'Escape') { addFolderInput.value = ''; }
+
+  if (composerInput) {
+    composerInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (isActiveFolder()) createSubFolder();
+        else createRootFolder();
+      }
+      if (e.key === 'Escape') {
+        composerInput.value = '';
+        updateComposerDisabled();
+      }
     };
+    composerInput.oninput = updateComposerDisabled;
   }
-  if (addListInput) {
-    addListInput.onkeydown = (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); handleAddList(); }
-      if (e.key === 'Escape') { addListInput.value = ''; }
-    };
-  }
+  if (subfolderBtn) subfolderBtn.onclick = createSubFolder;
+  if (addFolderBtn) addFolderBtn.onclick = createRootFolder;
+  updateComposerDisabled();
   body.querySelectorAll('[data-role="new-subfolder-input"]').forEach((input) => {
     const parentId = input.getAttribute('data-parent');
     input.onkeydown = (e) => {
@@ -997,6 +1057,10 @@ function openCreateTaskPanel(item) {
           <label class="flex flex-col gap-1">Due date <input type="date" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" /></label>
           <label class="flex flex-col gap-1">Estimated hours <input type="number" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="0" /></label>
           <label class="flex flex-col gap-1">Client <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Search clients (mock)" /></label>
+          <div class="pt-2 border-t border-slate-200 dark:border-white/10">
+            <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">Contact</p>
+            <div id="listsQuickContactLookup" class="mt-2 space-y-3"></div>
+          </div>
         </div>
         <div class="space-y-2 hidden" data-panel="job">
           <label class="flex flex-col gap-1">Job <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select job (mock)" /></label>
@@ -1045,6 +1109,83 @@ function openCreateTaskPanel(item) {
     btn.onclick = () => togglePanels(btn.getAttribute('data-value') || 'quick');
   });
   togglePanels('quick');
+
+  const contactRoot = drawer.querySelector('#listsQuickContactLookup');
+  if (contactRoot) {
+    const findCompanyById = (id) => getContactsData().find(c => String(c.id) === String(id)) || null;
+    const findPersonById = (id) => {
+      const companies = getContactsData();
+      for (const company of companies) {
+        const match = (company.people || []).find(p => String(p.id) === String(id));
+        if (match) return { ...match, companyId: company.id, companyName: company.name, type: 'company' };
+      }
+      const standalone = getIndividualsData().find(p => String(p.id) === String(id));
+      return standalone ? { ...standalone, companyId: null, companyName: '', type: 'standalone' } : null;
+    };
+
+    let selectedCompany = listsState.quickTaskAssignment.companyId
+      ? findCompanyById(listsState.quickTaskAssignment.companyId)
+      : null;
+    let selectedPerson = listsState.quickTaskAssignment.personId
+      ? findPersonById(listsState.quickTaskAssignment.personId)
+      : null;
+
+    const updateAssignment = () => {
+      listsState.quickTaskAssignment = {
+        companyId: selectedCompany?.id || null,
+        personId: selectedPerson?.id || null,
+      };
+      saveQuickTaskAssign(listsState.quickTaskAssignment);
+    };
+
+    contactRoot.innerHTML = `
+      <div id="quickTaskCompanyLookup"></div>
+      <div id="quickTaskPersonLookup"></div>
+    `;
+    const companySlot = contactRoot.querySelector('#quickTaskCompanyLookup');
+    const personSlot = contactRoot.querySelector('#quickTaskPersonLookup');
+
+    let personLookupApi = null;
+    const renderCompanyLookup = (value) => {
+      if (!companySlot) return;
+      companySlot.innerHTML = '';
+      mountCompanyLookup(companySlot, {
+        label: 'Company',
+        placeholder: 'Search companies...',
+        value,
+        onChange: (company) => {
+          selectedCompany = company;
+          if (!company) {
+            selectedPerson = null;
+          }
+          personLookupApi?.setCompany(company);
+          personLookupApi?.setValue(null);
+          updateAssignment();
+        },
+      });
+    };
+
+    renderCompanyLookup(selectedCompany);
+    if (personSlot) {
+      personLookupApi = mountPersonLookup(personSlot, {
+        label: 'Person',
+        placeholder: selectedCompany ? 'Search people...' : 'Search people...',
+        value: selectedPerson,
+        company: selectedCompany,
+        onChange: (person, meta) => {
+          selectedPerson = person;
+          if (meta?.companyCreated && !selectedCompany) {
+            selectedCompany = meta.companyCreated;
+            renderCompanyLookup(selectedCompany);
+            personLookupApi?.setCompany(selectedCompany);
+          }
+          updateAssignment();
+        },
+      });
+    }
+    updateAssignment();
+  }
+
   drawer.querySelector('#drawerCloseBtn')?.addEventListener('click', close);
   drawer.querySelector('#listsCreateCancel')?.addEventListener('click', close);
   drawer.querySelector('#app-drawer-backdrop')?.addEventListener('click', close);
@@ -1300,7 +1441,7 @@ export function renderMeListsPage(container = document.getElementById('app-main'
       <div class="flex-1 overflow-hidden px-2 md:px-4">
         <div class="h-full flex gap-4">
           <div id="meListsItems" class="flex-1 h-full"></div>
-          <div id="meListsPanelContainer" class="w-0 overflow-hidden transition-all duration-200"></div>
+          <div id="meListsPanelContainer" class="w-0 h-full overflow-hidden transition-all duration-200"></div>
         </div>
       </div>
     </div>

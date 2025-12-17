@@ -12,6 +12,16 @@ function getCompaniesMutable() {
   return Array.isArray(data) ? data : [];
 }
 
+function normalizeName(name) {
+  return (name || '').trim().toLowerCase();
+}
+
+export function findCompanyByName(name) {
+  const target = normalizeName(name);
+  if (!target) return null;
+  return getContactsData().find(c => normalizeName(c.name) === target) || null;
+}
+
 function addCompany(name) {
   const companies = getCompaniesMutable();
   const newCo = {
@@ -148,6 +158,11 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
             nameInput.focus();
             return;
           }
+          if (findCompanyByName(name)) {
+            errorEl.textContent = 'Company name already exists.';
+            nameInput.focus();
+            return;
+          }
           const newCo = addCompany(name);
           modalLayer.style.display = 'none';
           selectCompany(newCo);
@@ -221,4 +236,12 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
   });
 
   updateMatches(state.term);
+}
+
+export function createCompany(name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return { error: 'Company name is required.' };
+  if (findCompanyByName(trimmed)) return { error: 'Company name already exists.' };
+  const company = addCompany(trimmed);
+  return { company };
 }
