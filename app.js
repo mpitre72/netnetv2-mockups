@@ -18,20 +18,34 @@ import { mountShell, applyMainWrapperClass } from './app-shell/app-layout.js';
 import { setTheme, getTheme } from './app-shell/app-helpers.js';
 
 // Environment detection for Net Net (GitHub Pages vs Local)
-const BUILD_STAMP = '2025-12-16-F';
+const BUILD_STAMP = '2025-12-17-D';
 const detectedEnv = (typeof window !== 'undefined' && window.location.hostname === 'mpitre72.github.io')
   ? 'GitHub Pages'
   : 'Local';
 if (typeof window !== 'undefined') {
+  try {
+    const last = localStorage.getItem('netnet_last_build_stamp');
+    const currentDate = BUILD_STAMP.split('-').slice(0, 3).join('-');
+    if (last) {
+      const lastDate = last.split('-').slice(0, 3).join('-');
+      if (currentDate < lastDate) {
+        console.warn(`[build-stamp] Build date regressed from ${lastDate} to ${currentDate}.`);
+      }
+    }
+    localStorage.setItem('netnet_last_build_stamp', BUILD_STAMP);
+  } catch (e) {
+    // Ignore storage errors in prototype
+  }
   window.__NETNET_ENV__ = detectedEnv;
   window.__NETNET_BUILD__ = BUILD_STAMP;
   window.addEventListener('DOMContentLoaded', () => {
-    if (document.querySelector('.env-indicator')) return;
+    const slot = document.getElementById('build-indicator-slot');
+    if (!slot || slot.querySelector('.env-indicator')) return;
     const badge = document.createElement('div');
     badge.className = 'env-indicator';
     badge.textContent = `Environment: ${detectedEnv} • Build: ${BUILD_STAMP}`;
     console.log('[env-indicator]', badge.textContent);
-    document.body.appendChild(badge);
+    slot.appendChild(badge);
   });
 }
 

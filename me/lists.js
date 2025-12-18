@@ -791,8 +791,8 @@ function renderComposer(focusInput = false) {
   if (!composerContainer) return;
   const bottomSpace = getBottomOffset();
   composerContainer.innerHTML = `
-    <div id="meListComposerBar" class="fixed inset-x-0 z-40">
-      <div class="mx-auto max-w-5xl px-4">
+    <div id="meListComposerBar" class="sticky bottom-0 z-40">
+      <div class="me-lists-rows max-w-5xl mx-auto px-4" data-lists-composer="true">
         <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 shadow-lg backdrop-blur flex items-center gap-2 px-3 py-2" style="bottom:auto;">
           <form id="meListNewItemForm" class="flex items-center gap-2 w-full">
             <div class="flex-1 rounded-xl border border-slate-200 dark:border-white/20 bg-white dark:bg-slate-800 px-3 py-2 flex items-center gap-2 focus-within:ring-2 focus-within:ring-netnet-purple">
@@ -999,7 +999,7 @@ function openFullEditorModal(desc, onSave) {
   }
   layer.innerHTML = `
     <div class="nn-modal-overlay" role="presentation">
-      <div class="nn-modal-card max-w-4xl w-full" role="dialog" aria-modal="true" aria-label="Full editor">
+      <div class="nn-modal-card max-w-4xl w-full" role="dialog" aria-modal="true" aria-label="Full editor" data-full-editor="true">
         <div class="lookup-modal__header flex items-center justify-between">
           <h3>Full editor</h3>
           <button type="button" id="listsFullEditorClose" class="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close full editor">
@@ -1034,10 +1034,13 @@ function openCreateTaskPanel(item) {
   const shell = document.getElementById('app-shell');
   const drawer = document.getElementById('drawer-container');
   if (!drawer || !shell) return;
-  const existingDesc = item.description || '';
+  listsState.quickTaskAssignment = { companyId: null, personId: null };
+  saveQuickTaskAssign(listsState.quickTaskAssignment);
+  const existingDesc = (item.description || '').replace(/</g, '&lt;');
+  const existingTitle = (item.title || '').replace(/"/g, '&quot;');
   drawer.innerHTML = `
     <div id="app-drawer-backdrop"></div>
-    <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md">
+    <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md h-full">
       <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-white/10">
         <div>
           <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">Create Task</p>
@@ -1047,29 +1050,12 @@ function openCreateTaskPanel(item) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-      <div class="p-4 space-y-4 text-sm" id="listsCreateTaskBody">
+      <div class="p-4 pb-14 space-y-4 text-sm flex-1 overflow-y-auto" id="listsCreateTaskBody" data-scrollable="true">
         <div class="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1" role="group" aria-label="Task type">
           <button type="button" data-role="task-type" data-value="quick" class="px-3 py-1 rounded-full text-sm font-semibold bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10">Quick Task</button>
           <button type="button" data-role="task-type" data-value="job" class="px-3 py-1 rounded-full text-sm text-slate-600 dark:text-white/70">Job Task</button>
         </div>
-        <div class="space-y-2" data-panel="quick">
-          <label class="flex flex-col gap-1">Assignee <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select assignee (mock)" /></label>
-          <label class="flex flex-col gap-1">Due date <input type="date" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" /></label>
-          <label class="flex flex-col gap-1">Estimated hours <input type="number" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="0" /></label>
-          <label class="flex flex-col gap-1">Client <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Search clients (mock)" /></label>
-          <div class="pt-2 border-t border-slate-200 dark:border-white/10">
-            <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">Contact</p>
-            <div id="listsQuickContactLookup" class="mt-2 space-y-3"></div>
-          </div>
-        </div>
-        <div class="space-y-2 hidden" data-panel="job">
-          <label class="flex flex-col gap-1">Job <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select job (mock)" /></label>
-          <label class="flex flex-col gap-1">Deliverable <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select deliverable (mock)" /></label>
-          <label class="flex flex-col gap-1">Assignee <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select assignee (mock)" /></label>
-          <label class="flex flex-col gap-1">Due date <input type="date" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" /></label>
-          <label class="flex flex-col gap-1">Estimated hours <input type="number" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="0" /></label>
-        </div>
-        <label class="flex flex-col gap-1">Title <input id="listsCreateTitle" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" value="${item.title.replace(/"/g, '&quot;')}" /></label>
+        <label class="flex flex-col gap-1">Title <input id="listsCreateTitle" name="title" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" value="${existingTitle}" /></label>
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Description</span>
@@ -1081,8 +1067,24 @@ function openCreateTaskPanel(item) {
               <span class="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">I</span>
               <span class="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">Link</span>
             </div>
-            <div id="listsCreateDesc" contenteditable="true" class="min-h-[140px] px-3 py-2 text-sm text-slate-800 dark:text-white focus:outline-none" aria-label="Description">${existingDesc}</div>
+            <div id="listsCreateDesc" name="description" contenteditable="true" class="min-h-[140px] px-3 py-2 text-sm text-slate-800 dark:text-white focus:outline-none" aria-label="Description">${existingDesc}</div>
           </div>
+        </div>
+        <div class="space-y-2" data-panel="quick">
+          <label class="flex flex-col gap-1">Assignee <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select assignee (mock)" /></label>
+          <label class="flex flex-col gap-1">Due date <input type="date" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" /></label>
+          <label class="flex flex-col gap-1">Estimated hours <input type="number" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="0" /></label>
+          <div class="pt-2 border-t border-slate-200 dark:border-white/10">
+            <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">Contact</p>
+            <div id="listsQuickContactLookup" class="mt-2 space-y-3"></div>
+          </div>
+        </div>
+        <div class="space-y-2 hidden" data-panel="job">
+          <label class="flex flex-col gap-1">Job <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select job (mock)" /></label>
+          <label class="flex flex-col gap-1">Deliverable <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select deliverable (mock)" /></label>
+          <label class="flex flex-col gap-1">Assignee <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select assignee (mock)" /></label>
+          <label class="flex flex-col gap-1">Due date <input type="date" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" /></label>
+          <label class="flex flex-col gap-1">Estimated hours <input type="number" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="0" /></label>
         </div>
       </div>
       <div class="p-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-3">
@@ -1209,16 +1211,18 @@ function renderItemsPanel() {
   const activeList = listsState.lists.find((l) => l.id === listsState.selectedListId);
   const items = getActiveItems(listsState.showArchived);
   itemsContainer.innerHTML = `
-    <div class="flex flex-col gap-2">
-      <div class="flex items-center gap-2 px-2">
-        <span class="inline-flex items-center gap-2 rounded-full border border-transparent px-2 py-1 text-sm font-semibold text-slate-800 dark:text-white">
-          <span class="h-2 w-2 rounded-full bg-netnet-purple"></span>
-          <span>${activeList?.name || 'Default'}</span>
-        </span>
+    <div class="flex flex-col h-full">
+      <div class="me-lists-rows max-w-5xl mx-auto px-4" data-rows-wrap="true">
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center gap-2 rounded-full border border-transparent px-2 py-1 text-sm font-semibold text-slate-800 dark:text-white">
+            <span class="h-2 w-2 rounded-full bg-netnet-purple"></span>
+            <span>${activeList?.name || 'Default'}</span>
+          </span>
+        </div>
       </div>
-    </div>
-    <div id="meListItems" class="flex-1 overflow-y-auto contacts-scroll pb-36 md:pb-32">
-      <div id="meListItemsScroll" class="space-y-2 bg-white/70 dark:bg-slate-900/60 border border-slate-100 dark:border-white/10 shadow-sm px-0"></div>
+      <div id="meListItems" class="flex-1 overflow-y-auto contacts-scroll pb-36 md:pb-32">
+        <div id="meListItemsScroll" class="me-lists-rows max-w-5xl mx-auto px-4 space-y-2 bg-white/70 dark:bg-slate-900/60 border border-slate-100 dark:border-white/10 shadow-sm"></div>
+      </div>
     </div>
   `;
 
@@ -1249,7 +1253,7 @@ function renderItemsPanel() {
       const badge = isArchived ? '<span class="text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">Archived</span>' : '';
       const isSelected = listsState.selectedIds.has(item.id);
       return `
-        <div class="group relative flex items-start gap-3 rounded-none border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 px-6 py-3 focus-within:border-netnet-purple ${rowMuted}" draggable="true" data-drag-id="${item.id}">
+        <div class="me-lists-row group relative flex items-start gap-3 rounded-none border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-slate-900/70 px-6 py-3 focus-within:border-netnet-purple ${rowMuted}" draggable="true" data-drag-id="${item.id}" data-list-row="true">
           <div class="mt-1 flex items-center">
             ${listsState.multiSelect ? `
               <input type="checkbox" data-role="select" data-id="${item.id}" ${isSelected ? 'checked' : ''} class="h-4 w-4 rounded border-slate-300 dark:border-white/30 text-netnet-purple focus:ring-netnet-purple" aria-label="Select item">
@@ -1440,12 +1444,14 @@ export function renderMeListsPage(container = document.getElementById('app-main'
       ${withHeader ? '<div id="meListsHeader" class="px-4"></div>' : ''}
       <div class="flex-1 overflow-hidden px-2 md:px-4">
         <div class="h-full flex gap-4">
-          <div id="meListsItems" class="flex-1 h-full"></div>
+          <div class="flex-1 h-full flex flex-col">
+            <div id="meListsItems" class="flex-1 h-full"></div>
+            <div id="meListComposer"></div>
+          </div>
           <div id="meListsPanelContainer" class="w-0 h-full overflow-hidden transition-all duration-200"></div>
         </div>
       </div>
     </div>
-    <div id="meListComposer"></div>
   `;
 
   headerContainer = withHeader ? document.getElementById('meListsHeader') : null;
