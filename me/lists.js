@@ -289,10 +289,8 @@ function moveItemToList(itemId, listId) {
 let headerRoot = null;
 let headerContainer = null;
 let itemsContainer = null;
-let inputEl = null;
 let archiveToggleBtn = null;
 let openMenu = null;
-let composerContainer = null;
 let dragItemId = null;
 let panelContainer = null;
 
@@ -303,6 +301,140 @@ function isDarkTheme() {
 function closeOpenMenu() {
   if (openMenu && openMenu.remove) openMenu.remove();
   openMenu = null;
+}
+
+function removeLegacyComposerNodes() {
+  const host = document.getElementById('meListComposer');
+  if (host && host.remove) host.remove();
+  const bar = document.getElementById('meListComposerBar');
+  if (bar && bar.remove) bar.remove();
+  nnRemoveListsComposerHost();
+}
+
+function nnIsListsRoute() {
+  if (typeof window === 'undefined') return false;
+  return (window.location.hash || '').startsWith('#/app/me/lists');
+}
+
+function nnRemoveListsComposerHost() {
+  const host = document.getElementById('nnListsComposerFixedHost');
+  if (host && host.remove) host.remove();
+}
+
+function nnEnsureListsComposerHost() {
+  if (!nnIsListsRoute()) {
+    nnRemoveListsComposerHost();
+    return null;
+  }
+  if (typeof document === 'undefined') return null;
+  let host = document.getElementById('nnListsComposerFixedHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'nnListsComposerFixedHost';
+    host.style.position = 'fixed';
+    host.style.left = '0';
+    host.style.right = '0';
+    host.style.bottom = '0';
+    host.style.pointerEvents = 'none';
+    host.style.zIndex = '45';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
+function nnRenderListsComposerBar() {
+  if (!nnIsListsRoute()) {
+    nnRemoveListsComposerHost();
+    return;
+  }
+  const host = nnEnsureListsComposerHost();
+  if (!host) return;
+  host.innerHTML = '';
+  const bar = document.createElement('div');
+  bar.id = 'nnListsComposerBar';
+  bar.style.pointerEvents = 'auto';
+  bar.innerHTML = `
+    <div class="me-lists-rows w-full px-6" data-lists-composer="true">
+      <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 shadow-lg backdrop-blur flex items-center gap-2 px-3 py-2">
+        <form id="nnListNewItemForm" class="flex items-center gap-2 w-full">
+          <div class="flex-1 rounded-xl border border-slate-200 dark:border-white/20 bg-white dark:bg-slate-800 px-3 py-2 flex items-center gap-2 focus-within:ring-2 focus-within:ring-netnet-purple">
+            <span class="text-slate-400">+</span>
+            <input id="nnListNewItemInput" type="text" placeholder="Add a list item" class="flex-1 bg-transparent focus:outline-none text-sm text-slate-900 dark:text-white" autocomplete="off" />
+            <button type="button" id="nnListMicToggle" class="p-2 rounded-full text-slate-500 dark:text-white/80 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-netnet-purple" aria-pressed="${listsState.micActive ? 'true' : 'false'}" aria-label="${listsState.micActive ? 'Disable mic' : 'Enable mic'}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${listsState.micActive ? 'text-netnet-purple' : ''}">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </button>
+          </div>
+          <button type="submit" class="sr-only">Add</button>
+        </form>
+      </div>
+    </div>
+  `;
+  host.appendChild(bar);
+
+  const form = bar.querySelector('#nnListNewItemForm');
+  const input = bar.querySelector('#nnListNewItemInput');
+  const micToggle = bar.querySelector('#nnListMicToggle');
+
+  if (form && input) {
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      addItem(input.value);
+      input.value = '';
+      input.focus();
+      renderItemsPanel();
+      nnPositionListsComposerBar();
+    };
+    if (listsState.micActive) input.classList.add('ring-2', 'ring-netnet-purple');
+    else input.classList.remove('ring-2', 'ring-netnet-purple');
+  }
+  if (micToggle && input) {
+    micToggle.onclick = () => {
+      listsState.micActive = !listsState.micActive;
+      nnRenderListsComposerBar();
+      nnPositionListsComposerBar();
+      input.focus();
+    };
+  }
+}
+
+function nnPositionListsComposerBar() {
+  if (!nnIsListsRoute()) {
+    nnRemoveListsComposerHost();
+    return;
+  }
+  const bar = document.getElementById('nnListsComposerBar');
+  if (!bar) return;
+  const rows = document.getElementById('meListItemsScroll') || document.querySelector('.me-lists-rows');
+  if (!rows) return;
+  const rr = rows.getBoundingClientRect();
+  bar.style.position = 'fixed';
+  bar.style.left = `${rr.left}px`;
+  bar.style.width = `${rr.width}px`;
+  bar.style.bottom = '16px';
+  bar.style.zIndex = '45';
+}
+
+function nnWireListsComposerObservers() {
+  if (!nnIsListsRoute()) {
+    nnRemoveListsComposerHost();
+    return;
+  }
+  if (typeof window === 'undefined') return;
+  if (!window.__nnListsComposerResize) {
+    window.__nnListsComposerResize = () => nnPositionListsComposerBar();
+    window.addEventListener('resize', window.__nnListsComposerResize);
+  }
+  const rows = document.getElementById('meListItemsScroll') || document.querySelector('.me-lists-rows');
+  if (rows && typeof ResizeObserver !== 'undefined') {
+    if (window.__nnListsComposerObserver) window.__nnListsComposerObserver.disconnect();
+    window.__nnListsComposerObserver = new ResizeObserver(() => nnPositionListsComposerBar());
+    window.__nnListsComposerObserver.observe(rows);
+  }
 }
 
 export function openListsVideoHelp() {
@@ -417,7 +549,7 @@ export function toggleListsMultiSelect() {
 export function refreshListsBody() {
   renderItemsPanel();
   renderManagePanel();
-  renderComposer(false);
+  requestAnimationFrame(() => nnPositionListsComposerBar());
 }
 function renderManagePanel() {
   if (!panelContainer) return;
@@ -438,8 +570,8 @@ function renderManagePanel() {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-      <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2" id="meListsPanelBody"></div>
-      <div class="border-t border-slate-100 dark:border-white/10 px-3 py-2 flex items-center gap-2 sticky bottom-0 bg-white dark:bg-slate-900">
+      <div class="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2" id="meListsPanelBody"></div>
+      <div class="border-t border-slate-100 dark:border-white/10 px-3 py-2 flex items-center gap-2 flex-shrink-0 bg-white dark:bg-slate-900">
         <input id="meListsPanelComposerInput" type="text" placeholder="New folder" class="flex-1 rounded-md border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-netnet-purple" />
         <button type="button" id="meListsPanelSubfolderBtn" class="nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-netnet-purple" title="Sub-folder" aria-label="Sub-folder">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h5l2 2h11v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><path d="M8 7V5a2 2 0 0 1 2-2h3" /></svg>
@@ -447,7 +579,6 @@ function renderManagePanel() {
         <button type="button" id="meListsPanelAddFolderBtn" class="nn-btn nn-btn--micro inline-flex items-center justify-center text-white bg-netnet-purple border border-slate-300 dark:border-white/10 hover:bg-[#6020df] focus-visible:ring-2 focus-visible:ring-netnet-purple" title="Add folder" aria-label="Add folder">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
-        <span class="text-[11px] text-slate-400 dark:text-white/60">Composer OK — Build E</span>
       </div>
   `;
   panelContainer.appendChild(panel);
@@ -508,7 +639,6 @@ function renderManagePanel() {
         listsState.expandedItemId = null;
         listsState.selectedIds = new Set();
         renderItemsPanel();
-        renderComposer(false);
       } else if (node?.type === 'folder') {
         listsState.activeNodeId = node.id;
         listsState.folderCollapsed[id] = !listsState.folderCollapsed[id];
@@ -607,6 +737,7 @@ function renderManagePanel() {
       composerInput.focus();
     }
     renderManagePanel();
+    requestAnimationFrame(() => nnPositionListsComposerBar());
   };
 
   const createSubFolder = () => {
@@ -619,6 +750,7 @@ function renderManagePanel() {
       composerInput.focus();
     }
     renderManagePanel();
+    requestAnimationFrame(() => nnPositionListsComposerBar());
   };
 
   if (composerInput) {
@@ -655,6 +787,8 @@ function renderManagePanel() {
     };
     setTimeout(() => input.focus(), 20);
   });
+  nnWireListsComposerObservers();
+  requestAnimationFrame(() => nnPositionListsComposerBar());
 }
 function renderManageOverlay() {
   // Deprecated overlay (arrows removed)
@@ -777,68 +911,6 @@ function renderHeader() {
     },
     rightActions,
   }));
-}
-
-function getBottomOffset() {
-  const nav = document.getElementById('mobileBottomNav');
-  const navHeight = nav ? nav.offsetHeight || 64 : 0;
-  const isMobile = window.innerWidth < 768;
-  const base = isMobile && navHeight ? navHeight + 12 : 16;
-  return base;
-}
-
-function renderComposer(focusInput = false) {
-  if (!composerContainer) return;
-  const bottomSpace = getBottomOffset();
-  composerContainer.innerHTML = `
-    <div id="meListComposerBar" class="sticky bottom-0 z-40">
-      <div class="me-lists-rows max-w-5xl mx-auto px-4" data-lists-composer="true">
-        <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 shadow-lg backdrop-blur flex items-center gap-2 px-3 py-2" style="bottom:auto;">
-          <form id="meListNewItemForm" class="flex items-center gap-2 w-full">
-            <div class="flex-1 rounded-xl border border-slate-200 dark:border-white/20 bg-white dark:bg-slate-800 px-3 py-2 flex items-center gap-2 focus-within:ring-2 focus-within:ring-netnet-purple">
-              <span class="text-slate-400">+</span>
-              <input id="meListNewItemInput" type="text" placeholder="Add a list item" class="flex-1 bg-transparent focus:outline-none text-sm text-slate-900 dark:text-white" autocomplete="off" />
-              <button type="button" id="meListMicToggle" class="p-2 rounded-full text-slate-500 dark:text-white/80 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-netnet-purple" aria-pressed="${listsState.micActive ? 'true' : 'false'}" aria-label="${listsState.micActive ? 'Disable mic' : 'Enable mic'}">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${listsState.micActive ? 'text-netnet-purple' : ''}">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                  <line x1="12" y1="19" x2="12" y2="23" />
-                  <line x1="8" y1="23" x2="16" y2="23" />
-                </svg>
-              </button>
-            </div>
-            <button type="submit" class="sr-only">Add</button>
-          </form>
-        </div>
-      </div>
-    </div>
-  `;
-  const bar = document.getElementById('meListComposerBar');
-  if (bar) {
-    const safe = 'env(safe-area-inset-bottom, 0px)';
-    bar.style.bottom = `calc(${safe} + ${bottomSpace}px)`;
-  }
-  const form = document.getElementById('meListNewItemForm');
-  inputEl = document.getElementById('meListNewItemInput');
-  const micToggle = document.getElementById('meListMicToggle');
-  if (form && inputEl) {
-    form.onsubmit = (e) => {
-      e.preventDefault();
-      addItem(inputEl.value);
-      inputEl.value = '';
-      inputEl.focus();
-      renderItemsPanel();
-    };
-    if (focusInput) setTimeout(() => inputEl.focus(), 30);
-    if (listsState.micActive) inputEl.classList.add('ring-2', 'ring-netnet-purple');
-    else inputEl.classList.remove('ring-2', 'ring-netnet-purple');
-  }
-  if (micToggle) {
-    micToggle.onclick = () => {
-      listsState.micActive = !listsState.micActive;
-      renderComposer(false);
-    };
-  }
 }
 
 function openPromotionStub(type, item) {
@@ -1212,7 +1284,7 @@ function renderItemsPanel() {
   const items = getActiveItems(listsState.showArchived);
   itemsContainer.innerHTML = `
     <div class="flex flex-col h-full">
-      <div class="me-lists-rows max-w-5xl mx-auto px-4" data-rows-wrap="true">
+      <div class="me-lists-rows w-full px-6" data-rows-wrap="true">
         <div class="flex items-center gap-2">
           <span class="inline-flex items-center gap-2 rounded-full border border-transparent px-2 py-1 text-sm font-semibold text-slate-800 dark:text-white">
             <span class="h-2 w-2 rounded-full bg-netnet-purple"></span>
@@ -1220,8 +1292,8 @@ function renderItemsPanel() {
           </span>
         </div>
       </div>
-      <div id="meListItems" class="flex-1 overflow-y-auto contacts-scroll pb-36 md:pb-32">
-        <div id="meListItemsScroll" class="me-lists-rows max-w-5xl mx-auto px-4 space-y-2 bg-white/70 dark:bg-slate-900/60 border border-slate-100 dark:border-white/10 shadow-sm"></div>
+      <div id="meListItems" class="flex-1 min-h-0 overflow-y-auto contacts-scroll">
+        <div id="meListItemsScroll" class="me-lists-rows w-full px-6 space-y-2 bg-white/70 dark:bg-slate-900/60 border border-slate-100 dark:border-white/10 shadow-sm"></div>
       </div>
     </div>
   `;
@@ -1241,7 +1313,7 @@ function renderItemsPanel() {
     listArea.innerHTML = items.length === 0 ? `
       <div class="rounded-xl border border-dashed border-slate-200 dark:border-white/15 bg-white/60 dark:bg-slate-800/60 p-6 text-center text-sm text-slate-600 dark:text-slate-300">
         <p class="font-medium mb-1">No items yet</p>
-        <p class="text-xs text-slate-500 dark:text-white/60">Use the bottom bar to add items quickly.</p>
+        <p class="text-xs text-slate-500 dark:text-white/60">Add a new item to get started.</p>
       </div>
     ` : items.map((item) => {
       const isExpanded = listsState.expandedItemId === item.id;
@@ -1280,9 +1352,6 @@ function renderItemsPanel() {
         </div>
       `;
     }).join('');
-
-    const pad = getBottomOffset() + 160;
-    listArea.style.paddingBottom = `${pad}px`;
 
     listArea.querySelectorAll('[data-role="select"]').forEach((input) => {
       input.onchange = () => {
@@ -1438,6 +1507,7 @@ export function renderMeListsPage(container = document.getElementById('app-main'
   listsState.selectedIds = new Set();
   listsState.multiSelect = false;
 
+  removeLegacyComposerNodes();
   container.classList.remove('flex', 'items-center', 'justify-center', 'h-full');
   container.innerHTML = `
     <div class="w-full h-full flex flex-col gap-3">
@@ -1446,7 +1516,6 @@ export function renderMeListsPage(container = document.getElementById('app-main'
         <div class="h-full flex gap-4">
           <div class="flex-1 h-full flex flex-col">
             <div id="meListsItems" class="flex-1 h-full"></div>
-            <div id="meListComposer"></div>
           </div>
           <div id="meListsPanelContainer" class="w-0 h-full overflow-hidden transition-all duration-200"></div>
         </div>
@@ -1456,11 +1525,19 @@ export function renderMeListsPage(container = document.getElementById('app-main'
 
   headerContainer = withHeader ? document.getElementById('meListsHeader') : null;
   itemsContainer = document.getElementById('meListsItems');
-  composerContainer = document.getElementById('meListComposer');
   panelContainer = document.getElementById('meListsPanelContainer');
 
   if (withHeader) renderHeader();
   renderItemsPanel();
   renderManagePanel();
-  renderComposer(false);
+  nnEnsureListsComposerHost();
+  nnRenderListsComposerBar();
+  nnWireListsComposerObservers();
+  nnPositionListsComposerBar();
+  if (typeof window !== 'undefined' && !window.__nnListsComposerHashHandler) {
+    window.__nnListsComposerHashHandler = () => {
+      if (!nnIsListsRoute()) nnRemoveListsComposerHost();
+    };
+    window.addEventListener('hashchange', window.__nnListsComposerHashHandler);
+  }
 }

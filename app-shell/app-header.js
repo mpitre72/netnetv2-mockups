@@ -2,13 +2,14 @@ import { APP_ICONS, LOGO_ASSETS, TIMER_ICONS } from './app-constants.js';
 
 export function renderTopBar() {
   return `
-    <header id="app-top-bar" class="hidden md:flex bg-netnet-purple items-center gap-4 px-2">
+    <header id="app-top-bar" class="hidden md:flex bg-netnet-purple items-center gap-4 px-2 relative">
       <div class="flex items-center h-full flex-shrink-0" style="width: var(--sidebar-width); min-width: var(--sidebar-width);">
         <a href="#/app/me" id="top-bar-logo-link" class="flex items-center h-full px-4">
           <img src="${LOGO_ASSETS.dark.idle}" id="top-bar-logo-img" alt="Net Net" class="h-[30px] w-auto" />
         </a>
       </div>
       <div id="workspaceTabs" class="hidden lg:flex items-end gap-2 ml-10 overflow-x-auto scrollbar-none self-stretch h-full flex-1"></div>
+      <div id="build-indicator-slot" class="build-indicator-slot" aria-hidden="true"></div>
       <div class="flex items-center h-full gap-3 pr-3 justify-end" style="width: var(--sidebar-width); min-width: var(--sidebar-width);">
         <button id="timerBtn" type="button" aria-label="Open time tracking" class="time-icon-button relative inline-flex items-center justify-center h-9 w-9">
           <img id="timerIcon" alt="Timer" class="h-5 w-5 select-none pointer-events-none" />

@@ -12,6 +12,17 @@ function getCompaniesMutable() {
   return Array.isArray(data) ? data : [];
 }
 
+function getGlobalModalLayer(id) {
+  if (typeof document === 'undefined') return null;
+  let layer = document.getElementById(id);
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = id;
+    document.body.appendChild(layer);
+  }
+  return layer;
+}
+
 function normalizeName(name) {
   return (name || '').trim().toLowerCase();
 }
@@ -55,18 +66,19 @@ function renderDropdownItems(matches, term) {
 
 function renderModal(term) {
   return `
-    <div class="lookup-modal-backdrop" role="presentation"></div>
-    <div class="lookup-modal" role="dialog" aria-modal="true" aria-label="Quick Add Company">
-      <div class="lookup-modal__header">
-        <h3>Quick Add Company</h3>
-      </div>
-      <p class="lookup-modal__body">We’ll create this company so you can continue.<br>You can fill in full details later in Contacts.</p>
-      <label class="lookup-modal__label">Company Name</label>
-      <input id="quick-add-name" class="lookup-input" value="${term.replace(/"/g, '&quot;')}" placeholder="Company name" />
-      <p id="quick-add-error" class="lookup-error" aria-live="polite"></p>
-      <div class="lookup-modal__actions">
-        <button type="button" class="lookup-btn ghost" data-action="cancel">Cancel</button>
-        <button type="button" class="lookup-btn primary" data-action="save">Save & Continue</button>
+    <div class="nn-modal-overlay" role="presentation" data-modal="quick-add-company">
+      <div class="lookup-modal" role="dialog" aria-modal="true" aria-label="Quick Add Company">
+        <div class="lookup-modal__header">
+          <h3>Quick Add Company</h3>
+        </div>
+        <p class="lookup-modal__body">We’ll create this company so you can continue.<br>You can fill in full details later in Contacts.</p>
+        <label class="lookup-modal__label">Company Name</label>
+        <input id="quick-add-name" class="lookup-input" value="${term.replace(/"/g, '&quot;')}" placeholder="Company name" />
+        <p id="quick-add-error" class="lookup-error" aria-live="polite"></p>
+        <div class="lookup-modal__actions">
+          <button type="button" class="lookup-btn ghost" data-action="cancel">Cancel</button>
+          <button type="button" class="lookup-btn primary" data-action="save">Save & Continue</button>
+        </div>
       </div>
     </div>
   `;
@@ -89,12 +101,11 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
         <div class="lookup-menu-card" style="display:none;"></div>
       </div>
     </div>
-    <div class="lookup-modal-layer" style="display:none;"></div>
   `;
 
   const input = root.querySelector('input.lookup-input');
   const menu = root.querySelector('.lookup-menu-card');
-  const modalLayer = root.querySelector('.lookup-modal-layer');
+  const modalLayer = getGlobalModalLayer('quick-add-company-layer');
 
   function renderMenu() {
     const hasItems = state.matches.length > 0 || state.term.trim();
@@ -133,6 +144,7 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
   }
 
   function openQuickCreate(prefill) {
+    if (!modalLayer) return;
     modalLayer.innerHTML = renderModal(prefill);
     modalLayer.style.display = 'block';
     const nameInput = modalLayer.querySelector('#quick-add-name');
@@ -141,7 +153,8 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
     const endPos = nameInput.value.length;
     nameInput.setSelectionRange(endPos, endPos);
     modalLayer.addEventListener('click', (e) => {
-      if (e.target.classList.contains('lookup-modal-backdrop')) {
+      if (e.target.classList.contains('nn-modal-overlay')) {
+        modalLayer.innerHTML = '';
         modalLayer.style.display = 'none';
         input.focus();
       }
@@ -149,6 +162,7 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
     modalLayer.querySelectorAll('[data-action]').forEach(btn => {
       btn.onclick = () => {
         if (btn.dataset.action === 'cancel') {
+          modalLayer.innerHTML = '';
           modalLayer.style.display = 'none';
           input.focus();
         } else {
@@ -164,6 +178,7 @@ export function mountCompanyLookup(root, { label = 'Company', placeholder = 'Sea
             return;
           }
           const newCo = addCompany(name);
+          modalLayer.innerHTML = '';
           modalLayer.style.display = 'none';
           selectCompany(newCo);
           if (typeof window !== 'undefined' && typeof window.showToast === 'function') {

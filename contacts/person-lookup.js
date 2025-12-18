@@ -29,6 +29,17 @@ function getIndividualsMutable() {
   return Array.isArray(data) ? data : [];
 }
 
+function getGlobalModalLayer(id) {
+  if (typeof document === 'undefined') return null;
+  let layer = document.getElementById(id);
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = id;
+    document.body.appendChild(layer);
+  }
+  return layer;
+}
+
 function normalizeEmail(email) {
   return (email || '').trim().toLowerCase();
 }
@@ -124,23 +135,24 @@ function renderModal({ term = '', company }) {
       <input id="quick-add-company" class="lookup-input" placeholder="Company name" />
     `;
   return `
-    <div class="lookup-modal-backdrop" role="presentation"></div>
-    <div class="lookup-modal" role="dialog" aria-modal="true" aria-label="Quick Add Person">
-      <div class="lookup-modal__header">
-        <h3>Quick Add Person</h3>
-      </div>
-      ${companyLabel}
-      <label class="lookup-modal__label">First Name</label>
-      <input id="quick-add-first" class="lookup-input" value="${term.replace(/"/g, '&quot;')}" placeholder="First name" />
-      <label class="lookup-modal__label">Last Name</label>
-      <input id="quick-add-last" class="lookup-input" placeholder="Last name" />
-      <label class="lookup-modal__label">Email</label>
-      <input id="quick-add-email" class="lookup-input" placeholder="name@example.com" />
-      ${companyField}
-      <p id="quick-add-error" class="lookup-error" aria-live="polite"></p>
-      <div class="lookup-modal__actions">
-        <button type="button" class="lookup-btn ghost" data-action="cancel">Cancel</button>
-        <button type="button" class="lookup-btn primary" data-action="save">Save & Continue</button>
+    <div class="nn-modal-overlay" role="presentation" data-modal="quick-add-person">
+      <div class="lookup-modal" role="dialog" aria-modal="true" aria-label="Quick Add Person">
+        <div class="lookup-modal__header">
+          <h3>Quick Add Person</h3>
+        </div>
+        ${companyLabel}
+        <label class="lookup-modal__label">First Name</label>
+        <input id="quick-add-first" class="lookup-input" value="${term.replace(/"/g, '&quot;')}" placeholder="First name" />
+        <label class="lookup-modal__label">Last Name</label>
+        <input id="quick-add-last" class="lookup-input" placeholder="Last name" />
+        <label class="lookup-modal__label">Email</label>
+        <input id="quick-add-email" class="lookup-input" placeholder="name@example.com" />
+        ${companyField}
+        <p id="quick-add-error" class="lookup-error" aria-live="polite"></p>
+        <div class="lookup-modal__actions">
+          <button type="button" class="lookup-btn ghost" data-action="cancel">Cancel</button>
+          <button type="button" class="lookup-btn primary" data-action="save">Save & Continue</button>
+        </div>
       </div>
     </div>
   `;
@@ -170,12 +182,11 @@ export function mountPersonLookup(root, {
         <div class="lookup-menu-card" style="display:none;"></div>
       </div>
     </div>
-    <div class="lookup-modal-layer" style="display:none;"></div>
   `;
 
   const input = root.querySelector('input.lookup-input');
   const menu = root.querySelector('.lookup-menu-card');
-  const modalLayer = root.querySelector('.lookup-modal-layer');
+  const modalLayer = getGlobalModalLayer('quick-add-person-layer');
 
   const emitChange = (person, meta = {}) => {
     onChange(person, meta);
@@ -218,6 +229,7 @@ export function mountPersonLookup(root, {
   }
 
   function openQuickCreate(prefill) {
+    if (!modalLayer) return;
     modalLayer.innerHTML = renderModal({ term: prefill, company: state.company });
     modalLayer.style.display = 'block';
     const firstInput = modalLayer.querySelector('#quick-add-first');
@@ -227,7 +239,8 @@ export function mountPersonLookup(root, {
     const errorEl = modalLayer.querySelector('#quick-add-error');
     firstInput?.focus();
     modalLayer.addEventListener('click', (e) => {
-      if (e.target.classList.contains('lookup-modal-backdrop')) {
+      if (e.target.classList.contains('nn-modal-overlay')) {
+        modalLayer.innerHTML = '';
         modalLayer.style.display = 'none';
         input.focus();
       }
@@ -235,6 +248,7 @@ export function mountPersonLookup(root, {
     modalLayer.querySelectorAll('[data-action]').forEach(btn => {
       btn.onclick = () => {
         if (btn.dataset.action === 'cancel') {
+          modalLayer.innerHTML = '';
           modalLayer.style.display = 'none';
           input.focus();
           return;
@@ -282,6 +296,7 @@ export function mountPersonLookup(root, {
           const standalone = addStandalonePerson({ firstName, lastName, email });
           person = { ...standalone, companyId: null, companyName: '', type: 'standalone' };
         }
+        modalLayer.innerHTML = '';
         modalLayer.style.display = 'none';
         selectPerson(person);
         emitChange(person, { companyCreated: createdCompany });

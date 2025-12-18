@@ -140,6 +140,12 @@ export function renderMePage(page, container = document.getElementById('app-main
           thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
         },
       },
+      switcherOptions: ME_SWITCHER,
+      switcherValue: 'lists',
+      onSwitcherChange: (val) => {
+        const match = ME_SWITCHER.find((m) => m.value === val);
+        navigate(match?.hash || '#/app/me/tasks');
+      },
       rightActions: rightIcons,
     }));
   };
