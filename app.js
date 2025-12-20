@@ -16,9 +16,9 @@ import { initRouter, navigate } from './router.js';
 import { installCrashOverlay } from './utils/crash-overlay.js';
 import { mountShell, applyMainWrapperClass } from './app-shell/app-layout.js';
 import { setTheme, getTheme } from './app-shell/app-helpers.js';
+import { BUILD_STAMP } from './build-info.js';
 
 // Environment detection for Net Net (GitHub Pages vs Local)
-const BUILD_STAMP = '2025-12-19-M';
 const detectedEnv = (typeof window !== 'undefined' && window.location.hostname === 'mpitre72.github.io')
   ? 'GitHub Pages'
   : 'Local';

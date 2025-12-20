@@ -813,123 +813,163 @@ export function initContactsModule(rootEl, { subview = 'companies', listState = 
     const allExpanded = groups.length > 0 && groups.every(g => state.expanded.has(g.id));
     const baseMicroBtnClass = 'nn-btn nn-btn--micro inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
     const baseMiniBtnClass = 'nn-btn nn-btn--mini inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
-    const leftActions = [
-      !contactsMultiSelectMode
-        ? h('button', {
-            type: 'button',
-            className: baseMicroBtnClass,
-            'aria-label': allExpanded ? 'Collapse all' : 'Expand all',
-            title: allExpanded ? 'Collapse all' : 'Expand all',
-            onClick: handleExpandToggle,
-          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-            h('path', { d: allExpanded ? 'M12 19V5' : 'M12 5v14' }),
-            h('path', { d: 'M5 12h14' }),
-          ]))
-        : null,
-      h('button', {
-        type: 'button',
-        className: baseMicroBtnClass,
-        'aria-label': contactsMultiSelectMode ? 'Exit multi-select mode' : 'Enter multi-select mode',
-        title: contactsMultiSelectMode ? 'Exit multi-select mode' : 'Enter multi-select mode',
-        onClick: handleMultiselectToggle,
-      }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-        h('rect', { x: '4', y: '4', width: '16', height: '16', rx: '2' }),
-        h('path', { d: 'M8 12l3 3 5-6' }),
-      ])),
-    ].filter(Boolean);
+    const disabledMini = `${baseMiniBtnClass} opacity-50 pointer-events-none`;
 
-    const rightActions = contactsMultiSelectMode
+    const searchBox = h('div', { className: 'flex-1' }, h('input', {
+      type: 'search',
+      value: state.search,
+      placeholder: 'Search contacts...',
+      onChange: (e) => handleSearchChange(e.target.value),
+      className: 'w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-white shadow-inner focus:outline-none focus:ring-2 focus:ring-netnet-purple',
+    }));
+
+    const expandBtn = h('button', {
+      type: 'button',
+      className: baseMicroBtnClass,
+      'aria-label': allExpanded ? 'Collapse all' : 'Expand all',
+      title: allExpanded ? 'Collapse all' : 'Expand all',
+      onClick: handleExpandToggle,
+    }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+      h('path', { d: allExpanded ? 'M12 19V5' : 'M12 5v14' }),
+      h('path', { d: 'M5 12h14' }),
+    ]));
+
+    const selectToggle = h('button', {
+      type: 'button',
+      className: `${baseMicroBtnClass} ${contactsMultiSelectMode ? 'bg-slate-200 dark:bg-slate-800' : ''}`,
+      'aria-label': contactsMultiSelectMode ? 'Exit select mode' : 'Enter select mode',
+      title: contactsMultiSelectMode ? 'Exit select mode' : 'Enter select mode',
+      onClick: handleMultiselectToggle,
+    }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+      h('rect', { x: '4', y: '4', width: '16', height: '16', rx: '2' }),
+      h('path', { d: 'M8 12l3 3 5-6' }),
+    ]));
+
+    const selectAllBtn = h('button', {
+      type: 'button',
+      className: baseMicroBtnClass,
+      'aria-label': 'Select all',
+      title: 'Select all',
+      onClick: () => {
+        // simple select-all across flat list
+        buildFlatPeopleList().forEach(p => selectedPersonIds.add(p.id));
+        renderContactsView(state, scope);
+        refreshContactsHeader();
+      },
+    }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+      h('path', { d: 'M4 5h16v14H4z' }),
+      h('path', { d: 'M7 12l3 3 7-7' }),
+    ]));
+
+    const importBtn = h('a', {
+      href: '#/app/contacts/import',
+      className: baseMiniBtnClass,
+      role: 'button',
+      'aria-label': 'Import Contacts',
+      title: 'Import Contacts',
+      onClick: (e) => { e.preventDefault(); handleImport(); },
+    }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+      h('path', { d: 'M12 21V9' }),
+      h('path', { d: 'M8 13l4-4 4 4' }),
+      h('path', { d: 'M6 3h12' }),
+    ]));
+
+    const exportBtn = h('button', {
+      type: 'button',
+      className: `${baseMiniBtnClass} rotate-180 ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
+      'aria-label': 'Export Selected',
+      title: 'Export Selected',
+      onClick: () => { if (selectedPersonIds.size) handleExport(); },
+    }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+      h('path', { d: 'M12 21V9' }),
+      h('path', { d: 'M8 13l4-4 4 4' }),
+      h('path', { d: 'M6 3h12' }),
+    ]));
+
+    const deleteBtn = h('button', {
+      type: 'button',
+      className: `${baseMiniBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
+      'aria-label': 'Delete selected',
+      title: 'Delete selected',
+      onClick: () => {
+        if (!selectedPersonIds.size) return;
+        showConfirm({
+          title: 'Delete selected people?',
+          message: 'Type DELETE to confirm. This action cannot be undone.',
+          requireDeleteTyping: true,
+          confirmLabel: 'Confirm',
+          onConfirm: () => {
+            Array.from(selectedPersonIds).forEach(id => deletePerson(Number(id)));
+            renderContactsView(state, scope);
+            refreshContactsHeader();
+          },
+        });
+      },
+    }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+      h('path', { d: 'M3 6h18' }),
+      h('path', { d: 'M8 6v12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6' }),
+      h('path', { d: 'M10 10v6' }),
+      h('path', { d: 'M14 10v6' }),
+      h('path', { d: 'M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2' }),
+    ]));
+
+    const newCompanyBtn = h('button', {
+      type: 'button',
+      className: contactsMultiSelectMode ? disabledMini : baseMiniBtnClass,
+      'aria-label': '+ New Company',
+      title: '+ New Company',
+      onClick: contactsMultiSelectMode ? undefined : handleNewCompany,
+    }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+      h('path', { d: 'M3 21h18' }),
+      h('path', { d: 'M6 21V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v13' }),
+      h('path', { d: 'M9 21v-4h6v4' }),
+      h('path', { d: 'M9 12h6' }),
+      h('path', { d: 'M9 9h6' }),
+    ]));
+
+    const newPersonBtn = h('button', {
+      type: 'button',
+      className: contactsMultiSelectMode ? disabledMini : baseMiniBtnClass,
+      'aria-label': '+ New Person',
+      title: '+ New Person',
+      onClick: contactsMultiSelectMode ? undefined : handleNewPerson,
+    }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
+      h('path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }),
+      h('circle', { cx: '9', cy: '7', r: '4' }),
+      h('path', { d: 'M17 11v6m3-3h-6' }),
+    ]));
+
+    const controlBarItems = contactsMultiSelectMode
       ? [
-          h('button', {
-            type: 'button',
-            className: `${baseMicroBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
-            'aria-label': 'Delete selected',
-            title: 'Delete selected',
-            onClick: () => {
-              if (!selectedPersonIds.size) return;
-              showConfirm({
-                title: 'Delete selected people?',
-                message: 'Type DELETE to confirm. This action cannot be undone.',
-                requireDeleteTyping: true,
-                confirmLabel: 'Confirm',
-                onConfirm: () => {
-                  Array.from(selectedPersonIds).forEach(id => deletePerson(Number(id)));
-                  renderContactsView(state, scope);
-                  refreshContactsHeader();
-                },
-              });
-            },
-          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
-            h('path', { d: 'M3 6h18' }),
-            h('path', { d: 'M8 6v12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6' }),
-            h('path', { d: 'M10 10v6' }),
-            h('path', { d: 'M14 10v6' }),
-            h('path', { d: 'M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2' }),
-          ])),
-          h('button', {
-            type: 'button',
-            className: `${baseMicroBtnClass} ${selectedPersonIds.size ? '' : 'opacity-50 pointer-events-none'}`,
-            'aria-label': 'Export selected',
-            title: 'Export selected',
-            onClick: handleExport,
-          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
-            h('path', { d: 'M12 3v12' }),
-            h('path', { d: 'M16 11l-4 4-4-4' }),
-            h('path', { d: 'M6 19h12' }),
-          ])),
+          selectToggle,
+          selectAllBtn,
+          searchBox,
+          exportBtn,
+          deleteBtn,
+          newPersonBtn,
+          newCompanyBtn,
         ]
       : [
-          h('button', {
-            type: 'button',
-            className: baseMiniBtnClass,
-            'aria-label': '+ New Company',
-            title: '+ New Company',
-            onClick: handleNewCompany,
-          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
-            h('path', { d: 'M3 21h18' }),
-            h('path', { d: 'M6 21V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v13' }),
-            h('path', { d: 'M9 21v-4h6v4' }),
-            h('path', { d: 'M9 12h6' }),
-            h('path', { d: 'M9 9h6' }),
-          ])),
-          h('button', {
-            type: 'button',
-            className: baseMiniBtnClass,
-            'aria-label': '+ New Person',
-            title: '+ New Person',
-            onClick: handleNewPerson,
-          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
-            h('path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }),
-            h('circle', { cx: '9', cy: '7', r: '4' }),
-            h('path', { d: 'M17 11v6m3-3h-6' }),
-          ])),
-          h('a', {
-            href: '#/app/contacts/import',
-            className: baseMiniBtnClass,
-            role: 'button',
-            'aria-label': 'Import Contacts',
-            title: 'Import Contacts',
-            onClick: (e) => {
-              e.preventDefault();
-              handleImport();
-            },
-          }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6' }, [
-            h('path', { d: 'M12 21V9' }),
-            h('path', { d: 'M8 13l4-4 4 4' }),
-            h('path', { d: 'M6 3h12' }),
-          ])),
+          expandBtn,
+          selectToggle,
+          searchBox,
+          importBtn,
+          newPersonBtn,
+          newCompanyBtn,
         ];
 
-    headerRoot.render(h(SectionHeader, {
-      title: 'Contacts',
-      showHelpIcon: true,
-      showSearch: true,
-      searchPlaceholder: 'Search contacts...',
-      searchValue: state.search || '',
-      onSearchChange: handleSearchChange,
-      leftActions,
-      rightActions,
-    }));
+    const controlBar = h('div', { className: 'flex items-center gap-2 w-full' }, controlBarItems);
+
+    headerRoot.render(h(React.Fragment, null, [
+      h(SectionHeader, {
+        title: 'Contacts',
+        showHelpIcon: true,
+        showSearch: false,
+        leftActions: null,
+        rightActions: null,
+      }),
+      controlBar,
+    ]));
   };
 
   refreshContactsHeader = renderHeader;
