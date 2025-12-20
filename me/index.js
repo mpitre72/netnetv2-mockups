@@ -2,6 +2,7 @@ import { ICONS } from '../app-shell/app-constants.js';
 import { __isDark } from '../app-shell/app-helpers.js';
 import { SectionHeader } from '../components/layout/SectionHeader.js';
 import { renderMeListsPage, getListsHeaderState, setListsSearch, toggleListsPanel, toggleListsArchive, toggleListsMultiSelect, refreshListsBody } from './lists.js';
+import { renderMyListsHeader, renderMyListsPage } from './my-lists.js';
 import { navigate } from '../router.js';
 
 const { createElement: h } = React;
@@ -9,10 +10,11 @@ const { createRoot } = ReactDOM;
 
 const ME_SWITCHER = [
   { value: 'tasks', label: 'My Tasks', hash: '#/app/me/tasks' },
-  { value: 'lists', label: 'Lists', hash: '#/app/me/lists' },
+  { value: 'my-lists', label: 'My Lists', hash: '#/app/me/my-lists' },
   { value: 'time', label: 'My Time', hash: '#/app/me/time' },
   { value: 'performance', label: 'My Performance', hash: '#/app/me/performance' },
 ];
+const KNOWN_ME_PAGES = ['tasks', 'my-lists', 'time', 'performance', 'lists'];
 
 function getMeIconSrc(active) {
   const dark = __isDark();
@@ -34,7 +36,7 @@ export function renderMePage(page, container = document.getElementById('app-main
     console.warn('[MeModule] container not found for renderMePage.');
     return;
   }
-  const activePage = ME_SWITCHER.find((m) => m.value === page)?.value || 'tasks';
+  const activePage = KNOWN_ME_PAGES.includes(page) ? page : 'tasks';
   container.classList.remove('flex', 'items-center', 'justify-center', 'h-full');
   container.innerHTML = `
     <div class="w-full h-full flex flex-col gap-4">
@@ -46,13 +48,14 @@ export function renderMePage(page, container = document.getElementById('app-main
   const headerRootEl = document.getElementById('meHeaderRoot');
   const renderPlain = () => {
     if (!headerRootEl) return;
+    const plainSwitcher = ME_SWITCHER;
     headerRootEl.innerHTML = `
       <div class="flex flex-col gap-2">
         <div class="flex items-center gap-2">
           <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">Me</h1>
         </div>
         <div class="inline-flex flex-wrap items-center gap-2">
-          ${ME_SWITCHER.map(opt => `
+          ${plainSwitcher.map(opt => `
             <button data-plain-me-nav="${opt.value}" class="px-3 py-1 rounded-full text-sm font-medium border ${opt.value === activePage ? 'bg-[var(--color-brand-purple,#711FFF)] text-white border-transparent shadow-sm' : 'border-slate-200 dark:border-white/20 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}">
               ${opt.label}
             </button>
@@ -63,7 +66,7 @@ export function renderMePage(page, container = document.getElementById('app-main
     headerRootEl.querySelectorAll('[data-plain-me-nav]').forEach(btn => {
       btn.addEventListener('click', () => {
         const val = btn.getAttribute('data-plain-me-nav');
-        const match = ME_SWITCHER.find(m => m.value === val);
+        const match = plainSwitcher.find(m => m.value === val);
         navigate(match?.hash || '#/app/me/tasks');
       });
     });
@@ -141,7 +144,7 @@ export function renderMePage(page, container = document.getElementById('app-main
         },
       },
       switcherOptions: ME_SWITCHER,
-      switcherValue: 'lists',
+      switcherValue: 'my-lists',
       onSwitcherChange: (val) => {
         const match = ME_SWITCHER.find((m) => m.value === val);
         navigate(match?.hash || '#/app/me/tasks');
@@ -150,7 +153,9 @@ export function renderMePage(page, container = document.getElementById('app-main
     }));
   };
 
-  if (activePage === 'lists') {
+  if (activePage === 'my-lists') {
+    renderMyListsHeader(headerRootEl);
+  } else if (activePage === 'lists') {
     renderListsHeader();
   } else {
     if (headerRootEl) {
@@ -176,6 +181,11 @@ export function renderMePage(page, container = document.getElementById('app-main
 
   const body = document.getElementById('meBody');
   if (!body) return;
+
+  if (activePage === 'my-lists') {
+    renderMyListsPage(body);
+    return;
+  }
 
   if (activePage === 'lists') {
     renderMeListsPage(body, { withHeader: false });

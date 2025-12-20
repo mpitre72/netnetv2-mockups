@@ -38,8 +38,8 @@ export const SIDEBAR_LINKS = [
     key: 'me',
     subs: [
         { key: 'me-tasks', name: 'My Tasks', path: '#/app/me/tasks' },
-        { key: 'me-lists', name: 'Lists', path: '#/app/me/lists' },
         { key: 'me-time', name: 'My Time', path: '#/app/me/time' },
+        { key: 'me-my-lists', name: 'My Lists', path: '#/app/me/my-lists' },
         { key: 'me-performance', name: 'My Performance', path: '#/app/me/performance' },
     ]
   },

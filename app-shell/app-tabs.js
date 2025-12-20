@@ -8,7 +8,7 @@ function isDesktop() { return window.innerWidth >= 1024; }
 
 function labelForRoute(hash) {
   const h = hash || '';
-  if (h.startsWith('#/app/me/lists')) return 'Lists';
+  if (h.startsWith('#/app/me/my-lists')) return 'My Lists';
   if (h.startsWith('#/app/me')) return 'My Tasks';
   if (h.startsWith('#/app/net-net-bot')) return 'Net Net Bot';
   if (h.startsWith('#/app/contacts/company')) return 'Company Profile';

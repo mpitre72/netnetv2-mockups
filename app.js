@@ -18,7 +18,7 @@ import { mountShell, applyMainWrapperClass } from './app-shell/app-layout.js';
 import { setTheme, getTheme } from './app-shell/app-helpers.js';
 
 // Environment detection for Net Net (GitHub Pages vs Local)
-const BUILD_STAMP = '2025-12-18-I';
+const BUILD_STAMP = '2025-12-19-M';
 const detectedEnv = (typeof window !== 'undefined' && window.location.hostname === 'mpitre72.github.io')
   ? 'GitHub Pages'
   : 'Local';

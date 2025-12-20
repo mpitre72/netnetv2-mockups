@@ -154,6 +154,7 @@ export function applyMainWrapperClass(hash) {
 
   const isComponents = h.startsWith('#/app/components');
   const isMeLists = h.startsWith('#/app/me/lists');
+  const isMeMyLists = h.startsWith('#/app/me/my-lists');
   const isReportsOrTable =
     h.startsWith('#/app/performance') ||
     h.startsWith('#/app/contacts') ||
@@ -167,7 +168,7 @@ export function applyMainWrapperClass(hash) {
     h.startsWith('#/app/contacts/company/') ||
     h.startsWith('#/app/contacts/person/');
 
-  const base = (isComponents || isMeLists)
+  const base = (isComponents || isMeLists || isMeMyLists)
     ? 'p-4 sm:p-6 lg:p-8 pb-14 overflow-y-auto'
     : isReportsOrTable
     ? 'p-4 sm:p-6 lg:p-8 pb-14 overflow-hidden'

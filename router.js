@@ -37,6 +37,7 @@ function parseRoute(hash) {
   const contactsCompanies = /^#\/app\/contacts\/companies\/?$/.test(h);
   const contactsPeople = /^#\/app\/contacts\/people\/?$/.test(h);
   const contactsRoot = /^#\/app\/contacts\/?$/.test(h);
+  const meMyLists = h.startsWith('#/app/me/my-lists');
   const meLists = h.startsWith('#/app/me/lists');
   const meTime = h.startsWith('#/app/me/time');
   const mePerf = h.startsWith('#/app/me/performance');
@@ -72,6 +73,7 @@ function parseRoute(hash) {
   if (contactsCompanies) return { name: 'contacts-companies', subview: 'companies' };
   if (contactsPeople) return { name: 'contacts-people', subview: 'people' };
   if (contactsRoot) return { name: 'contacts-root' };
+  if (meMyLists) return { name: 'me', page: 'my-lists' };
   if (meLists) return { name: 'me', page: 'lists' };
   if (meTime) return { name: 'me', page: 'time' };
   if (mePerf) return { name: 'me', page: 'performance' };
