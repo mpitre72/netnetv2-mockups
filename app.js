@@ -1,12 +1,11 @@
 import './data/mock-contacts.js';
-import './data/mock-reports.js';
 import { renderContacts, renderContactProfile } from './contacts/index.js';
 import { renderMePage } from './me/index.js';
 import { renderJobsPage } from './jobs/index.js';
 import { renderSalesPage } from './sales/index.js';
 import { renderQuickTasksPage } from './quick-tasks/index.js';
 import { renderChatPage } from './chat/index.js';
-import { renderPerformancePage } from './reports/index.js';
+import { renderPerformancePage } from './performance/index.js';
 import { renderSettingsPage } from './settings/index.js';
 import { renderProfilePage } from './profile/index.js';
 import { renderNnuPage } from './net-net-u/index.js';

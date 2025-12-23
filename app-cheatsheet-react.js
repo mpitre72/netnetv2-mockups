@@ -8,6 +8,7 @@ import { Tabs, Tab, NewTabButton } from './components/navigation/tabs.js';
 import { TopBarChromeDemo } from './components/navigation/top-bar.js';
 import { EffortTimelineMeterReact } from './components/metrics/effort-timeline-meter.js';
 import { SectionHeader } from './components/layout/SectionHeader.js';
+import { KPIBox, StackedMeter, RowActionsMenu, MovedDateIndicator, FilterChips } from './components/performance/primitives.js';
 
 const { createElement: h, useState } = React;
 const { createRoot } = ReactDOM;
@@ -348,6 +349,102 @@ function EffortTimelineDocs() {
   );
 }
 
+function FilterChipsDemo() {
+  const defaultFilters = ['At risk', 'Due soon', 'High effort'];
+  const [filters, setFilters] = useState(defaultFilters);
+
+  const reset = () => setFilters(defaultFilters);
+  const remove = (name) => setFilters((prev) => prev.filter((f) => f !== name));
+
+  return h(FilterChips, {
+    filters,
+    onRemove: remove,
+    onClear: reset,
+    dataDemoWrapper: 'filter-chips',
+    dataDemoClear: 'clear-filters',
+  });
+}
+
+function PerformancePrimitivesSection() {
+  const [kpiMessage, setKpiMessage] = useState('Click any KPI to log the action');
+  const [lastAction, setLastAction] = useState('—');
+
+  const meterSamples = [
+    { key: 'green', title: 'Balanced job', completed: false, effort: { actual: 62, baseline: 100, unit: 'h' }, timeline: { actual: 55, baseline: 100, unit: 'd' } },
+    { key: 'amber', title: 'Warming up', completed: false, effort: { actual: 92, baseline: 100, unit: 'h' }, timeline: { actual: 90, baseline: 100, unit: 'd' } },
+    { key: 'red', title: 'At risk', completed: false, effort: { actual: 125, baseline: 100, unit: 'h' }, timeline: { actual: 118, baseline: 100, unit: 'd' } },
+    { key: 'complete', title: 'Completed (no yellow)', completed: true, effort: { actual: 104, baseline: 100, unit: 'h' }, timeline: { actual: 98, baseline: 100, unit: 'd' } },
+  ];
+
+  return h('div', { className: 'space-y-8' }, [
+    h('div', { className: 'space-y-3' }, [
+      h('div', { className: 'flex items-center justify-between' }, [
+        h('h3', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'KPI Boxes'),
+        h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Green / Yellow / Red / Disabled'),
+      ]),
+      h('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4' }, [
+        h(KPIBox, { dataDemo: 'kpi-box', tone: 'green', title: 'On-Time', value: '92%', subtext: 'Target ≥ 85%', onClick: () => { console.log('[KPI] On-Time'); setKpiMessage('Clicked On-Time'); } }),
+        h(KPIBox, { tone: 'amber', title: 'Capacity', value: '93%', subtext: 'Next 14 days', onClick: () => { console.log('[KPI] Capacity'); setKpiMessage('Clicked Capacity'); } }),
+        h(KPIBox, { tone: 'red', title: 'At Risk', value: '12 jobs', subtext: 'Need action', onClick: () => { console.log('[KPI] At Risk'); setKpiMessage('Clicked At Risk'); } }),
+        h(KPIBox, { tone: 'green', title: 'Exports', value: 'CSV Only', subtext: 'Disabled for demo', disabled: true }),
+      ]),
+      h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, kpiMessage),
+    ]),
+
+    h('div', { className: 'space-y-3' }, [
+      h('h3', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'Stacked Meter'),
+      h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Effort on top, Timeline on bottom. Active uses green/yellow/red (85% rule). Completed removes yellow.'),
+      h('div', { className: 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4' },
+        meterSamples.map((sample) =>
+          h(StackedMeter, {
+            key: sample.key,
+            title: sample.title,
+            effort: sample.effort,
+            timeline: sample.timeline,
+            completed: sample.completed,
+          })
+        )
+      ),
+    ]),
+
+    h('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' }, [
+      h('div', { className: `${cardBase} p-4 space-y-3 bg-white dark:bg-slate-900/80` }, [
+        h('div', { className: 'flex items-center justify-between' }, [
+          h('h3', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'Row Actions'),
+          h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, '⋮ menu'),
+        ]),
+        h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Opens a menu with Reassign / Change Order / Move Date. Closes on ESC or outside click.'),
+        h(RowActionsMenu, { dataDemoButton: 'row-actions-button', dataDemoMenu: 'row-actions-menu', onSelect: (item) => setLastAction(item) }),
+        h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `Last action: ${lastAction}`),
+      ]),
+      h('div', { className: `${cardBase} p-4 space-y-3 bg-white dark:bg-slate-900/80` }, [
+        h('div', { className: 'flex items-center justify-between' }, [
+          h('h3', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'Moved Date Indicator'),
+          h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Popover'),
+        ]),
+        h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Tap or hover to see original/new dates and when it changed. Works on touch via click.'),
+        h(MovedDateIndicator, {
+          dataDemoChip: 'moved-date-chip',
+          dataDemoPopover: 'moved-date-popover',
+          originalDate: 'Jan 15, 2025',
+          newDate: 'Jan 18, 2025',
+          changedAt: 'Dec 20, 2024 • 2:10 PM',
+          changedBy: 'PM: Casey R.',
+        }),
+      ]),
+    ]),
+
+    h('div', { className: `${cardBase} p-4 space-y-3 bg-white dark:bg-slate-900/80` }, [
+      h('div', { className: 'flex items-center justify-between' }, [
+        h('h3', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'Filter chips + Clear'),
+        h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Removable chips'),
+      ]),
+      h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Remove chips individually or clear to reset defaults.'),
+      h(FilterChipsDemo),
+    ]),
+  ]);
+}
+
 function DesktopTabsDemo() {
   const [value, setValue] = useState('components');
 
@@ -603,6 +700,7 @@ function ComponentsCheatSheet() {
       h(Section, { title: 'Social Icons' }, h(SocialIconsRow)),
       h(Section, { title: 'Buttons' }, h(ChromeButtonsRow)),
       h(Section, { title: 'Effort vs Timeline Meter' }, h(EffortTimelineDocs)),
+      h(Section, { title: 'Performance Primitives' }, h(PerformancePrimitivesSection)),
       h(Section, { title: 'Top Bar Chrome' }, h(TopBarChromeDemo)),
       h(Section, { title: 'Desktop Tabs' }, h(DesktopTabsDemo)),
     ]
