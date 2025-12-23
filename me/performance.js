@@ -190,10 +190,10 @@ function MyPerformance() {
       .filter((r) => r.deliverable)
       .sort((a, b) => {
         // At-risk first, then due date.
-        const arA = isDeliverableAtRisk(r.deliverable, today) ? 1 : 0;
-        const arB = isDeliverableAtRisk(r.deliverable, today) ? 1 : 0;
+        const arA = isDeliverableAtRisk(a.deliverable, today) ? 1 : 0;
+        const arB = isDeliverableAtRisk(b.deliverable, today) ? 1 : 0;
         if (arA !== arB) return arB - arA;
-        return (r.deliverable.due || '').localeCompare(r.deliverable.due || '');
+        return (b.deliverable.due || '').localeCompare(a.deliverable.due || '');
       });
     return rows;
   }, [myDeliverableHours, maps.deliverableById, today]);
@@ -437,4 +437,3 @@ export function renderMyPerformancePage(bodyEl) {
   }
   window.__myPerformanceRoot.render(h(MyPerformance));
 }
-
