@@ -1,3 +1,5 @@
+import { clearStore } from '../performance/testdata/performance-store.js';
+
 export function renderSettingsPage(container = document.getElementById('app-main')) {
   if (!container) {
     console.warn('[SettingsModule] container not found for renderSettingsPage.');
@@ -12,6 +14,11 @@ export function renderSettingsPage(container = document.getElementById('app-main
           <div class="mt-6 flex items-center justify-center gap-3">
             <button type="button" id="openDrawerBtn" class="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">Open Context Panel</button>
             <button type="button" id="settingsCheatSheetBtn" class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900 text-slate-100 px-4 py-2 text-sm font-medium hover:bg-slate-800 hover:text-white">Cheat Sheet</button>
+          </div>
+          <div class="mt-4 flex justify-center">
+            <button type="button" id="clearPerfTestData" class="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white/80 underline-offset-4 hover:underline">
+              Clear test data
+            </button>
           </div>
         </div>
       </section>
@@ -28,6 +35,16 @@ export function renderSettingsPage(container = document.getElementById('app-main
     openDrawerBtn.onclick = () => {
       const shell = document.getElementById('app-shell');
       if (shell) shell.classList.remove('drawer-closed');
+    };
+  }
+  const clearTestBtn = document.getElementById('clearPerfTestData');
+  if (clearTestBtn) {
+    clearTestBtn.onclick = () => {
+      clearStore();
+      if (typeof window?.showToast === 'function') {
+        window.showToast('Test data cleared');
+      }
+      location.reload();
     };
   }
 }

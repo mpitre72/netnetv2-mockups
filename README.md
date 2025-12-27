@@ -61,6 +61,7 @@ GitHub Pages will automatically update the live site.
 - Entry point: `index.html` at the project root with hash-based routing (e.g., `#/auth/login`, `#/app/contacts`).
 - A fallback `404.html` mirrors the shell so Pages can recover into the SPA.
 - Assets and styles use relative paths for GitHub Pages compatibility.
+- dpm docs are archived research references; not active requirements.
 
 ## Build Stamp Bump
 Before each Codex edit session, update the build stamp so the UI reflects the latest change:
