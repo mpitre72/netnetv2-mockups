@@ -4,10 +4,10 @@ import { PerfCard } from '../components/performance/primitives.js';
 const { createElement: h } = React;
 
 const NAV_ITEMS = [
-  { key: 'overview', label: 'Overview', href: '#/app/performance/overview' },
+  { key: 'overview', label: 'Pulse', href: '#/app/performance/overview' },
   { key: 'at-risk-deliverables', label: 'At-Risk Deliverables', href: '#/app/performance/at-risk-deliverables' },
-  { key: 'capacity', label: 'Capacity & Forecast', href: '#/app/performance/capacity?horizonDays=30' },
-  { key: 'jobs-at-risk', label: 'Jobs at Risk', href: '#/app/performance/jobs-at-risk' },
+  { key: 'capacity', label: 'Capacity Outlook', href: '#/app/performance/capacity?horizonDays=30' },
+  { key: 'jobs-at-risk', label: 'Jobs in Drift', href: '#/app/performance/jobs-at-risk' },
   { key: 'reports', label: 'Reports', href: '#/app/performance/reports/time' },
 ];
 
@@ -36,18 +36,25 @@ function PerformanceNav({ activeKey }) {
 }
 
 export function PerformanceLayout({ activeKey = 'overview', children }) {
+  const activeLabel = NAV_ITEMS.find((n) => n.key === activeKey)?.label || 'Pulse';
+  const breadcrumb = h('div', { className: 'flex items-center gap-2' }, [
+    h('span', { className: 'text-sm text-slate-500 dark:text-white/70' }, 'Performance'),
+    h('span', { className: 'text-slate-400 dark:text-white/50' }, '›'),
+    h('span', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, activeLabel),
+  ]);
+
   return h('div', { className: 'space-y-6' }, [
     h(
       'div',
       { className: 'space-y-3' },
       h(SectionHeader, {
-        title: 'Performance — Drift & Flow',
+        title: breadcrumb,
+        showHelpIcon: true,
         showSecondaryRow: false,
         className: 'mb-2',
       })
     ),
     h(PerfCard, { variant: 'secondary', className: 'space-y-3' }, [
-      h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Performance prototype: Drift & Flow baseline with reports intact.'),
       h(PerformanceNav, { activeKey }),
     ]),
     children,
