@@ -6,8 +6,8 @@ function getDateShifted(days) {
 
 export const performanceJobs = [
   { id: 101, name: 'NCBF Web Redesign', client: 'National Cherry Blossom Festival', estHours: 200, actualHours: 92, startDate: getDateShifted(-25), plannedEnd: getDateShifted(20), status: 'active', serviceType: 'Web' },
-  { id: 102, name: 'Quantum Leap Website', client: 'Future Systems', estHours: 340, actualHours: 310, startDate: getDateShifted(-60), plannedEnd: getDateShifted(5), status: 'active', serviceType: 'Web' },
-  { id: 103, name: 'Data Migration Strategy', client: 'Legacy Corp', estHours: 180, actualHours: 176, startDate: getDateShifted(-40), plannedEnd: getDateShifted(-3), status: 'active', serviceType: 'Consulting' },
+  { id: 102, name: 'Quantum Leap Website', client: 'Future Systems', estHours: 340, actualHours: 260, startDate: getDateShifted(-60), plannedEnd: getDateShifted(45), status: 'active', serviceType: 'Web' },
+  { id: 103, name: 'Data Migration Strategy', client: 'Legacy Corp', estHours: 180, actualHours: 140, startDate: getDateShifted(-40), plannedEnd: getDateShifted(25), status: 'active', serviceType: 'Consulting' },
   { id: 104, name: 'Mobile App Revamp', client: 'Appify', estHours: 480, actualHours: 210, startDate: getDateShifted(-18), plannedEnd: getDateShifted(42), status: 'active', serviceType: 'Mobile' },
   { id: 105, name: 'Fathom SEO Sprint', client: 'Fathom', estHours: 120, actualHours: 118, startDate: getDateShifted(-35), plannedEnd: getDateShifted(-2), status: 'completed', serviceType: 'SEO' },
   { id: 106, name: 'Right Here Rebrand', client: 'Right Here Interactive', estHours: 260, actualHours: 82, startDate: getDateShifted(-10), plannedEnd: getDateShifted(55), status: 'active', serviceType: 'Brand' },
@@ -75,12 +75,12 @@ if (typeof window !== 'undefined') {
 }
 
 export const performanceTeam = [
-  { id: 'tm1', name: 'Sam', monthlyCapacityHours: 160, serviceTypes: ['Web', 'API'] },
-  { id: 'tm2', name: 'Maria', monthlyCapacityHours: 150, serviceTypes: ['Consulting', 'Data'] },
-  { id: 'tm3', name: 'Alex', monthlyCapacityHours: 150, serviceTypes: ['Web', 'Frontend'] },
-  { id: 'tm4', name: 'Sarah', monthlyCapacityHours: 140, serviceTypes: ['UX', 'Mobile'] },
-  { id: 'tm5', name: 'Chris', monthlyCapacityHours: 160, serviceTypes: ['UX', 'QA'] },
-  { id: 'tm6', name: 'Nora', monthlyCapacityHours: 150, serviceTypes: ['Brand', 'Design'] },
+  { id: 'tm1', name: 'Sam', monthlyCapacityHours: 200, serviceTypes: ['Web', 'API'] },
+  { id: 'tm2', name: 'Maria', monthlyCapacityHours: 200, serviceTypes: ['Consulting', 'Data'] },
+  { id: 'tm3', name: 'Alex', monthlyCapacityHours: 200, serviceTypes: ['Web', 'Frontend'] },
+  { id: 'tm4', name: 'Sarah', monthlyCapacityHours: 200, serviceTypes: ['UX', 'Mobile'] },
+  { id: 'tm5', name: 'Chris', monthlyCapacityHours: 200, serviceTypes: ['UX', 'QA'] },
+  { id: 'tm6', name: 'Nora', monthlyCapacityHours: 200, serviceTypes: ['Brand', 'Design'] },
 ];
 
 export const performanceTasks = [
@@ -171,7 +171,7 @@ export const performanceSalesDeals = [
     source: 'Inbound',
     stage: 'discovery',
     amount: 82000,
-    probability: 0.35,
+    probability: 0.65,
     createdAt: getDateShifted(-10),
     closedAt: null,
   },
@@ -210,7 +210,7 @@ export const performanceSalesDeals = [
     source: 'Referral',
     stage: 'lead',
     amount: 18000,
-    probability: 0.25,
+    probability: 0.6,
     createdAt: getDateShifted(-5),
     closedAt: null,
   },

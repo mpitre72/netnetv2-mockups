@@ -106,6 +106,80 @@ function flowScore(metrics) {
   return clamp(95 - Math.round(penalty), 20, 99);
 }
 
+function computeFlowScore({
+  deadlines,
+  capacityPressurePct = 0,
+  jobsNeedingTouch = 0,
+  onPacePct = 100,
+  fogPct = 0,
+  checkInCount = 0,
+  jobsInDriftTotal = 0,
+  driverFallback = 'Everything looks steady',
+} = {}) {
+  let score = 0;
+  const contributions = [];
+
+  if ((deadlines?.unreviewedOverdue || 0) > 0) {
+    const add = 40 + Math.min(20, deadlines.unreviewedOverdue * 10);
+    score += add;
+    contributions.push({ key: 'deadlines', value: add });
+  }
+
+  if (capacityPressurePct > 100) {
+    const add = 30 + Math.min(15, (capacityPressurePct - 100) * 1);
+    score += add;
+    contributions.push({ key: 'capacity', value: add });
+  } else if (capacityPressurePct >= 85) {
+    const add = 15 + Math.min(10, (capacityPressurePct - 85) * 0.7);
+    score += add;
+    contributions.push({ key: 'capacity', value: add });
+  }
+
+  if (jobsNeedingTouch > 0) {
+    const add = Math.min(20, jobsNeedingTouch * 10);
+    score += add;
+    contributions.push({ key: 'jobs', value: add });
+  }
+
+  if (onPacePct < 70) {
+    score += 15; contributions.push({ key: 'momentum', value: 15 });
+  } else if (onPacePct < 85) {
+    score += 7; contributions.push({ key: 'momentum', value: 7 });
+  }
+
+  if (fogPct >= 50) {
+    score += 10; contributions.push({ key: 'sales', value: 10 });
+  } else if (fogPct >= 20) {
+    score += 5; contributions.push({ key: 'sales', value: 5 });
+  }
+
+  if (checkInCount > 0) {
+    const add = Math.min(6, checkInCount * 2);
+    score += add;
+    contributions.push({ key: 'checkins', value: add });
+  }
+
+  const flowScorePct = clamp(Math.round(score), 0, 100);
+  const flowState = flowScorePct >= 90 ? 'Drifting' : flowScorePct >= 70 ? 'Watchlist' : 'In Flow';
+  const flowMessage = flowState === 'In Flow'
+    ? "You're in a steady flow right now."
+    : flowState === 'Watchlist'
+      ? 'A couple quick touches will keep you in flow.'
+      : 'A few things are drifting — start with the biggest driver.';
+
+  const driver = contributions.sort((a, b) => b.value - a.value)[0];
+  const driverLabel = driver ? (
+    driver.key === 'deadlines' ? 'deadlines' :
+    driver.key === 'capacity' ? 'capacity' :
+    driver.key === 'jobs' ? 'jobs in drift' :
+    driver.key === 'momentum' ? 'momentum' :
+    driver.key === 'sales' ? 'sales clarity' :
+    driver.key === 'checkins' ? 'check-ins' : driverFallback
+  ) : driverFallback;
+
+  return { flowScorePct, flowState, flowMessage, driverLabel };
+}
+
 function toneToColor(tone) {
   if (tone === 'red') return { bar: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-200', border: 'border-rose-200 dark:border-rose-400/40' };
   if (tone === 'amber') return { bar: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-200', border: 'border-amber-200 dark:border-amber-400/40' };
@@ -140,14 +214,40 @@ function StateDots({ tone }) {
 }
 
 function FlowMeterHero({ metrics }) {
-  const score = flowScore(metrics);
-  const tone = metrics.deadlines.unreviewedOverdue > 0
-    ? 'red'
-    : (Number(metrics.capacity?.capacityPressurePct) || 0) > 110
-      ? 'red'
-      : metrics.delivery.tone === 'amber' || (metrics.jobsAtRisk?.jobsAtRiskNeedingAttention || 0) > 0 || (Number(metrics.capacity?.capacityPressurePct) || 0) > 90 || metrics.deadlines.unreviewedDueSoon > 0
-        ? 'amber'
-        : 'green';
+  const { flowScorePct, flowState, flowMessage, driverLabel } = metrics.flow;
+  const tone = flowState === 'Drifting' ? 'red' : flowState === 'Watchlist' ? 'amber' : 'green';
+  const gaugeWidth = 220;
+  const gaugeHeight = 140;
+  const cx = 110;
+  const cy = 120;
+  const radius = 85;
+  const strokeWidth = 14;
+  // Ensure gauge mapping: 0% = left/green, 100% = right/red
+  const clampedScore = clamp(flowScorePct, 0, 100);
+  const angleDeg = 180 - (clampedScore / 100) * 180;
+  const angleRad = (angleDeg * Math.PI) / 180;
+  const rInner = radius - strokeWidth / 2 - 10;
+  const rOuter = radius + strokeWidth / 2 + 10;
+  const needleX1 = cx + Math.cos(angleRad) * rInner;
+  const needleY1 = cy - Math.sin(angleRad) * rInner;
+  const needleX2 = cx + Math.cos(angleRad) * rOuter;
+  const needleY2 = cy - Math.sin(angleRad) * rOuter;
+
+  const polarToCartesian = (cx0, cy0, r0, angle) => {
+    const rad = (Math.PI / 180) * angle;
+    return {
+      x: cx0 + r0 * Math.cos(rad),
+      y: cy0 - r0 * Math.sin(rad),
+    };
+  };
+
+  const arcPath = (startDeg, endDeg) => {
+    const start = polarToCartesian(cx, cy, radius, startDeg);
+    const end = polarToCartesian(cx, cy, radius, endDeg);
+    const largeArcFlag = 0;
+    const sweepFlag = endDeg > startDeg ? 0 : 1;
+    return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${end.x} ${end.y}`;
+  };
 
   const target = (() => {
     if (metrics.deadlines.unreviewedOverdue > 0) return '#/app/performance/at-risk-deliverables?lens=deadlines';
@@ -158,29 +258,7 @@ function FlowMeterHero({ metrics }) {
     return '#/app/performance/overview';
   })();
 
-  const flowState = toneLabel(tone);
   const dayOffAnswer = flowState === 'In Flow' ? 'Yeah, you could.' : flowState === 'Watchlist' ? 'Maybe.' : 'Probably not.';
-
-  const driverLabel = metrics.deadlines.unreviewedOverdue > 0
-    ? 'deadlines'
-    : (Number(metrics.capacity?.capacityPressurePct) || 0) > 110
-      ? 'capacity'
-      : (metrics.jobsAtRisk?.jobsAtRiskNeedingAttention || 0) > 0
-        ? 'jobs in drift'
-        : metrics.delivery.tone !== 'green'
-          ? 'momentum'
-          : metrics.sales.tone !== 'green'
-            ? 'sales clarity'
-            : 'steady flow';
-
-  const stateCopy = flowState === 'In Flow'
-    ? "You're in a steady flow right now."
-    : flowState === 'Watchlist'
-      ? 'A couple quick touches will keep you in flow.'
-      : 'A few things are drifting — start with the biggest driver.';
-
-  const markerPos = `${clamp(score, 0, 100)}%`;
-  const zoneLabels = ['In Flow', 'Watchlist', 'Drifting'];
 
   return h('button', {
     type: 'button',
@@ -188,36 +266,36 @@ function FlowMeterHero({ metrics }) {
     onClick: () => navigate(target),
     title: 'Flow Meter drilldown',
   }, h(PerfCard, { className: 'space-y-4 border-slate-200 dark:border-white/10 hover:-translate-y-[1px] transition' }, [
-    h('div', { className: 'flex items-center justify-between gap-3 flex-wrap' }, [
-      h('div', { className: 'space-y-2' }, [
-        h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Flow Meter'),
-        h('div', { className: 'text-sm text-slate-700 dark:text-slate-200' }, stateCopy),
-        h('div', { className: 'text-sm text-slate-600 dark:text-slate-300' }, `Driven by: ${driverLabel}.`),
-      ]),
-      h(StateDots, { tone }),
-    ]),
-    h('div', { className: 'space-y-2' }, [
-      h('div', { className: 'relative h-3 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-white/10' }, [
-        h('div', { className: 'absolute inset-0 grid grid-cols-3' }, [
-          h('div', { className: 'bg-emerald-500/10' }),
-          h('div', { className: 'bg-amber-500/10' }),
-          h('div', { className: 'bg-rose-500/10' }),
+      h('div', { className: 'grid grid-cols-1 lg:grid-cols-[auto,1fr] gap-4 items-center' }, [
+      h('div', { className: 'relative w-[200px] h-[120px] mx-auto' }, [
+        h('svg', { viewBox: `0 0 ${gaugeWidth} ${gaugeHeight}` }, [
+          h('path', { d: arcPath(180, 54), stroke: '#10b981', strokeWidth, fill: 'none' }),
+          h('path', { d: arcPath(54, 18), stroke: '#f59e0b', strokeWidth, fill: 'none' }),
+          h('path', { d: arcPath(18, 0), stroke: '#f43f5e', strokeWidth, fill: 'none' }),
+          h('line', { x1: needleX1, y1: needleY1, x2: needleX2, y2: needleY2, stroke: 'rgba(0,0,0,0.35)', strokeWidth: 8, strokeLinecap: 'round', pointerEvents: 'none' }),
+          h('line', { x1: needleX1, y1: needleY1, x2: needleX2, y2: needleY2, stroke: 'rgba(255,255,255,0.95)', strokeWidth: 6, strokeLinecap: 'round', pointerEvents: 'none' }),
+          h('circle', { cx, cy, r: 4, fill: 'rgba(255,255,255,0.95)', pointerEvents: 'none' }),
         ]),
-        h('div', {
-          className: `${toneToColor(tone).bar} absolute h-3 w-2 rounded-full -translate-x-1/2 transition`,
-          style: { left: markerPos },
-        }),
       ]),
-      h('div', { className: 'grid grid-cols-3 text-[11px] text-slate-500 dark:text-slate-400' },
-        zoneLabels.map((z, idx) => h('div', { key: z, className: idx === 1 ? 'text-center' : idx === 2 ? 'text-right' : 'text-left' }, z))
-      ),
+      h('div', { className: 'space-y-3' }, [
+        h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Flow Meter'),
+        h('div', { className: 'text-sm text-slate-700 dark:text-slate-200' }, flowMessage),
+        h('div', { className: 'text-sm text-slate-600 dark:text-slate-300' }, `Driven by: ${driverLabel}.`),
+        h('div', { className: 'text-[11px] text-slate-500 dark:text-slate-400' }, 'Tap to see what to do next.'),
+        h('div', { className: 'text-sm text-slate-800 dark:text-slate-100' }, `Can I take this day off? ${dayOffAnswer}`),
+      ]),
     ]),
-    h('div', { className: 'text-[11px] text-slate-500 dark:text-slate-400' }, 'Tap to see what to do next.'),
-    h('div', { className: 'text-base text-slate-800 dark:text-slate-100' }, `Can I take this day off? ${dayOffAnswer}`),
   ]));
 }
 
-function MiniSignalCard({ title, subtitle, definition, value, subtext, baseline, tone, onClick, badge }) {
+function MiniSignalCard({ title, subtitle, value, label, subtext, baseline, tone, onClick, badge }) {
+  const colors = tone === 'red'
+    ? 'text-rose-600 dark:text-rose-200'
+    : tone === 'amber'
+      ? 'text-amber-600 dark:text-amber-200'
+      : 'text-emerald-600 dark:text-emerald-200';
+  const safeValue = (value ?? '').toString();
+  const safeLabel = (label ?? '').toString();
   return h('button', {
     type: 'button',
     className: 'w-full text-left focus-visible:outline-none',
@@ -234,11 +312,11 @@ function MiniSignalCard({ title, subtitle, definition, value, subtext, baseline,
       ]),
       h(StateDots, { tone }),
     ]),
-    h('div', { className: 'space-y-1' }, [
-      h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, value),
+      h('div', { className: 'space-y-2 text-center' }, [
+      h('div', { className: `text-[70px] leading-none font-semibold ${colors}` }, safeValue),
+      h('div', { className: 'text-2xl font-medium text-slate-800 dark:text-slate-200 leading-tight' }, safeLabel),
       baseline ? h('div', { className: 'text-xs text-slate-600 dark:text-slate-300' }, baseline) : null,
-      h('div', { className: 'text-sm text-slate-600 dark:text-slate-300' }, subtext),
-      h('div', { className: 'text-xs text-slate-600 dark:text-slate-300' }, definition),
+      subtext ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, subtext) : null,
     ]),
   ]));
 }
@@ -270,9 +348,9 @@ export function PerformancePulse() {
   const onPacePct = totalPaceHours > 0 ? Math.round((onPaceHours / totalPaceHours) * 100) : 100;
   const momentumTone = totalPaceHours === 0
     ? 'amber'
-    : onPacePct >= 85
+    : onPacePct >= 75
       ? 'green'
-      : onPacePct >= 70
+      : onPacePct >= 55
         ? 'amber'
         : 'red';
 
@@ -318,18 +396,31 @@ export function PerformancePulse() {
 
   // Check-ins tile
   const checkTone = data.checkIn > 0 ? 'amber' : 'green';
+  const flow = computeFlowScore({
+    deadlines: {
+      unreviewedOverdue: data.deadlines.unreviewedOverdue,
+      overdueTotal: data.deadlines.overdueOpen,
+      dueSoonTotal: data.deadlines.dueSoon,
+    },
+    capacityPressurePct: data.capacity.capacityPressurePct,
+    jobsNeedingTouch,
+    jobsInDriftTotal,
+    activeJobsTotal,
+    onPacePct,
+    fogPct,
+    checkInCount: data.checkIn,
+  });
 
   const signals = [
     {
       key: 'momentum',
       title: 'Momentum',
       subtitle: 'Are deliverables finishing steadily?',
-      definition: 'Momentum shows how often effort and timeline are tracking together. “On pace” means we’re not burning meaningfully faster than time is passing.',
-      value: totalPaceHours > 0 ? `${onPacePct}% on pace` : 'Not enough data yet',
-      subtext: totalPaceHours > 0 ? '' : 'Not enough data yet.',
+      value: totalPaceHours > 0 ? `${onPacePct}%` : '—',
+      label: 'On Pace',
       baseline: totalPaceHours > 0
         ? `${Math.round(onPaceHours)}h of ${Math.round(totalPaceHours)}h planned is on pace.`
-        : '',
+        : 'Not enough data yet',
       tone: momentumTone,
       onClick: () => navigate('#/app/performance/at-risk-deliverables?lens=pace'),
     },
@@ -337,9 +428,8 @@ export function PerformancePulse() {
       key: 'jobs',
       title: 'Jobs in Drift',
       subtitle: 'Which jobs need a touch?',
-      definition: 'A job appears here when a near-term deliverable shows drift evidence (past due, over plan, or low confidence). Reviewed jobs stay counted, but stop nagging.',
-      value: `${jobsNeedingTouch} need a touch`,
-      subtext: '',
+      value: `${jobsNeedingTouch}`,
+      label: 'Need a touch',
       baseline: `${jobsInDriftTotal} in drift • ${jobsInDriftReviewed} reviewed • ${activeJobsTotal} active`,
       tone: jobsTone,
       onClick: () => navigate('#/app/performance/jobs-at-risk'),
@@ -348,10 +438,9 @@ export function PerformancePulse() {
       key: 'capacity',
       title: 'Capacity Outlook',
       subtitle: 'Do we have room to breathe?',
-      definition: 'Capacity Outlook compares known remaining work due in this horizon to available team capacity. Unknown and unassigned work are shown separately.',
       badge: '30d',
-      value: data.capacity.capacityPressurePct == null ? 'Unknown' : `${Math.round(data.capacity.capacityPressurePct)}% used`,
-      subtext: '',
+      value: data.capacity.capacityPressurePct == null ? '—' : `${Math.round(data.capacity.capacityPressurePct)}%`,
+      label: 'Used',
       baseline: (data.capacity.capacityHours || 0) > 0
         ? `${formatNumber(data.capacity.knownDemandHours)}h assigned of ${formatNumber(data.capacity.capacityHours)}h available`
         : 'Not enough data yet',
@@ -362,9 +451,8 @@ export function PerformancePulse() {
       key: 'deadlines',
       title: 'Due Soon (7d)',
       subtitle: 'What’s coming up next?',
-      definition: 'Due Soon is simply what’s next in the coming week — it isn’t drift by itself. Past due items are what raise attention.',
-      value: `${dueSoonTotal} due soon`,
-      subtext: '',
+      value: `${dueSoonTotal}`,
+      label: 'Due Soon',
       baseline: `Past due: ${overdueTotal} (${overdueUnreviewed} unreviewed)`,
       tone: dueTone,
       onClick: () => navigate('#/app/performance/at-risk-deliverables?lens=deadlines'),
@@ -373,12 +461,12 @@ export function PerformancePulse() {
       key: 'sales',
       title: 'Sales Clarity',
       subtitle: 'Which deals need numbers?',
-      definition: 'Sales Clarity measures how complete your pipeline estimates are. When deals have no budget, future revenue is foggy.',
-      value: `${unbudgetedDeals.length} need budgets`,
-      subtext: openDeals.length ? `Weighted open: ${formatNumber(data.sales.weightedOpen)}` : '',
+      value: `${unbudgetedDeals.length}`,
+      label: 'Need budgets',
       baseline: openDeals.length
         ? `${unbudgetedDeals.length} foggy • ${budgetedDeals} clear • ${openDeals.length} open`
         : 'Not enough data yet',
+      subtext: openDeals.length ? `Weighted open: ${formatNumber(data.sales.weightedOpen)}` : '',
       tone: salesTone,
       onClick: () => navigate('#/app/performance/reports/sales?view=revenue-fog'),
     },
@@ -386,9 +474,8 @@ export function PerformancePulse() {
       key: 'checkins',
       title: 'Check-ins',
       subtitle: 'Anything near done that needs a quick check?',
-      definition: 'When something is almost done, a quick confidence check prevents last-minute surprises. This is not drift — it’s a friendly prompt.',
-      value: `${data.checkIn} quick check-ins`,
-      subtext: '',
+      value: `${data.checkIn}`,
+      label: 'Quick check-ins',
       baseline: 'Near completion (85–100%) • confidence not set',
       tone: checkTone,
       onClick: () => navigate('#/app/performance/at-risk-deliverables?lens=confidence'),
@@ -402,6 +489,7 @@ export function PerformancePulse() {
       deadlines: data.deadlines,
       sales: data.sales,
       jobsAtRisk: data.jobsAtRisk,
+      flow,
     } }),
     h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Colors show attention, not success: In Flow · Watchlist · Drifting.'),
     h('div', { className: 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3' },

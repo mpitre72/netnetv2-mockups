@@ -50,6 +50,15 @@ export function PerformanceLayout({ activeKey = 'overview', children }) {
       h(SectionHeader, {
         title: breadcrumb,
         showHelpIcon: true,
+        videoHelpConfig: {
+          primary: {
+            title: 'Performance Pulse',
+            description: 'Read the drift & flow signals and drill into what matters next.',
+            videoUrl: 'https://videos.hellonetnet.com/watch/wo5umvj3',
+            thumbnailSrc: 'public/assets/samples/vid-jobs.jpg',
+          },
+          related: [],
+        },
         showSecondaryRow: false,
         className: 'mb-2',
       })
