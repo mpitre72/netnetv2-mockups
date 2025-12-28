@@ -62,6 +62,10 @@ GitHub Pages will automatically update the live site.
 - A fallback `404.html` mirrors the shell so Pages can recover into the SPA.
 - Assets and styles use relative paths for GitHub Pages compatibility.
 - dpm docs are archived research references; not active requirements.
+- Performance docs (Drift & Flow):
+  - [QA Runbook](docs/performance/Performance%20-%20Drift%20%26%20Flow%20-%20QA%20Runbook.md)
+  - [Handoff Note (Arthur & Andrés)](docs/performance/Performance%20-%20Drift%20%26%20Flow%20-%20Handoff%20Note%20(Arthur%20%26%20Andr%C3%A9s).md)
+  - [Banked Sweetening & Known Limits](docs/performance/Performance%20-%20Drift%20%26%20Flow%20-%20Banked%20Sweetening%20%26%20Known%20Limits.md)
 
 ## Build Stamp Bump
 Before each Codex edit session, update the build stamp so the UI reflects the latest change:

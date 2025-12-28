@@ -1,4 +1,5 @@
 import { SectionHeader } from '../components/layout/SectionHeader.js';
+import { PerfCard } from '../components/performance/primitives.js';
 
 const { createElement: h } = React;
 
@@ -17,7 +18,7 @@ function PerformanceNav({ activeKey }) {
     NAV_ITEMS.map((item) => {
       const isActive = activeKey === item.key;
       const base =
-        'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition focus:outline-none';
+        'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900';
       const activeClasses = 'bg-[var(--color-brand-purple,#711FFF)] text-white border-transparent shadow-sm';
       const idleClasses =
         'bg-white dark:bg-slate-900 border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-100 hover:border-netnet-purple/60 hover:text-netnet-purple';
@@ -45,18 +46,10 @@ export function PerformanceLayout({ activeKey = 'overview', children }) {
         className: 'mb-2',
       })
     ),
-    h(
-      'div',
-      { className: 'bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 shadow-sm' },
-      h('div', { className: 'flex flex-col gap-2' }, [
-        h(
-          'div',
-          { className: 'flex items-center justify-between gap-3 flex-wrap' },
-          h('div', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Performance prototype: Drift & Flow baseline with reports intact.')
-        ),
-        h(PerformanceNav, { activeKey }),
-      ])
-    ),
+    h(PerfCard, { variant: 'secondary', className: 'space-y-3' }, [
+      h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Performance prototype: Drift & Flow baseline with reports intact.'),
+      h(PerformanceNav, { activeKey }),
+    ]),
     children,
   ]);
 }

@@ -8,7 +8,7 @@ import { Tabs, Tab, NewTabButton } from './components/navigation/tabs.js';
 import { TopBarChromeDemo } from './components/navigation/top-bar.js';
 import { EffortTimelineMeterReact } from './components/metrics/effort-timeline-meter.js';
 import { SectionHeader } from './components/layout/SectionHeader.js';
-import { KPIBox, StackedMeter, RowActionsMenu, MovedDateIndicator, FilterChips } from './components/performance/primitives.js';
+import { KPIBox, StackedMeter, RowActionsMenu, MovedDateIndicator, FilterChips, ProgressConfidenceChip, ReviewedBadge, DriftReasonChips } from './components/performance/primitives.js';
 
 const { createElement: h, useState } = React;
 const { createRoot } = ReactDOM;
@@ -413,7 +413,7 @@ function PerformancePrimitivesSection() {
           h('h3', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'Row Actions'),
           h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, '⋮ menu'),
         ]),
-        h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Opens a menu with Reassign / Change Order / Move Date. Closes on ESC or outside click.'),
+        h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Locked order: Reviewed / Complete / Move Date / Reassign / Change Order. Closes on ESC or outside click.'),
         h(RowActionsMenu, { dataDemoButton: 'row-actions-button', dataDemoMenu: 'row-actions-menu', onSelect: (item) => setLastAction(item) }),
         h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `Last action: ${lastAction}`),
       ]),
@@ -431,6 +431,34 @@ function PerformancePrimitivesSection() {
           changedAt: 'Dec 20, 2024 • 2:10 PM',
           changedBy: 'PM: Casey R.',
         }),
+      ]),
+    ]),
+
+    h('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' }, [
+      h('div', { className: `${cardBase} p-4 space-y-3 bg-white dark:bg-slate-900/80` }, [
+        h('div', { className: 'flex items-center justify-between' }, [
+          h('h3', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'Confidence + Reviewed'),
+          h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Attn muting'),
+        ]),
+        h('div', { className: 'flex items-center gap-2 flex-wrap' }, [
+          h(ProgressConfidenceChip, { level: 'high', onChange: (val) => setLastAction(`Confidence → ${val || 'unset'}`) }),
+          h(ProgressConfidenceChip, { level: 'low', onChange: (val) => setLastAction(`Confidence → ${val || 'unset'}`) }),
+          h(ReviewedBadge, { reviewed: { by: 'Alex', at: new Date().toISOString() } }),
+        ]),
+        h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Confidence dropdown clears reviewed; badge shows reviewer + time.'),
+      ]),
+      h('div', { className: `${cardBase} p-4 space-y-3 bg-white dark:bg-slate-900/80` }, [
+        h('div', { className: 'flex items-center justify-between' }, [
+          h('h3', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'Drift Reasons'),
+          h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Calm chips'),
+        ]),
+        h(DriftReasonChips, { reasons: [
+          { id: 'overdue', label: 'Overdue', tone: 'red' },
+          { id: 'dueSoon', label: 'Due soon', tone: 'amber' },
+          { id: 'effortOver', label: 'Effort overrun', tone: 'amber' },
+          { id: 'checkIn', label: 'Needs check-in', tone: 'amber' },
+        ] }),
+        h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Attach to rows to explain drift / urgency.'),
       ]),
     ]),
 

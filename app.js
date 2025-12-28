@@ -5,7 +5,7 @@ import { renderJobsPage } from './jobs/index.js';
 import { renderSalesPage } from './sales/index.js';
 import { renderQuickTasksPage } from './quick-tasks/index.js';
 import { renderChatPage } from './chat/index.js';
-import { renderPerformancePage } from './performance/index.js';
+import { renderPerformancePage, unmountPerformancePage } from './performance/index.js';
 import { renderSettingsPage } from './settings/index.js';
 import { renderProfilePage } from './profile/index.js';
 import { renderNnuPage } from './net-net-u/index.js';
@@ -103,6 +103,7 @@ function renderRoute(route) {
   const isAuthRoute = route.name.startsWith('auth');
   if (isAuthRoute) {
     unmountCheatSheet();
+    unmountPerformancePage();
     ensureShell('auth', location.hash);
     renderAuthScreen(route.name);
     return;
@@ -112,6 +113,9 @@ function renderRoute(route) {
   applyMainWrapperClass(location.hash || '#/app/me/tasks');
   const main = document.getElementById('app-main');
   if (!main) return;
+  if (route.name !== 'performance') {
+    unmountPerformancePage();
+  }
   if (route.name === 'components') {
     main.innerHTML = '<div id="components-cheat-sheet-root" class="w-full"></div>';
     if (typeof window !== 'undefined' && window.renderComponentsCheatSheetReactView) {

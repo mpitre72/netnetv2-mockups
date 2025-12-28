@@ -13,6 +13,18 @@ const { createRoot } = ReactDOM;
 let root = null;
 let currentContainer = null;
 
+export function unmountPerformancePage() {
+  if (root) {
+    try {
+      root.unmount();
+    } catch (e) {
+      console.warn('[Performance] unmount warning', e);
+    }
+  }
+  root = null;
+  currentContainer = null;
+}
+
 function parsePerformanceHash(hash) {
   const raw = (hash || location.hash || '').replace('#', '');
   const [pathPart, queryString = ''] = raw.split('?');

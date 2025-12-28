@@ -1,6 +1,51 @@
 const { createElement: h, useState, useEffect, useRef } = React;
 const { createPortal } = ReactDOM;
 
+export function PerfCard({ children, className = '', variant = 'primary' }) {
+  const variantClass = variant === 'secondary'
+    ? 'rounded-xl p-4'
+    : 'rounded-2xl p-5';
+  return h('div', {
+    className: [
+      'border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 shadow-sm',
+      variantClass,
+      className,
+    ].join(' '),
+  }, children);
+}
+
+export function PerfSectionTitle({ title, subtitle, rightSlot, className = '' }) {
+  return h('div', { className: `flex items-center justify-between gap-3 flex-wrap ${className}` }, [
+    h('div', { className: 'space-y-1' }, [
+      h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, title),
+      subtitle ? h('div', { className: 'text-sm text-slate-600 dark:text-slate-300' }, subtitle) : null,
+    ]),
+    rightSlot || null,
+  ]);
+}
+
+export function ActionModal({ title, description, children, onConfirm, onCancel, confirmLabel = 'Confirm', cancelLabel = 'Cancel' }) {
+  return createPortal(
+    h(React.Fragment, null,
+      h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center' }, [
+        h('div', { className: 'absolute inset-0 bg-slate-900/50 backdrop-blur-sm', onClick: onCancel }),
+        h('div', { className: 'relative w-full max-w-lg rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-2xl p-5 space-y-4' }, [
+          h('div', { className: 'space-y-1' }, [
+            h('h3', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, title),
+            description ? h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, description) : null,
+          ]),
+          children,
+          h('div', { className: 'flex items-center justify-end gap-2' }, [
+            h('button', { type: 'button', className: 'px-4 py-2 text-sm rounded-lg border border-slate-300 dark:border-white/20 text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800', onClick: onCancel }, cancelLabel),
+            h('button', { type: 'button', className: 'px-4 py-2 text-sm rounded-lg bg-netnet-purple text-white hover:brightness-110', onClick: onConfirm }, confirmLabel),
+          ]),
+        ]),
+      ])
+    ),
+    document.body
+  );
+}
+
 export const STOPLIGHT = {
   green: { bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-200', dot: 'bg-emerald-500' },
   amber: { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-200', dot: 'bg-amber-500' },
@@ -103,13 +148,15 @@ export function StackedMeter({ title, effort, timeline, completed = false, dataD
   );
 }
 
-export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu } = {}) {
+export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu, menuItems } = {}) {
   const btnRef = useRef(null);
   const menuRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
 
-  const menuItems = ['Reassign', 'Change Order', 'Move Date'];
+  const items = (menuItems && menuItems.length)
+    ? menuItems
+    : ['Mark as Reviewed', 'Complete Deliverable', 'Change Deliverable Due Date', 'Reassign Tasks In Deliverable', 'Create Change Order'];
 
   const openMenu = () => {
     const rect = btnRef.current?.getBoundingClientRect();
@@ -149,7 +196,7 @@ export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu } = {}) 
           className: 'absolute min-w-[180px] rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden',
           style: { top: `${coords.top}px`, left: `${coords.left}px` },
         },
-        menuItems.map((item) =>
+        items.map((item) =>
           h(
             'button',
             {
@@ -157,7 +204,6 @@ export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu } = {}) 
               type: 'button',
               className: 'w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors',
               onClick: () => {
-                console.log(`[RowActions] ${item}`);
                 onSelect?.(item);
                 setOpen(false);
               },
@@ -190,6 +236,114 @@ export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu } = {}) 
     ),
     menu,
   ]);
+}
+
+const CONF_LEVELS = {
+  high: { label: 'High confidence', tone: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-100' },
+  med: { label: 'Medium confidence', tone: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-100' },
+  low: { label: 'Low confidence', tone: 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-100' },
+  unset: { label: 'Confidence unset', tone: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-white' },
+};
+
+export function ProgressConfidenceChip({ level, onChange, dataDemo }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+  const opts = [
+    { value: 'high', label: 'High' },
+    { value: 'med', label: 'Medium' },
+    { value: 'low', label: 'Low' },
+    { value: null, label: 'Unset' },
+  ];
+  const currentKey = level || 'unset';
+  const tone = CONF_LEVELS[currentKey] || CONF_LEVELS.unset;
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => {
+      if (!menuRef.current || !btnRef.current) return;
+      if (!menuRef.current.contains(e.target) && !btnRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return h('div', { className: 'relative inline-flex', 'data-demo': dataDemo }, [
+    h('button', {
+      ref: btnRef,
+      type: 'button',
+      className: `inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold border border-transparent ${tone.tone} shadow-sm`,
+      onClick: () => setOpen((v) => !v),
+      title: 'Set progress confidence',
+    }, [
+      h('span', null, tone.label),
+      h('svg', { width: 12, height: 12, viewBox: '0 0 20 20', fill: 'currentColor', className: 'opacity-70' }, [
+        h('path', { d: 'M5 7l5 6 5-6H5z' }),
+      ]),
+    ]),
+    open ? createPortal(
+      h('div', { className: 'fixed inset-0 z-50', role: 'presentation' }, [
+        h('div', { className: 'absolute inset-0', onClick: () => setOpen(false) }),
+        h('div', {
+          ref: menuRef,
+          className: 'absolute mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden',
+          style: { top: (btnRef.current?.getBoundingClientRect().bottom || 0) + 6, left: (btnRef.current?.getBoundingClientRect().left || 0) },
+        },
+          opts.map((opt) =>
+            h('button', {
+              key: opt.value === null ? 'unset' : opt.value,
+              type: 'button',
+              className: 'w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10',
+              onClick: () => { onChange?.(opt.value); setOpen(false); },
+            }, opt.label)
+          )
+        ),
+      ]),
+      document.body
+    ) : null,
+  ]);
+}
+
+export function ReviewedBadge({ reviewed }) {
+  if (!reviewed) return null;
+  const isBool = reviewed === true;
+  const date = !isBool && reviewed.at ? new Date(reviewed.at).toLocaleString() : '';
+  const label = 'Reviewed';
+  const title = isBool
+    ? label
+    : reviewed.by
+      ? `${label} by ${reviewed.by}${date ? ` on ${date}` : ''}`
+      : date || label;
+  return h('span', {
+    className: 'inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold px-2 py-1',
+    title,
+  }, [
+    h('span', { className: 'w-2 h-2 rounded-full bg-emerald-500' }),
+    h('span', null, label),
+  ]);
+}
+
+export function DriftReasonChips({ reasons = [] }) {
+  if (!reasons || !reasons.length) return null;
+  return h('div', { className: 'flex flex-wrap gap-2' },
+    reasons.map((r) =>
+      h('span', {
+        key: r.id,
+        className: `inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+          r.tone === 'red'
+            ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-100'
+            : r.tone === 'amber'
+              ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100'
+              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100'
+        }`,
+      }, r.label)
+    )
+  );
 }
 
 export function MovedDateIndicator({ originalDate, newDate, changedAt, changedBy, dataDemoChip, dataDemoPopover } = {}) {

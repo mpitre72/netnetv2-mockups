@@ -1,51 +1,75 @@
-import { performanceJobs } from '../performance-data.js';
+import { navigate } from '../../router.js';
+import { DriftReasonChips, ReviewedBadge, PerfCard, PerfSectionTitle } from '../../components/performance/primitives.js';
+import { getEffectiveState } from '../testdata/performance-state.js';
+import { buildJobsAtRiskRollup } from '../lib/jobs-at-risk-rollup.js';
 
 const { createElement: h, useMemo } = React;
 
-function enrichJobs() {
-  return performanceJobs
-    .filter((j) => j.status === 'active')
-    .map((job) => {
-      const effortPct = Math.round(((job.actualHours || 0) / Math.max(job.estHours || 1, 1)) * 100);
-      const start = new Date(job.startDate);
-      const end = new Date(job.plannedEnd || job.startDate);
-      const now = Date.now();
-      const timelinePct = start instanceof Date && end instanceof Date && end > start
-        ? Math.round(((now - start.getTime()) / (end.getTime() - start.getTime())) * 100)
-        : 0;
-      const atRisk = effortPct > 85 || timelinePct > 85;
-      return { ...job, effortPct, timelinePct, atRisk };
-    });
+function JobRow({ job }) {
+  const severityTone = job.severity === 3
+    ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-100 border-rose-200 dark:border-rose-400/40'
+    : 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-100 border-amber-200 dark:border-amber-400/40';
+  return h('div', {
+    className: 'flex flex-col gap-2 md:flex-row md:items-center md:justify-between',
+    role: 'button',
+    tabIndex: 0,
+    onClick: () => navigate(`#/app/performance/job-pulse?jobId=${job.jobId}`),
+    onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`#/app/performance/job-pulse?jobId=${job.jobId}`); } },
+  }, [
+    h('div', { className: 'space-y-1 min-w-0' }, [
+      h('div', { className: 'flex items-center gap-2 flex-wrap' }, [
+        h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white truncate' }, job.jobName),
+        job.jobReviewedState.reviewedAtRisk ? h(ReviewedBadge, { reviewed: true }) : null,
+      ]),
+      h('div', { className: 'text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2 flex-wrap' }, [
+        h('span', null, job.clientName || 'Client'),
+        h('span', { className: 'text-slate-400' }, '•'),
+        h('span', null, `${job.atRiskDeliverableCount} at-risk deliverables`),
+        job.unreviewedAtRiskDeliverableCount > 0
+          ? h('span', { className: 'text-xs font-semibold text-amber-700 dark:text-amber-200' }, `${job.unreviewedAtRiskDeliverableCount} unreviewed`)
+          : h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `${job.reviewedAtRiskDeliverableCount} reviewed`),
+      ]),
+      h('div', { className: 'flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap' }, [
+        h('span', null, job.nextPainDate ? `Next pain: ${job.nextPainDate.toLocaleDateString()}` : 'No upcoming due'),
+        h('span', { className: 'text-slate-400' }, '•'),
+        h('button', {
+          type: 'button',
+          className: 'text-[var(--color-brand-purple,#711FFF)] font-semibold',
+          onClick: (e) => { e.stopPropagation(); navigate(`#/app/performance/at-risk-deliverables?jobId=${job.jobId}`); },
+        }, 'View deliverables'),
+      ]),
+      h(DriftReasonChips, { reasons: job.driverChips }),
+    ]),
+    h('div', { className: 'flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300' }, [
+      h('span', { className: `px-2 py-1 rounded-full border ${severityTone}` },
+        job.severity === 3 ? 'Severity: High' : 'Severity: Watch'),
+    ]),
+  ]);
 }
 
 export function JobsAtRisk() {
-  const jobs = useMemo(() => enrichJobs(), []);
-  const atRisk = jobs.filter((j) => j.atRisk);
+  const state = useMemo(() => getEffectiveState(), []);
+  const rollup = useMemo(
+    () => buildJobsAtRiskRollup({ jobs: state.jobs, deliverables: state.deliverables }),
+    [state.jobs, state.deliverables]
+  );
 
   return h('div', { className: 'space-y-4' }, [
-    h('div', { className: 'rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 shadow-sm p-5 space-y-2' }, [
-      h('h3', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, 'Jobs at Risk'),
-      h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Routing + drilldowns are in place; detailed rescue views land next.'),
+    h(PerfCard, { className: 'space-y-2' }, [
+      h(PerfSectionTitle, { title: 'Jobs at Risk', subtitle: `${rollup.jobsAtRiskCount} jobs at risk${rollup.jobsAtRiskReviewedCount ? ` (${rollup.jobsAtRiskReviewedCount} reviewed)` : ''}` }),
     ]),
-    h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 shadow-sm' }, [
-      h('div', { className: 'px-5 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between' }, [
-        h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, 'Signals'),
-        h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `${atRisk.length} of ${jobs.length} active`),
-      ]),
-      atRisk.length === 0
-        ? h('div', { className: 'p-5 text-sm text-slate-600 dark:text-slate-300' }, 'No jobs are currently flagged.')
-        : h('div', { className: 'divide-y divide-slate-100 dark:divide-white/5' },
-            atRisk.map((job) =>
-              h('div', { key: job.id, className: 'px-5 py-3 flex items-center justify-between text-sm text-slate-700 dark:text-slate-200' }, [
-                h('div', { className: 'space-y-0.5' }, [
-                  h('div', { className: 'font-semibold text-slate-900 dark:text-white' }, job.name),
-                  h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, job.client),
-                ]),
-                h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 flex gap-3' }, [
-                  h('span', null, `Effort ${job.effortPct}%`),
-                  h('span', null, `Timeline ${job.timelinePct}%`),
-                ]),
-              ])
+    h(PerfCard, { className: 'space-y-3' }, [
+      h(PerfSectionTitle, {
+        title: 'Signals',
+        rightSlot: h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `${rollup.jobsAtRiskCount} jobs • ${rollup.jobsAtRiskNeedingAttention} need attention`),
+      }),
+      rollup.jobsAtRiskCount === 0
+        ? h('div', { className: 'p-2 text-sm text-slate-600 dark:text-slate-300' }, 'No jobs are currently at risk based on near-term deliverable evidence.')
+        : h('div', { className: 'space-y-3' },
+            rollup.jobsAtRisk.map((job) =>
+              h(PerfCard, { key: job.jobId, variant: 'secondary', className: 'hover:-translate-y-[1px] transition' },
+                h(JobRow, { job })
+              )
             )
           ),
     ]),
