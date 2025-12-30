@@ -192,6 +192,58 @@ function toneLabel(tone) {
   return 'In Flow';
 }
 
+function FlowRiverMeter({ scorePct = 0, width = 520, height = 140 }) {
+  const clamped = clamp(scorePct, 0, 100);
+  const paddingX = 16;
+  const bandHeight = 56;
+  const bandTop = 28;
+  const bandBottom = bandTop + bandHeight;
+  const midY = bandTop + bandHeight / 2;
+  const usableWidth = width - paddingX * 2;
+  const markerX = paddingX + (clamped / 100) * usableWidth;
+
+  const amp = clamped >= 90 ? 12 : clamped >= 70 ? 8 : 4;
+  const points = [];
+  const samples = 60;
+  const phase = (clamped / 100) * Math.PI;
+  for (let i = 0; i <= samples; i += 1) {
+    const t = i / samples;
+    const x = paddingX + usableWidth * t;
+    const y = midY + amp * Math.sin(t * Math.PI * 2 + phase);
+    points.push({ x, y });
+  }
+  const wavePath = points.reduce((acc, pt, idx) => {
+    const cmd = idx === 0 ? 'M' : 'L';
+    return `${acc} ${cmd} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`;
+  }, '').trim();
+
+  const greenWidth = usableWidth * 0.7;
+  const amberWidth = usableWidth * 0.2;
+  const redWidth = usableWidth * 0.1;
+
+  const labels = [
+    { text: 'In Flow', x: paddingX + greenWidth / 2 },
+    { text: 'Watchlist', x: paddingX + greenWidth + amberWidth / 2 },
+    { text: 'Drifting', x: paddingX + greenWidth + amberWidth + redWidth / 2 },
+  ];
+
+  return h('svg', { viewBox: `0 0 ${width} ${height}`, className: 'w-full', preserveAspectRatio: 'xMidYMid meet' }, [
+    h('rect', { x: paddingX, y: bandTop, width: greenWidth, height: bandHeight, rx: 12, fill: '#05966933' }),
+    h('rect', { x: paddingX + greenWidth, y: bandTop, width: amberWidth, height: bandHeight, rx: 0, fill: '#d9770633' }),
+    h('rect', { x: paddingX + greenWidth + amberWidth, y: bandTop, width: redWidth, height: bandHeight, rx: 0, fill: '#e11d4833' }),
+    h('rect', { x: paddingX, y: bandTop, width: usableWidth, height: bandHeight, rx: 12, stroke: 'rgba(148,163,184,0.5)', strokeWidth: 1, fill: 'none' }),
+    h('path', { d: wavePath, stroke: '#0284c7', strokeWidth: 4, fill: 'none' }),
+    h('line', { x1: markerX, y1: bandTop - 8, x2: markerX, y2: bandBottom + 8, stroke: 'rgba(0,0,0,0.35)', strokeWidth: 8, strokeLinecap: 'round', pointerEvents: 'none' }),
+    h('line', { x1: markerX, y1: bandTop - 8, x2: markerX, y2: bandBottom + 8, stroke: 'rgba(255,255,255,0.95)', strokeWidth: 6, strokeLinecap: 'round', pointerEvents: 'none' }),
+    h('circle', { cx: markerX, cy: bandTop - 10, r: 5, fill: 'rgba(255,255,255,0.95)', stroke: 'rgba(0,0,0,0.35)', strokeWidth: 1, pointerEvents: 'none' }),
+    h('g', { className: 'text-[10px] font-semibold fill-slate-500 dark:fill-slate-300' },
+      labels.map((lbl) =>
+        h('text', { key: lbl.text, x: lbl.x, y: bandBottom + 18, textAnchor: 'middle' }, lbl.text)
+      )
+    ),
+  ]);
+}
+
 function StateDots({ tone }) {
   const active = toneLabel(tone);
   const dots = [
@@ -216,39 +268,7 @@ function StateDots({ tone }) {
 function FlowMeterHero({ metrics }) {
   const { flowScorePct, flowState, flowMessage, driverLabel } = metrics.flow;
   const tone = flowState === 'Drifting' ? 'red' : flowState === 'Watchlist' ? 'amber' : 'green';
-  const gaugeWidth = 220;
-  const gaugeHeight = 140;
-  const cx = 110;
-  const cy = 120;
-  const radius = 85;
-  const strokeWidth = 14;
-  // Ensure gauge mapping: 0% = left/green, 100% = right/red
   const clampedScore = clamp(flowScorePct, 0, 100);
-  const angleDeg = 180 - (clampedScore / 100) * 180;
-  const angleRad = (angleDeg * Math.PI) / 180;
-  const rInner = radius - strokeWidth / 2 - 10;
-  const rOuter = radius + strokeWidth / 2 + 10;
-  const needleX1 = cx + Math.cos(angleRad) * rInner;
-  const needleY1 = cy - Math.sin(angleRad) * rInner;
-  const needleX2 = cx + Math.cos(angleRad) * rOuter;
-  const needleY2 = cy - Math.sin(angleRad) * rOuter;
-
-  const polarToCartesian = (cx0, cy0, r0, angle) => {
-    const rad = (Math.PI / 180) * angle;
-    return {
-      x: cx0 + r0 * Math.cos(rad),
-      y: cy0 - r0 * Math.sin(rad),
-    };
-  };
-
-  const arcPath = (startDeg, endDeg) => {
-    const start = polarToCartesian(cx, cy, radius, startDeg);
-    const end = polarToCartesian(cx, cy, radius, endDeg);
-    const largeArcFlag = 0;
-    const sweepFlag = endDeg > startDeg ? 0 : 1;
-    return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${end.x} ${end.y}`;
-  };
-
   const target = (() => {
     if (metrics.deadlines.unreviewedOverdue > 0) return '#/app/performance/at-risk-deliverables?lens=deadlines';
     if ((Number(metrics.capacity?.capacityPressurePct) || 0) > 110) return '#/app/performance/capacity?horizonDays=30';
@@ -267,15 +287,8 @@ function FlowMeterHero({ metrics }) {
     title: 'Flow Meter drilldown',
   }, h(PerfCard, { className: 'space-y-4 border-slate-200 dark:border-white/10 hover:-translate-y-[1px] transition' }, [
       h('div', { className: 'grid grid-cols-1 lg:grid-cols-[auto,1fr] gap-4 items-center' }, [
-      h('div', { className: 'relative w-[200px] h-[120px] mx-auto' }, [
-        h('svg', { viewBox: `0 0 ${gaugeWidth} ${gaugeHeight}` }, [
-          h('path', { d: arcPath(180, 54), stroke: '#10b981', strokeWidth, fill: 'none' }),
-          h('path', { d: arcPath(54, 18), stroke: '#f59e0b', strokeWidth, fill: 'none' }),
-          h('path', { d: arcPath(18, 0), stroke: '#f43f5e', strokeWidth, fill: 'none' }),
-          h('line', { x1: needleX1, y1: needleY1, x2: needleX2, y2: needleY2, stroke: 'rgba(0,0,0,0.35)', strokeWidth: 8, strokeLinecap: 'round', pointerEvents: 'none' }),
-          h('line', { x1: needleX1, y1: needleY1, x2: needleX2, y2: needleY2, stroke: 'rgba(255,255,255,0.95)', strokeWidth: 6, strokeLinecap: 'round', pointerEvents: 'none' }),
-          h('circle', { cx, cy, r: 4, fill: 'rgba(255,255,255,0.95)', pointerEvents: 'none' }),
-        ]),
+      h('div', { className: 'relative w-[80%] max-w-[640px] mx-auto' }, [
+        h(FlowRiverMeter, { scorePct: clampedScore }),
       ]),
       h('div', { className: 'space-y-3' }, [
         h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Flow Meter'),

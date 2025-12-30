@@ -9,6 +9,7 @@ import { TopBarChromeDemo } from './components/navigation/top-bar.js';
 import { EffortTimelineMeterReact } from './components/metrics/effort-timeline-meter.js';
 import { SectionHeader } from './components/layout/SectionHeader.js';
 import { KPIBox, StackedMeter, RowActionsMenu, MovedDateIndicator, FilterChips, ProgressConfidenceChip, ReviewedBadge, DriftReasonChips } from './components/performance/primitives.js';
+import { FlowMeterGallery, getStateFromScore } from './components/performance/flow-meter-gallery.js';
 
 const { createElement: h, useState } = React;
 const { createRoot } = ReactDOM;
@@ -473,6 +474,54 @@ function PerformancePrimitivesSection() {
   ]);
 }
 
+function FlowMeterGallerySection() {
+  const [scorePct, setScorePct] = useState(20);
+  const state = getStateFromScore(scorePct);
+  const dayOffAnswer = state === 'drifting' ? 'Probably not.' : state === 'watchlist' ? 'Maybe.' : 'Yeah, you could.';
+  const driverLabel = state === 'drifting' ? 'Overdue items' : state === 'watchlist' ? 'A few watchlist items' : 'Everything looks steady';
+
+  const presets = [
+    { label: 'In Flow (20)', value: 20 },
+    { label: 'Watchlist (75)', value: 75 },
+    { label: 'Drifting (95)', value: 95 },
+  ];
+
+  return h('div', { className: 'space-y-6' }, [
+    h('div', { className: `${cardBase} p-4 space-y-3 bg-white dark:bg-slate-900/80` }, [
+      h('div', { className: 'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between' }, [
+        h('div', { className: 'space-y-1' }, [
+          h('div', { className: 'text-sm font-semibold text-slate-800 dark:text-white' }, 'Flow Score (attention index)'),
+          h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, '0 = best (calm), 100 = highest attention'),
+        ]),
+        h('div', { className: 'flex items-center gap-2 flex-wrap' },
+          presets.map((preset) =>
+            h('button', {
+              key: preset.value,
+              type: 'button',
+              className: 'px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition',
+              onClick: () => setScorePct(preset.value),
+            }, preset.label)
+          )
+        ),
+      ]),
+      h('div', { className: 'flex items-center gap-3' }, [
+        h('input', {
+          type: 'range',
+          min: 0,
+          max: 100,
+          step: 1,
+          value: scorePct,
+          onChange: (e) => setScorePct(Number(e.target.value)),
+          className: 'w-full accent-purple-600',
+          'aria-label': 'Flow score',
+        }),
+        h('div', { className: 'text-xs font-semibold text-slate-600 dark:text-slate-300 w-12 text-right' }, `${scorePct}`),
+      ]),
+    ]),
+    h(FlowMeterGallery, { scorePct, driverLabel, dayOffAnswer }),
+  ]);
+}
+
 function DesktopTabsDemo() {
   const [value, setValue] = useState('components');
 
@@ -728,6 +777,7 @@ function ComponentsCheatSheet() {
       h(Section, { title: 'Social Icons' }, h(SocialIconsRow)),
       h(Section, { title: 'Buttons' }, h(ChromeButtonsRow)),
       h(Section, { title: 'Effort vs Timeline Meter' }, h(EffortTimelineDocs)),
+      h(Section, { title: 'Performance — Flow Meter Gallery' }, h(FlowMeterGallerySection)),
       h(Section, { title: 'Performance Primitives' }, h(PerformancePrimitivesSection)),
       h(Section, { title: 'Top Bar Chrome' }, h(TopBarChromeDemo)),
       h(Section, { title: 'Desktop Tabs' }, h(DesktopTabsDemo)),
