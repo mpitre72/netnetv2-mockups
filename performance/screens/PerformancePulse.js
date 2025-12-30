@@ -285,18 +285,16 @@ function FlowMeterHero({ metrics }) {
     className: 'w-full text-left focus-visible:outline-none',
     onClick: () => navigate(target),
     title: 'Flow Meter drilldown',
-  }, h(PerfCard, { className: 'space-y-4 border-slate-200 dark:border-white/10 hover:-translate-y-[1px] transition' }, [
-      h('div', { className: 'grid grid-cols-1 lg:grid-cols-[auto,1fr] gap-4 items-center' }, [
+  }, h(PerfCard, { className: 'space-y-6 border-slate-200 dark:border-white/10 hover:-translate-y-[1px] transition' }, [
+    h('div', { className: 'text-center space-y-3' }, [
+      h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Flow Meter'),
       h('div', { className: 'relative w-[80%] max-w-[640px] mx-auto' }, [
         h(FlowRiverMeter, { scorePct: clampedScore }),
       ]),
-      h('div', { className: 'space-y-3' }, [
-        h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Flow Meter'),
-        h('div', { className: 'text-sm text-slate-700 dark:text-slate-200' }, flowMessage),
-        h('div', { className: 'text-sm text-slate-600 dark:text-slate-300' }, `Driven by: ${driverLabel}.`),
-        h('div', { className: 'text-[11px] text-slate-500 dark:text-slate-400' }, 'Tap to see what to do next.'),
-        h('div', { className: 'text-sm text-slate-800 dark:text-slate-100' }, `Can I take this day off? ${dayOffAnswer}`),
-      ]),
+      h('div', { className: 'text-sm text-slate-700 dark:text-slate-200' }, flowMessage),
+      h('div', { className: 'text-sm text-slate-600 dark:text-slate-300' }, `Driven by: ${driverLabel}.`),
+      h('div', { className: 'text-[11px] text-slate-500 dark:text-slate-400' }, 'Tap to see what to do next.'),
+      h('div', { className: 'text-sm text-slate-800 dark:text-slate-100' }, `Can I take this day off? ${dayOffAnswer}`),
     ]),
   ]));
 }
