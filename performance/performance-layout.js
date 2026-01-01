@@ -46,7 +46,7 @@ export function PerformanceLayout({ activeKey = 'overview', children }) {
   return h('div', { className: 'space-y-6' }, [
     h(
       'div',
-      { className: 'space-y-3' },
+      { className: 'space-y-3 pt-4' },
       h(SectionHeader, {
         title: breadcrumb,
         showHelpIcon: true,

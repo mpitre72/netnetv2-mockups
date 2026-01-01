@@ -194,13 +194,14 @@ function toneLabel(tone) {
 
 function FlowRiverMeter({ scorePct = 0, width = 520, height = 140 }) {
   const clamped = clamp(scorePct, 0, 100);
+  const posPct = 100 - clamped; // 0 = worst (left), 100 = best (right)
   const paddingX = 16;
   const bandHeight = 56;
   const bandTop = 28;
   const bandBottom = bandTop + bandHeight;
   const midY = bandTop + bandHeight / 2;
   const usableWidth = width - paddingX * 2;
-  const markerX = paddingX + (clamped / 100) * usableWidth;
+  const markerX = paddingX + (posPct / 100) * usableWidth;
 
   const amp = clamped >= 90 ? 12 : clamped >= 70 ? 8 : 4;
   const points = [];
@@ -217,9 +218,21 @@ function FlowRiverMeter({ scorePct = 0, width = 520, height = 140 }) {
     return `${acc} ${cmd} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`;
   }, '').trim();
 
-  const greenWidth = usableWidth * 0.7;
-  const amberWidth = usableWidth * 0.2;
   const redWidth = usableWidth * 0.1;
+  const amberWidth = usableWidth * 0.2;
+  const greenWidth = usableWidth * 0.7;
+
+  const mutedGreen = '#294F4E';
+  const mutedAmber = '#56463A';
+  const mutedRed = '#573145';
+  const brightGreen = '#22C55E';
+  const brightAmber = '#F59E0B';
+  const brightRed = '#EF4444';
+
+  const activeZone = posPct < 10 ? 'red' : posPct < 30 ? 'amber' : 'green';
+  const zoneFillGreen = activeZone === 'green' ? brightGreen : mutedGreen;
+  const zoneFillAmber = activeZone === 'amber' ? brightAmber : mutedAmber;
+  const zoneFillRed = activeZone === 'red' ? brightRed : mutedRed;
 
   const labels = [
     { text: 'In Flow', x: paddingX + greenWidth / 2 },
@@ -228,11 +241,12 @@ function FlowRiverMeter({ scorePct = 0, width = 520, height = 140 }) {
   ];
 
   return h('svg', { viewBox: `0 0 ${width} ${height}`, className: 'w-full', preserveAspectRatio: 'xMidYMid meet' }, [
-    h('rect', { x: paddingX, y: bandTop, width: greenWidth, height: bandHeight, rx: 12, fill: '#05966933' }),
-    h('rect', { x: paddingX + greenWidth, y: bandTop, width: amberWidth, height: bandHeight, rx: 0, fill: '#d9770633' }),
-    h('rect', { x: paddingX + greenWidth + amberWidth, y: bandTop, width: redWidth, height: bandHeight, rx: 0, fill: '#e11d4833' }),
-    h('rect', { x: paddingX, y: bandTop, width: usableWidth, height: bandHeight, rx: 12, stroke: 'rgba(148,163,184,0.5)', strokeWidth: 1, fill: 'none' }),
-    h('path', { d: wavePath, stroke: '#0284c7', strokeWidth: 4, fill: 'none' }),
+    h('rect', { x: paddingX, y: bandTop, width: redWidth, height: bandHeight, rx: 12, fill: zoneFillRed }),
+    h('rect', { x: paddingX + redWidth, y: bandTop, width: amberWidth, height: bandHeight, rx: 0, fill: zoneFillAmber }),
+    h('rect', { x: paddingX + redWidth + amberWidth, y: bandTop, width: greenWidth, height: bandHeight, rx: 0, fill: zoneFillGreen }),
+    h('rect', { x: paddingX, y: bandTop, width: usableWidth, height: bandHeight, rx: 12, stroke: 'rgba(148,163,184,0.55)', strokeWidth: 1, fill: 'none' }),
+    h('path', { d: wavePath, stroke: 'rgba(0,0,0,0.25)', strokeWidth: 5, fill: 'none' }),
+    h('path', { d: wavePath, stroke: 'rgba(255,255,255,0.78)', strokeWidth: 3.5, fill: 'none' }),
     h('line', { x1: markerX, y1: bandTop - 8, x2: markerX, y2: bandBottom + 8, stroke: 'rgba(0,0,0,0.35)', strokeWidth: 8, strokeLinecap: 'round', pointerEvents: 'none' }),
     h('line', { x1: markerX, y1: bandTop - 8, x2: markerX, y2: bandBottom + 8, stroke: 'rgba(255,255,255,0.95)', strokeWidth: 6, strokeLinecap: 'round', pointerEvents: 'none' }),
     h('circle', { cx: markerX, cy: bandTop - 10, r: 5, fill: 'rgba(255,255,255,0.95)', stroke: 'rgba(0,0,0,0.35)', strokeWidth: 1, pointerEvents: 'none' }),

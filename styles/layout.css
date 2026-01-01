@@ -36,7 +36,7 @@ html.dark #app-main {
     --top-bar-height: 56px;
   }
   #app-top-bar { grid-area: header; height: var(--top-bar-height); z-index: var(--z-topbar); }
-  #app-sidebar { grid-area: sidebar; width: var(--sidebar-width); z-index: 20; }
+  #app-sidebar { grid-area: sidebar; width: var(--sidebar-width); z-index: 50; }
   #app-main {
     grid-area: main;
     overflow-y: auto;
