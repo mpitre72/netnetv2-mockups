@@ -3,7 +3,7 @@ import { performanceJobs, performanceSalesDeals } from '../performance-data.js';
 import { getEffectiveState } from '../testdata/performance-state.js';
 import { buildJobsAtRiskRollup } from '../lib/jobs-at-risk-rollup.js';
 import { buildCapacityForecast } from '../lib/capacity-forecast.js';
-import { PerfCard } from '../../components/performance/primitives.js';
+import { PerfCard, InfoPopover } from '../../components/performance/primitives.js';
 
 const { createElement: h, useMemo } = React;
 
@@ -108,73 +108,50 @@ function flowScore(metrics) {
 
 function computeFlowScore({
   deadlines,
+  momentumTone = 'green',
+  jobsTone = 'green',
+  capacityTone = 'green',
+  salesTone = 'green',
   capacityPressurePct = 0,
-  jobsNeedingTouch = 0,
-  onPacePct = 100,
-  fogPct = 0,
-  checkInCount = 0,
-  jobsInDriftTotal = 0,
   driverFallback = 'Everything looks steady',
 } = {}) {
-  let score = 0;
-  const contributions = [];
+  const toneToSeverity = (tone) => (tone === 'red' ? 2 : tone === 'amber' ? 1 : 0);
+  const severities = [
+    { key: 'momentum', value: toneToSeverity(momentumTone) },
+    { key: 'jobs', value: toneToSeverity(jobsTone) },
+    { key: 'capacity', value: toneToSeverity(capacityTone) },
+    { key: 'deadlines', value: toneToSeverity(deadlines?.tone) },
+    { key: 'sales', value: toneToSeverity(salesTone) },
+  ];
 
-  if ((deadlines?.unreviewedOverdue || 0) > 0) {
-    const add = 40 + Math.min(20, deadlines.unreviewedOverdue * 10);
-    score += add;
-    contributions.push({ key: 'deadlines', value: add });
+  const severitySum = severities.reduce((sum, s) => sum + s.value, 0);
+  let flowScorePct = clamp(Math.round((severitySum / 10) * 100), 0, 100);
+  let flowState = severitySum >= 5 ? 'Drifting' : severitySum >= 2 ? 'Watchlist' : 'In Flow';
+
+  if ((deadlines?.unreviewedOverdue || 0) > 0 && flowState === 'In Flow') {
+    flowState = 'Watchlist';
+    flowScorePct = Math.max(flowScorePct, 20);
+  }
+  if (capacityPressurePct > 110) {
+    flowState = 'Drifting';
+    flowScorePct = Math.max(flowScorePct, 90);
   }
 
-  if (capacityPressurePct > 100) {
-    const add = 30 + Math.min(15, (capacityPressurePct - 100) * 1);
-    score += add;
-    contributions.push({ key: 'capacity', value: add });
-  } else if (capacityPressurePct >= 85) {
-    const add = 15 + Math.min(10, (capacityPressurePct - 85) * 0.7);
-    score += add;
-    contributions.push({ key: 'capacity', value: add });
-  }
-
-  if (jobsNeedingTouch > 0) {
-    const add = Math.min(20, jobsNeedingTouch * 10);
-    score += add;
-    contributions.push({ key: 'jobs', value: add });
-  }
-
-  if (onPacePct < 70) {
-    score += 15; contributions.push({ key: 'momentum', value: 15 });
-  } else if (onPacePct < 85) {
-    score += 7; contributions.push({ key: 'momentum', value: 7 });
-  }
-
-  if (fogPct >= 50) {
-    score += 10; contributions.push({ key: 'sales', value: 10 });
-  } else if (fogPct >= 20) {
-    score += 5; contributions.push({ key: 'sales', value: 5 });
-  }
-
-  if (checkInCount > 0) {
-    const add = Math.min(6, checkInCount * 2);
-    score += add;
-    contributions.push({ key: 'checkins', value: add });
-  }
-
-  const flowScorePct = clamp(Math.round(score), 0, 100);
-  const flowState = flowScorePct >= 90 ? 'Drifting' : flowScorePct >= 70 ? 'Watchlist' : 'In Flow';
   const flowMessage = flowState === 'In Flow'
     ? "You're in a steady flow right now."
     : flowState === 'Watchlist'
       ? 'A couple quick touches will keep you in flow.'
       : 'A few things are drifting — start with the biggest driver.';
 
-  const driver = contributions.sort((a, b) => b.value - a.value)[0];
+  const driver = severities
+    .filter((s) => s.value === Math.max(...severities.map((p) => p.value)))
+    .find((s) => s.value > 0);
   const driverLabel = driver ? (
     driver.key === 'deadlines' ? 'deadlines' :
     driver.key === 'capacity' ? 'capacity' :
     driver.key === 'jobs' ? 'jobs in drift' :
     driver.key === 'momentum' ? 'momentum' :
-    driver.key === 'sales' ? 'sales clarity' :
-    driver.key === 'checkins' ? 'check-ins' : driverFallback
+    driver.key === 'sales' ? 'sales clarity' : driverFallback
   ) : driverFallback;
 
   return { flowScorePct, flowState, flowMessage, driverLabel };
@@ -235,9 +212,9 @@ function FlowRiverMeter({ scorePct = 0, width = 520, height = 140 }) {
   const zoneFillRed = activeZone === 'red' ? brightRed : mutedRed;
 
   const labels = [
-    { text: 'In Flow', x: paddingX + greenWidth / 2 },
-    { text: 'Watchlist', x: paddingX + greenWidth + amberWidth / 2 },
-    { text: 'Drifting', x: paddingX + greenWidth + amberWidth + redWidth / 2 },
+    { text: 'Drifting', x: paddingX + redWidth / 2 },
+    { text: 'Watchlist', x: paddingX + redWidth + amberWidth / 2 },
+    { text: 'In Flow', x: paddingX + redWidth + amberWidth + greenWidth / 2 },
   ];
 
   return h('svg', { viewBox: `0 0 ${width} ${height}`, className: 'w-full', preserveAspectRatio: 'xMidYMid meet' }, [
@@ -293,6 +270,36 @@ function FlowMeterHero({ metrics }) {
   })();
 
   const dayOffAnswer = flowState === 'In Flow' ? 'Yeah, you could.' : flowState === 'Watchlist' ? 'Maybe.' : 'Probably not.';
+  const flowTooltipContent = h('div', { className: 'space-y-3' }, [
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'A quick read on how steady today looks.'),
+        h('li', null, 'Left → right: Drifting, Watchlist, In Flow.'),
+        h('li', null, 'The white marker is where you are.'),
+      ]),
+    ]),
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'It rolls up the six Pulse tiles below (Momentum, Jobs in Drift, Capacity Outlook, Due Soon, Sales Clarity, Check-ins).'),
+        h('li', null, 'More things needing attention pushes you left. Fewer pushes you right.'),
+        h('li', null, 'The wave line is just a visual “flow” cue (not an extra metric).'),
+      ]),
+    ]),
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'Click the meter to jump to the next best place to look.'),
+        h('li', null, 'If you’re in Watchlist, one or two quick touches usually gets you back to In Flow.'),
+      ]),
+    ]),
+    h('div', { className: 'flex items-center gap-2 text-[12px] font-semibold' }, [
+      h('span', { className: 'px-2 py-1 rounded-full bg-rose-500 text-white' }, 'Drifting'),
+      h('span', { className: 'px-2 py-1 rounded-full bg-amber-500 text-white' }, 'Watchlist'),
+      h('span', { className: 'px-2 py-1 rounded-full bg-emerald-500 text-white' }, 'In Flow'),
+    ]),
+  ]);
 
   return h('button', {
     type: 'button',
@@ -301,7 +308,10 @@ function FlowMeterHero({ metrics }) {
     title: 'Flow Meter drilldown',
   }, h(PerfCard, { className: 'space-y-6 border-slate-200 dark:border-white/10 hover:-translate-y-[1px] transition' }, [
     h('div', { className: 'text-center space-y-3' }, [
-      h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Flow Meter'),
+      h('div', { className: 'inline-flex items-center justify-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white' }, [
+        h('span', null, 'Flow Meter'),
+        h(InfoPopover, { title: 'Flow Meter', content: flowTooltipContent, iconLabel: 'Flow Meter info' }),
+      ]),
       h('div', { className: 'relative w-[80%] max-w-[640px] mx-auto' }, [
         h(FlowRiverMeter, { scorePct: clampedScore }),
       ]),
@@ -423,17 +433,17 @@ export function PerformancePulse() {
   const checkTone = data.checkIn > 0 ? 'amber' : 'green';
   const flow = computeFlowScore({
     deadlines: {
+      tone: dueTone,
       unreviewedOverdue: data.deadlines.unreviewedOverdue,
       overdueTotal: data.deadlines.overdueOpen,
       dueSoonTotal: data.deadlines.dueSoon,
     },
+    momentumTone,
+    jobsTone,
+    capacityTone,
+    salesTone,
     capacityPressurePct: data.capacity.capacityPressurePct,
-    jobsNeedingTouch,
-    jobsInDriftTotal,
-    activeJobsTotal,
-    onPacePct,
-    fogPct,
-    checkInCount: data.checkIn,
+    driverFallback: 'Everything looks steady',
   });
 
   const signals = [

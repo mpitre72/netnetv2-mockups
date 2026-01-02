@@ -24,6 +24,147 @@ export function PerfSectionTitle({ title, subtitle, rightSlot, className = '' })
   ]);
 }
 
+export function InfoPopover({ title = 'Info', content, iconLabel = 'Info', widthPx = 520 }) {
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0, maxHeight: 320 });
+  const closeTimer = useRef(null);
+  const hoverTimer = useRef(null);
+
+  const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+
+  const positionPanel = () => {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 12;
+    const gap = 10;
+    const minUsefulHeight = 240;
+    const panelWidth = Math.min(widthPx, vw - margin * 2);
+    const left = clamp(rect.left + rect.width / 2 - panelWidth / 2, margin, vw - panelWidth - margin);
+    const spaceBelow = vh - rect.bottom - gap - margin;
+    const spaceAbove = rect.top - gap - margin;
+    const placeAbove = spaceBelow < minUsefulHeight && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(160, Math.min(placeAbove ? spaceAbove : spaceBelow, vh - margin * 2));
+    const stylePos = placeAbove
+      ? { left, maxHeight, bottom: vh - rect.top + gap }
+      : { left, maxHeight, top: rect.bottom + gap };
+    setCoords(stylePos);
+  };
+
+  const applyOpenState = (nextPinned, nextHover) => {
+    const shouldOpen = nextPinned || nextHover;
+    setOpen(shouldOpen);
+    if (shouldOpen) positionPanel();
+  };
+
+  const openPanel = () => {
+    clearTimeout(closeTimer.current);
+    clearTimeout(hoverTimer.current);
+    applyOpenState(pinned, true);
+    setHovering(true);
+  };
+
+  const scheduleClose = () => {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => {
+      if (!pinned) {
+        setHovering(false);
+        setOpen(false);
+      }
+    }, 200);
+  };
+  const cancelClose = () => {
+    clearTimeout(closeTimer.current);
+    clearTimeout(hoverTimer.current);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    positionPanel();
+    const onKey = (e) => { if (e.key === 'Escape') { setPinned(false); setOpen(false); setHovering(false); } };
+    const onClickAway = (e) => {
+      if (!pinned) return;
+      if (!popRef.current || !btnRef.current) return;
+      if (!popRef.current.contains(e.target) && !btnRef.current.contains(e.target)) { setPinned(false); setOpen(false); setHovering(false); }
+    };
+    window.addEventListener('resize', positionPanel);
+    window.addEventListener('scroll', positionPanel, true);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickAway);
+    return () => {
+      window.removeEventListener('resize', positionPanel);
+      window.removeEventListener('scroll', positionPanel, true);
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickAway);
+    };
+  }, [open, widthPx]);
+
+  const tooltip = open ? createPortal(
+    h('div', { className: 'fixed inset-0 z-[2000] pointer-events-none' }, [
+      h('div', {
+        ref: popRef,
+        role: 'dialog',
+        className: 'pointer-events-auto rounded-2xl border border-slate-200/70 dark:border-white/15 bg-slate-900 text-slate-100 shadow-2xl p-4 space-y-3 max-w-full',
+        style: {
+          width: `${Math.min(widthPx, window.innerWidth - 24)}px`,
+          left: `${coords.left || 0}px`,
+          top: coords.top != null ? `${coords.top}px` : undefined,
+          bottom: coords.bottom != null ? `${coords.bottom}px` : undefined,
+          maxHeight: `${coords.maxHeight || 320}px`,
+          overflowY: 'auto',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          position: 'fixed',
+        },
+        onMouseEnter: cancelClose,
+        onMouseLeave: scheduleClose,
+      }, [
+        h('div', { className: 'text-sm font-semibold' }, title),
+        h('div', { className: 'space-y-2 text-sm leading-relaxed text-slate-200' }, content),
+      ]),
+    ]),
+    document.body
+  ) : null;
+
+  return h('span', { className: 'inline-flex items-center' }, [
+    h('button', {
+      ref: btnRef,
+      type: 'button',
+      'aria-label': iconLabel,
+      'aria-expanded': open,
+      className: 'inline-flex items-center justify-center w-6 h-6 rounded-full border border-slate-300 dark:border-white/20 text-slate-600 dark:text-slate-200 bg-white dark:bg-slate-800 shadow-sm transition transform hover:scale-110 focus:scale-110 hover:text-netnet-purple focus:text-netnet-purple focus:outline-none',
+      onMouseEnter: () => {
+        clearTimeout(hoverTimer.current);
+        hoverTimer.current = setTimeout(openPanel, 50);
+      },
+      onFocus: openPanel,
+      onMouseLeave: scheduleClose,
+      onBlur: scheduleClose,
+      onClick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const nextPinned = !pinned;
+        setPinned(nextPinned);
+        applyOpenState(nextPinned, true);
+      },
+      onKeyDown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          const nextPinned = !pinned;
+          setPinned(nextPinned);
+          applyOpenState(nextPinned, true);
+        }
+      },
+    }, h('span', { className: 'text-xs font-semibold' }, 'i')),
+    tooltip,
+  ]);
+}
+
 export function ActionModal({ title, description, children, onConfirm, onCancel, confirmLabel = 'Confirm', cancelLabel = 'Cancel' }) {
   return createPortal(
     h(React.Fragment, null,
