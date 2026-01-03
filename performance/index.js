@@ -42,7 +42,11 @@ function resolveRoute() {
   }
   const view = segments[0];
   if (view === 'overview') return { view: 'overview', queryString };
-  if (view === 'at-risk-deliverables') return { view, queryString };
+  if (view === 'at-risk-deliverables') {
+    const qs = queryString ? `?${queryString}` : '';
+    return { redirect: `#/app/performance/deliverables-in-drift${qs}` };
+  }
+  if (view === 'deliverables-in-drift') return { view, queryString };
   if (view === 'capacity') {
     const params = new URLSearchParams(queryString);
     const horizon = parseInt(params.get('horizonDays') || '', 10);
@@ -77,12 +81,13 @@ function Screen({ route }) {
   const activeKey = useMemo(() => {
     if (route.view === 'reports') return 'reports';
     if (route.view === 'job-pulse') return 'jobs-at-risk';
+    if (route.view === 'deliverables-in-drift') return 'deliverables-in-drift';
     return route.view || 'overview';
   }, [route.view]);
 
   const content = (() => {
     if (route.view === 'overview') return h(PerformancePulse);
-    if (route.view === 'at-risk-deliverables') return h(AtRiskDeliverables, { queryString: route.queryString });
+    if (route.view === 'deliverables-in-drift') return h(AtRiskDeliverables, { queryString: route.queryString });
     if (route.view === 'capacity') return h(CapacityForecast, { queryString: route.queryString });
     if (route.view === 'jobs-at-risk') return h(JobsAtRisk, { queryString: route.queryString });
     if (route.view === 'job-pulse') return h(JobPulse, { queryString: route.queryString });

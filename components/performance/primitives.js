@@ -24,17 +24,20 @@ export function PerfSectionTitle({ title, subtitle, rightSlot, className = '' })
   ]);
 }
 
-export function InfoPopover({ title = 'Info', content, iconLabel = 'Info', widthPx = 520 }) {
+export function InfoPopover({ title = 'Info', content, iconLabel = 'Info', widthPx = 520, onOpenChange }) {
   const btnRef = useRef(null);
   const popRef = useRef(null);
-  const [open, setOpen] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const [hovering, setHovering] = useState(false);
+  const [hoverOpen, setHoverOpen] = useState(false);
+  const [pinnedOpen, setPinnedOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, maxHeight: 320 });
   const closeTimer = useRef(null);
   const hoverTimer = useRef(null);
 
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+  const isOpen = hoverOpen || pinnedOpen;
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
 
   const positionPanel = () => {
     const rect = btnRef.current?.getBoundingClientRect();
@@ -56,27 +59,18 @@ export function InfoPopover({ title = 'Info', content, iconLabel = 'Info', width
     setCoords(stylePos);
   };
 
-  const applyOpenState = (nextPinned, nextHover) => {
-    const shouldOpen = nextPinned || nextHover;
-    setOpen(shouldOpen);
-    if (shouldOpen) positionPanel();
-  };
-
   const openPanel = () => {
     clearTimeout(closeTimer.current);
     clearTimeout(hoverTimer.current);
-    applyOpenState(pinned, true);
-    setHovering(true);
+    setHoverOpen(true);
+    positionPanel();
   };
 
   const scheduleClose = () => {
     clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(() => {
-      if (!pinned) {
-        setHovering(false);
-        setOpen(false);
-      }
-    }, 200);
+      if (!pinnedOpen) setHoverOpen(false);
+    }, 180);
   };
   const cancelClose = () => {
     clearTimeout(closeTimer.current);
@@ -84,32 +78,34 @@ export function InfoPopover({ title = 'Info', content, iconLabel = 'Info', width
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     positionPanel();
-    const onKey = (e) => { if (e.key === 'Escape') { setPinned(false); setOpen(false); setHovering(false); } };
-    const onClickAway = (e) => {
-      if (!pinned) return;
-      if (!popRef.current || !btnRef.current) return;
-      if (!popRef.current.contains(e.target) && !btnRef.current.contains(e.target)) { setPinned(false); setOpen(false); setHovering(false); }
-    };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setPinnedOpen(false); setHoverOpen(false); } };
     window.addEventListener('resize', positionPanel);
     window.addEventListener('scroll', positionPanel, true);
     document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onClickAway);
     return () => {
       window.removeEventListener('resize', positionPanel);
       window.removeEventListener('scroll', positionPanel, true);
       document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onClickAway);
     };
-  }, [open, widthPx]);
+  }, [isOpen, widthPx]);
 
-  const tooltip = open ? createPortal(
+  const tooltip = isOpen ? createPortal(
     h('div', { className: 'fixed inset-0 z-[2000] pointer-events-none' }, [
+      pinnedOpen ? h('div', {
+        className: 'fixed inset-0 z-[2000] pointer-events-auto',
+        onClick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setPinnedOpen(false);
+          setHoverOpen(false);
+        },
+      }) : null,
       h('div', {
         ref: popRef,
         role: 'dialog',
-        className: 'pointer-events-auto rounded-2xl border border-slate-200/70 dark:border-white/15 bg-slate-900 text-slate-100 shadow-2xl p-4 space-y-3 max-w-full',
+        className: 'pointer-events-auto rounded-2xl border border-slate-200/70 dark:border-white/15 bg-slate-900 text-slate-100 shadow-2xl p-4 space-y-3 max-w-full z-[2100]',
         style: {
           width: `${Math.min(widthPx, window.innerWidth - 24)}px`,
           left: `${coords.left || 0}px`,
@@ -123,6 +119,8 @@ export function InfoPopover({ title = 'Info', content, iconLabel = 'Info', width
         },
         onMouseEnter: cancelClose,
         onMouseLeave: scheduleClose,
+        onMouseDown: (e) => e.stopPropagation(),
+        onClick: (e) => e.stopPropagation(),
       }, [
         h('div', { className: 'text-sm font-semibold' }, title),
         h('div', { className: 'space-y-2 text-sm leading-relaxed text-slate-200' }, content),
@@ -131,33 +129,45 @@ export function InfoPopover({ title = 'Info', content, iconLabel = 'Info', width
     document.body
   ) : null;
 
-  return h('span', { className: 'inline-flex items-center' }, [
+  return h('span', {
+    className: 'inline-flex items-center',
+    onMouseEnter: () => { if (!pinnedOpen) { clearTimeout(hoverTimer.current); hoverTimer.current = setTimeout(openPanel, 50); } },
+    onMouseLeave: () => { if (!pinnedOpen) scheduleClose(); },
+  }, [
     h('button', {
       ref: btnRef,
       type: 'button',
       'aria-label': iconLabel,
-      'aria-expanded': open,
+      'aria-expanded': isOpen,
       className: 'inline-flex items-center justify-center w-6 h-6 rounded-full border border-slate-300 dark:border-white/20 text-slate-600 dark:text-slate-200 bg-white dark:bg-slate-800 shadow-sm transition transform hover:scale-110 focus:scale-110 hover:text-netnet-purple focus:text-netnet-purple focus:outline-none',
-      onMouseEnter: () => {
-        clearTimeout(hoverTimer.current);
-        hoverTimer.current = setTimeout(openPanel, 50);
-      },
-      onFocus: openPanel,
-      onMouseLeave: scheduleClose,
-      onBlur: scheduleClose,
+      onMouseEnter: () => { if (!pinnedOpen) openPanel(); },
+      onMouseLeave: () => { if (!pinnedOpen) scheduleClose(); },
+      onFocus: () => { if (!pinnedOpen) openPanel(); },
+      onBlur: () => { if (!pinnedOpen) scheduleClose(); },
       onClick: (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const nextPinned = !pinned;
-        setPinned(nextPinned);
-        applyOpenState(nextPinned, true);
+        const nextPinned = !pinnedOpen;
+        setPinnedOpen(nextPinned);
+        if (nextPinned) {
+          setHoverOpen(false);
+          positionPanel();
+        } else {
+          setHoverOpen(false);
+        }
       },
       onKeyDown: (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          const nextPinned = !pinned;
-          setPinned(nextPinned);
-          applyOpenState(nextPinned, true);
+          e.stopPropagation();
+          const nextPinned = !pinnedOpen;
+          setPinnedOpen(nextPinned);
+          if (nextPinned) {
+            setHoverOpen(false);
+            positionPanel();
+          } else {
+            setHoverOpen(false);
+          }
         }
       },
     }, h('span', { className: 'text-xs font-semibold' }, 'i')),

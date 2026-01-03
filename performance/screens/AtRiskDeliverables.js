@@ -22,6 +22,7 @@ import {
 } from '../testdata/performance-state.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
+const { createPortal } = ReactDOM;
 const LENSES = [
   { id: 'all', label: 'All' },
   { id: 'pace', label: 'Pace' },
@@ -62,7 +63,7 @@ function updateUrl(next) {
   if (next.jobId) params.set('jobId', next.jobId);
   if (next.q) params.set('q', next.q);
   const qs = params.toString();
-  navigate(`#/app/performance/at-risk-deliverables${qs ? `?${qs}` : ''}`);
+  navigate(`#/app/performance/deliverables-in-drift${qs ? `?${qs}` : ''}`);
 }
 
 function severityScore(d) {
@@ -109,7 +110,190 @@ function applyFilters(deliverables, filtersState) {
         (d.jobName || '').toLowerCase().includes(q) ||
         (d.client || '').toLowerCase().includes(q)
       );
-    });
+  });
+}
+
+const RECOMMENDED_BY_LENS = {
+  all: ['overdue', 'dueSoon', 'needsCheckIn', 'lowConf'],
+  pace: ['effortOver', 'timelineOver'],
+  deadlines: ['overdue', 'dueSoon', 'moved'],
+  confidence: ['lowConf', 'needsCheckIn'],
+};
+
+function activeFilterCount(state) {
+  return (state.filters?.length || 0)
+    + (state.reviewed && state.reviewed !== 'all' ? 1 : 0)
+    + (state.client ? 1 : 0)
+    + (state.jobId ? 1 : 0)
+    + (state.q ? 1 : 0);
+}
+
+function removeFilterById(state, id) {
+  const next = { ...state };
+  if (id.startsWith('filter:')) {
+    const f = id.replace('filter:', '');
+    next.filters = (next.filters || []).filter((x) => x !== f);
+  } else if (id === 'reviewed') {
+    next.reviewed = 'all';
+  } else if (id === 'client') {
+    next.client = '';
+  } else if (id === 'job') {
+    next.jobId = '';
+  } else if (id === 'search') {
+    next.q = '';
+  }
+  return next;
+}
+
+function buildActiveChips(state, onRemove) {
+  const chips = [];
+  (state.filters || []).forEach((f) => {
+    const label = FILTER_DEFS[f]?.label || f;
+    chips.push(h('button', {
+      key: `filter-${f}`,
+      type: 'button',
+      className: 'inline-flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-100',
+      onClick: () => onRemove(`filter:${f}`),
+    }, [label, h('span', { className: 'text-slate-400' }, '×')]));
+  });
+  if (state.reviewed && state.reviewed !== 'all') {
+    const label = state.reviewed === 'hide' ? 'Hide reviewed' : 'Only reviewed';
+    chips.push(h('button', {
+      key: 'reviewed',
+      type: 'button',
+      className: 'inline-flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-100',
+      onClick: () => onRemove('reviewed'),
+    }, [label, h('span', { className: 'text-slate-400' }, '×')]));
+  }
+  if (state.client) {
+    chips.push(h('button', {
+      key: 'client',
+      type: 'button',
+      className: 'inline-flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-100',
+      onClick: () => onRemove('client'),
+    }, [`Client: ${state.client}`, h('span', { className: 'text-slate-400' }, '×')]));
+  }
+  if (state.jobId) {
+    chips.push(h('button', {
+      key: 'job',
+      type: 'button',
+      className: 'inline-flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-100',
+      onClick: () => onRemove('job'),
+    }, [`Job: ${state.jobId}`, h('span', { className: 'text-slate-400' }, '×')]));
+  }
+  if (state.q) {
+    chips.push(h('button', {
+      key: 'search',
+      type: 'button',
+      className: 'inline-flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-100',
+      onClick: () => onRemove('search'),
+    }, [`Search: ${state.q}`, h('span', { className: 'text-slate-400' }, '×')]));
+  }
+  return chips;
+}
+
+function renderFiltersModal({ filterState, setFilterState, toggleFilter, setReviewedFilter, clearFilters, setShowFilters }) {
+  const recommended = RECOMMENDED_BY_LENS[filterState.lens] || [];
+  const moreFilters = Object.keys(FILTER_DEFS).filter((f) => !recommended.includes(f));
+
+  const toggleAndPersist = (id) => {
+    toggleFilter(id);
+  };
+
+  const onInputChange = (field, value) => {
+    const next = { ...filterState, [field]: value };
+    setFilterState(next); updateUrl(next);
+  };
+
+  return createPortal(
+    h('div', { className: 'fixed inset-0 z-[1400] flex items-start justify-center pt-16' }, [
+      h('div', {
+        className: 'absolute inset-0 bg-black/30',
+        onClick: (e) => { e.preventDefault(); e.stopPropagation(); setShowFilters(false); },
+      }),
+      h('div', {
+        className: 'relative w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-2xl p-5 space-y-4 z-[1500]',
+        onClick: (e) => e.stopPropagation(),
+      }, [
+        h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, 'Filters'),
+        h('div', { className: 'space-y-3' }, [
+          h('div', { className: 'space-y-2' }, [
+            h('div', { className: 'text-sm font-semibold text-slate-700 dark:text-slate-200' }, 'Recommended for this lens'),
+            h('div', { className: 'flex flex-wrap gap-2' },
+              recommended.length
+                ? recommended.map((id) =>
+                    h('button', {
+                      key: id,
+                      type: 'button',
+                      className: [
+                        'px-3 py-1.5 rounded-full border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900',
+                        filterState.filters.includes(id)
+                          ? 'bg-[var(--color-brand-purple,#711FFF)] text-white border-transparent shadow-sm'
+                          : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 hover:border-netnet-purple/50',
+                      ].join(' '),
+                      onClick: () => toggleAndPersist(id),
+                    }, FILTER_DEFS[id]?.label || id)
+                  )
+                : h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'No specific suggestions for this lens.')
+            ),
+          ]),
+          h('div', { className: 'space-y-2' }, [
+            h('div', { className: 'text-sm font-semibold text-slate-700 dark:text-slate-200' }, 'More filters'),
+            h('div', { className: 'flex flex-wrap gap-2' },
+              moreFilters.map((id) =>
+                h('button', {
+                  key: id,
+                  type: 'button',
+                  className: [
+                    'px-3 py-1.5 rounded-full border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900',
+                    filterState.filters.includes(id)
+                      ? 'bg-[var(--color-brand-purple,#711FFF)] text-white border-transparent shadow-sm'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 hover:border-netnet-purple/50',
+                  ].join(' '),
+                  onClick: () => toggleAndPersist(id),
+                }, FILTER_DEFS[id]?.label || id)
+              )
+            ),
+          ]),
+          h('div', { className: 'space-y-2' }, [
+            h('div', { className: 'text-sm font-semibold text-slate-700 dark:text-slate-200' }, 'Reviewed'),
+            h('select', {
+              value: filterState.reviewed,
+              onChange: (e) => setReviewedFilter(e.target.value),
+              className: 'rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple',
+            }, REVIEWED_OPTIONS.map((opt) => h('option', { key: opt, value: opt }, opt === 'all' ? 'Show all' : opt === 'hide' ? 'Hide reviewed' : 'Only reviewed'))),
+          ]),
+          h('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-3' }, [
+            h('label', { className: 'space-y-1 text-sm text-slate-700 dark:text-slate-200' }, [
+              h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold' }, 'Client'),
+              h('input', {
+                type: 'text',
+                value: filterState.client,
+                onChange: (e) => onInputChange('client', e.target.value),
+                placeholder: 'Client name',
+                className: 'w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple',
+              }),
+            ]),
+            h('label', { className: 'space-y-1 text-sm text-slate-700 dark:text-slate-200' }, [
+              h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold' }, 'Job'),
+              h('input', {
+                type: 'text',
+                value: filterState.jobId,
+                onChange: (e) => onInputChange('jobId', e.target.value),
+                placeholder: 'Job id',
+                className: 'w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple',
+              }),
+            ]),
+          ]),
+        ]),
+        h('div', { className: 'flex items-center justify-between pt-2 border-t border-slate-200 dark:border-white/10' }, [
+          h('button', { type: 'button', className: 'text-sm font-semibold text-[var(--color-brand-purple,#711FFF)] hover:underline', onClick: clearFilters }, 'Clear all'),
+          h('button', { type: 'button', className: 'px-4 py-2 rounded-full bg-[var(--color-brand-purple,#711FFF)] text-white text-sm font-semibold hover:brightness-110', onClick: () => setShowFilters(false) }, 'Done'),
+        ]),
+      ]),
+    ]),
+    document.body
+  );
 }
 
 function formatDate(iso) {
@@ -176,6 +360,19 @@ export function AtRiskDeliverables({ queryString = '' }) {
   const [perfState, setPerfState] = useState(() => getEffectiveState());
   const [action, setAction] = useState(null);
   const [formState, setFormState] = useState({});
+  const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    if (!showFilters) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowFilters(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [showFilters]);
 
   useEffect(() => {
     setFilterState(parseQuery(queryString));
@@ -274,7 +471,7 @@ export function AtRiskDeliverables({ queryString = '' }) {
   return h('div', { className: 'space-y-6' }, [
     h('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3' }, [
       h(PerfCard, { variant: 'secondary', className: 'space-y-1' }, [
-        h('div', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'At-Risk Deliverables'),
+        h('div', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Deliverables in Drift'),
         h('div', { className: 'text-2xl font-bold text-slate-900 dark:text-white' }, stats.atRisk),
         h('div', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'Included by eligibility rules'),
       ]),
@@ -290,102 +487,67 @@ export function AtRiskDeliverables({ queryString = '' }) {
       ]),
     ]),
 
-    h(PerfCard, { className: 'space-y-4' }, [
-      h(PerfSectionTitle, { title: 'Filters', subtitle: 'Lens and filters persist in the URL for repeatability.' }),
-      h('div', { className: 'flex flex-wrap items-center gap-3' }, [
-        h('div', { className: 'flex items-center gap-2' }, [
-          h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Lens'),
-          h('div', { className: 'inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-1 py-1' },
-            LENSES.map((lens) =>
-              h('button', {
-                key: lens.id,
-                type: 'button',
-                className: [
-                  'px-3 py-1.5 rounded-full text-sm font-semibold transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900',
-                  filterState.lens === lens.id
-                    ? 'bg-[var(--color-brand-purple,#711FFF)] text-white shadow-sm border-transparent'
-                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200 dark:border-white/10',
-                ].join(' '),
-                onClick: () => onLensChange(lens.id),
-              }, lens.label)
-            )
-          ),
-        ]),
-        h('div', { className: 'flex items-center gap-2 flex-wrap' },
-          Object.entries(FILTER_DEFS).map(([id, meta]) =>
+    h(PerfCard, { className: 'space-y-3' }, [
+      h('div', { className: 'flex flex-col gap-3 md:flex-row md:items-center md:justify-between' }, [
+        h('div', { className: 'inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-1 py-1' },
+          LENSES.map((lens) =>
             h('button', {
-              key: id,
+              key: lens.id,
               type: 'button',
               className: [
-                'px-3 py-1.5 rounded-full border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900',
-                filterState.filters.includes(id)
-                  ? 'bg-[var(--color-brand-purple,#711FFF)] text-white border-transparent shadow-sm'
-                  : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-200 hover:border-netnet-purple/50',
+                'px-3 py-1.5 rounded-full text-sm font-semibold transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900',
+                filterState.lens === lens.id
+                  ? 'bg-[var(--color-brand-purple,#711FFF)] text-white shadow-sm border-transparent'
+                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent',
               ].join(' '),
-              onClick: () => toggleFilter(id),
-            }, meta.label)
+              onClick: () => onLensChange(lens.id),
+            }, lens.label)
           )
         ),
-        h('div', { className: 'flex items-center gap-2 flex-wrap text-sm text-slate-600 dark:text-slate-300' }, [
-          h('label', { className: 'flex items-center gap-1' }, [
-            h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Reviewed'),
-            h('select', {
-              value: filterState.reviewed,
-              onChange: (e) => setReviewedFilter(e.target.value),
-              className: 'rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple',
-            }, REVIEWED_OPTIONS.map((opt) => h('option', { key: opt, value: opt }, opt === 'all' ? 'Show all' : opt === 'hide' ? 'Hide reviewed' : 'Only reviewed'))),
-          ]),
-          h('label', { className: 'flex items-center gap-1' }, [
-            h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Client'),
-            h('input', {
-              type: 'text',
-              value: filterState.client,
-              onChange: (e) => {
-                const next = { ...filterState, client: e.target.value };
-                setFilterState(next); updateUrl(next);
-              },
-              placeholder: 'Client name',
-              className: 'rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple',
-            }),
-          ]),
-          h('label', { className: 'flex items-center gap-1' }, [
-            h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Job'),
-            h('input', {
-              type: 'text',
-              value: filterState.jobId,
-              onChange: (e) => {
-                const next = { ...filterState, jobId: e.target.value };
-                setFilterState(next); updateUrl(next);
-              },
-              placeholder: 'Job id',
-              className: 'rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-1 text-sm w-24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple',
-            }),
-          ]),
-          h('label', { className: 'flex items-center gap-2' }, [
-            h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Search'),
-            h('input', {
-              type: 'search',
-              value: filterState.q,
-              onChange: (e) => {
-                const next = { ...filterState, q: e.target.value };
-                setFilterState(next); updateUrl(next);
-              },
-              placeholder: 'Deliverable or job',
-              className: 'rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-1 text-sm min-w-[180px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple',
-            }),
-          ]),
+        h('div', { className: 'flex-1 w-full flex items-center gap-2' }, [
+          h('input', {
+            type: 'search',
+            value: filterState.q,
+            onChange: (e) => {
+              const next = { ...filterState, q: e.target.value };
+              setFilterState(next); updateUrl(next);
+            },
+            placeholder: 'Search deliverable or job',
+            className: 'w-full rounded-full border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple',
+          }),
           h('button', {
             type: 'button',
-            className: 'text-sm font-semibold text-[var(--color-brand-purple,#711FFF)] hover:underline',
-            onClick: clearFilters,
-          }, 'Clear filters'),
+            className: 'inline-flex items-center gap-2 rounded-full border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition',
+            onClick: () => setShowFilters(true),
+          }, [
+            'Filters',
+            activeFilterCount(filterState) > 0 ? `· ${activeFilterCount(filterState)}` : null,
+          ]),
         ]),
       ]),
+      activeFilterCount(filterState) > 0
+        ? h('div', { className: 'flex items-center flex-wrap gap-2 text-sm text-slate-700 dark:text-slate-200' }, [
+            ...buildActiveChips(filterState, (id) => {
+              const next = removeFilterById(filterState, id);
+              setFilterState(next); updateUrl(next);
+            }),
+            h('button', { type: 'button', className: 'text-xs font-semibold text-[var(--color-brand-purple,#711FFF)] hover:underline', onClick: clearFilters }, 'Clear all'),
+          ])
+        : null,
     ]),
+
+    showFilters ? renderFiltersModal({
+      filterState,
+      setFilterState,
+      toggleFilter,
+      setReviewedFilter,
+      clearFilters,
+      setShowFilters,
+    }) : null,
 
     h(PerfCard, { className: 'space-y-4' }, [
       h(PerfSectionTitle, {
-        title: 'At-Risk Deliverables',
+        title: 'Deliverables in Drift',
         subtitle: `${deliverables.length} items • sorted by urgency, unreviewed first.`,
       }),
       deliverables.length === 0

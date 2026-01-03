@@ -35,7 +35,7 @@ function JobRow({ job }) {
         h('button', {
           type: 'button',
           className: 'text-[var(--color-brand-purple,#711FFF)] font-semibold',
-          onClick: (e) => { e.stopPropagation(); navigate(`#/app/performance/at-risk-deliverables?jobId=${job.jobId}`); },
+          onClick: (e) => { e.stopPropagation(); navigate(`#/app/performance/deliverables-in-drift?jobId=${job.jobId}`); },
         }, 'View deliverables'),
       ]),
       h(DriftReasonChips, { reasons: job.driverChips }),

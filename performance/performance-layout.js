@@ -5,7 +5,7 @@ const { createElement: h } = React;
 
 const NAV_ITEMS = [
   { key: 'overview', label: 'Pulse', href: '#/app/performance/overview' },
-  { key: 'at-risk-deliverables', label: 'At-Risk Deliverables', href: '#/app/performance/at-risk-deliverables' },
+  { key: 'deliverables-in-drift', label: 'Deliverables in Drift', href: '#/app/performance/deliverables-in-drift' },
   { key: 'capacity', label: 'Capacity Outlook', href: '#/app/performance/capacity?horizonDays=30' },
   { key: 'jobs-at-risk', label: 'Jobs in Drift', href: '#/app/performance/jobs-at-risk' },
   { key: 'reports', label: 'Reports', href: '#/app/performance/reports/time' },

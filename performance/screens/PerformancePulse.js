@@ -7,6 +7,140 @@ import { PerfCard, InfoPopover } from '../../components/performance/primitives.j
 
 const { createElement: h, useMemo } = React;
 
+const MOMENTUM_INFO_CONTENT = h('div', { className: 'space-y-3' }, [
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'A quick read on whether work is moving at a steady pace.'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Net Net compares effort used vs time used on active deliverables that are due soon (or past due).'),
+      h('li', null, 'If effort is burning faster than time, that work is “off pace.”'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Click Momentum to see what’s dragging.'),
+      h('li', null, 'Common fixes: re-balance tasks, adjust the date, or create a change order if scope changed.'),
+    ]),
+  ]),
+]);
+
+const JOBS_DRIFT_INFO_CONTENT = h('div', { className: 'space-y-3' }, [
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Jobs that have at least one deliverable that needs a touch.'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'A job appears if any deliverable is overdue, over 100% (effort/timeline), or Low confidence.'),
+      h('li', null, '“Reviewed” quiets the nag — it still counts in reporting.'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Click Jobs in Drift to see what to steady first.'),
+      h('li', null, 'Then: mark reviewed, reassign tasks, move the date, or create a change order.'),
+    ]),
+  ]),
+]);
+
+const CAPACITY_INFO_CONTENT = h('div', { className: 'space-y-3' }, [
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'How “booked up” your team is in the next window (like 30 days).'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Net Net adds up the remaining work due in this window (in hours).'),
+      h('li', null, 'Then it compares that demand to your team’s available capacity.'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'If it’s getting tight: rebalance assignments, move a date, or adjust scope (change order).'),
+    ]),
+  ]),
+]);
+
+const DUE_SOON_INFO_CONTENT = h('div', { className: 'space-y-3' }, [
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'What’s coming up next in the next 7 days (plus anything already past due).'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Net Net looks at deliverable due dates.'),
+      h('li', null, 'Past due items raise attention; “due soon” is just a heads‑up.'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Click Due Soon to scan what’s next and confirm dates are real.'),
+    ]),
+  ]),
+]);
+
+const SALES_CLARITY_INFO_CONTENT = h('div', { className: 'space-y-3' }, [
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Which open deals still need numbers (so revenue isn’t “foggy”).'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Open deals without a budget/amount are treated as “foggy.”'),
+      h('li', null, 'Deals with numbers are “clear.”'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Click Sales Clarity to open the Sales report and fill in the missing budgets.'),
+    ]),
+  ]),
+]);
+
+const CHECKINS_INFO_CONTENT = h('div', { className: 'space-y-3' }, [
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Near‑done deliverables that need a quick confidence check.'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'If something is near completion (85–100%) and confidence isn’t set, it shows up here.'),
+      h('li', null, 'This is not drift — it’s a friendly prompt to prevent surprises.'),
+    ]),
+  ]),
+  h('div', { className: 'space-y-1 text-sm leading-relaxed' }, [
+    h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+    h('ul', { className: 'list-disc list-inside space-y-1' }, [
+      h('li', null, 'Click Check-ins and set confidence (High/Medium/Low) or complete the deliverable.'),
+    ]),
+  ]),
+]);
+
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
@@ -261,10 +395,10 @@ function FlowMeterHero({ metrics }) {
   const tone = flowState === 'Drifting' ? 'red' : flowState === 'Watchlist' ? 'amber' : 'green';
   const clampedScore = clamp(flowScorePct, 0, 100);
   const target = (() => {
-    if (metrics.deadlines.unreviewedOverdue > 0) return '#/app/performance/at-risk-deliverables?lens=deadlines';
+    if (metrics.deadlines.unreviewedOverdue > 0) return '#/app/performance/deliverables-in-drift?lens=deadlines';
     if ((Number(metrics.capacity?.capacityPressurePct) || 0) > 110) return '#/app/performance/capacity?horizonDays=30';
     if ((metrics.jobsAtRisk?.jobsAtRiskNeedingAttention || 0) > 0) return '#/app/performance/jobs-at-risk';
-    if (metrics.delivery.tone !== 'green') return '#/app/performance/at-risk-deliverables?lens=pace';
+    if (metrics.delivery.tone !== 'green') return '#/app/performance/deliverables-in-drift?lens=pace';
     if (metrics.sales.tone !== 'green') return '#/app/performance/reports/sales?view=revenue-fog';
     return '#/app/performance/overview';
   })();
@@ -300,11 +434,73 @@ function FlowMeterHero({ metrics }) {
       h('span', { className: 'px-2 py-1 rounded-full bg-emerald-500 text-white' }, 'In Flow'),
     ]),
   ]);
+  const momentumTooltipContent = h('div', { className: 'space-y-3' }, [
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'A quick read on whether work is moving at a steady pace.'),
+        h('li', null, 'Higher % means more of your active work is staying on pace.'),
+      ]),
+    ]),
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'For active deliverables that are overdue or due soon, Net Net compares effort used to time used.'),
+        h('li', null, 'If effort is burning faster than time, that deliverable is “off pace.”'),
+        h('li', null, 'Momentum is the % of work (weighted by deliverable size) that’s on pace.'),
+      ]),
+    ]),
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'Click Momentum to see the deliverables creating the drag.'),
+        h('li', null, 'A quick touch is usually: re-balance tasks, update a due date, or create a change order if scope changed.'),
+      ]),
+    ]),
+    h('div', { className: 'text-[12px] text-slate-400 dark:text-slate-300' }, 'Being near completion isn’t automatically a problem — it’s a check-in moment.'),
+  ]);
+  const jobsTooltipContent = h('div', { className: 'space-y-3' }, [
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'What this shows'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'How many jobs have at least one deliverable that truly needs attention.'),
+        h('li', null, 'It’s not about being “almost done” — it’s about real drift evidence.'),
+      ]),
+    ]),
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'How it decides'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'A job shows up here if any deliverable in the job is:'),
+        h('ul', { className: 'list-disc list-inside pl-4 space-y-1' }, [
+          h('li', null, 'overdue, or'),
+          h('li', null, 'overrun (effort or timeline is past 100%), or'),
+          h('li', null, 'marked Low confidence'),
+        ]),
+        h('li', null, 'Marking something “Reviewed” quiets the nag, but it still counts in the truth.'),
+      ]),
+    ]),
+    h('div', { className: 'space-y-2 text-sm leading-relaxed' }, [
+      h('div', { className: 'font-semibold text-[13px]' }, 'What to do'),
+      h('ul', { className: 'list-disc list-inside space-y-1' }, [
+        h('li', null, 'Click Jobs in Drift to see which jobs to steady first.'),
+        h('li', null, 'Open the top job, review the drifting deliverable, then either mark reviewed, reassign tasks, move the date, or create a change order.'),
+      ]),
+    ]),
+  ]);
 
-  return h('button', {
-    type: 'button',
+  const handleKey = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      navigate(target);
+    }
+  };
+
+  return h('div', {
+    role: 'button',
+    tabIndex: 0,
     className: 'w-full text-left focus-visible:outline-none',
     onClick: () => navigate(target),
+    onKeyDown: handleKey,
     title: 'Flow Meter drilldown',
   }, h(PerfCard, { className: 'space-y-6 border-slate-200 dark:border-white/10 hover:-translate-y-[1px] transition' }, [
     h('div', { className: 'text-center space-y-3' }, [
@@ -323,7 +519,7 @@ function FlowMeterHero({ metrics }) {
   ]));
 }
 
-function MiniSignalCard({ title, subtitle, value, label, subtext, baseline, tone, onClick, badge }) {
+function MiniSignalCard({ signalKey, title, subtitle, value, label, subtext, baseline, tone, onClick, badge, infoTitle, infoContent }) {
   const colors = tone === 'red'
     ? 'text-rose-600 dark:text-rose-200'
     : tone === 'amber'
@@ -331,16 +527,30 @@ function MiniSignalCard({ title, subtitle, value, label, subtext, baseline, tone
       : 'text-emerald-600 dark:text-emerald-200';
   const safeValue = (value ?? '').toString();
   const safeLabel = (label ?? '').toString();
+  const [infoOpen, setInfoOpen] = React.useState(false);
+  const handleTileClick = (e) => {
+    if (infoOpen) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onClick?.(e);
+  };
   return h('button', {
     type: 'button',
     className: 'w-full text-left focus-visible:outline-none',
-    onClick,
+    onClick: handleTileClick,
     title: title,
   }, h(PerfCard, { variant: 'secondary', className: `flex flex-col gap-3 border-slate-200 dark:border-white/10 hover:-translate-y-[1px] transition` }, [
     h('div', { className: 'flex items-start justify-between gap-3' }, [
       h('div', { className: 'space-y-1 min-w-0' }, [
-        h('div', { className: 'flex items-center gap-2 flex-wrap' }, [
-          h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, title),
+      h('div', { className: 'flex items-center gap-2 flex-wrap' }, [
+          h('div', { className: 'flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white' }, [
+            h('span', null, title),
+            infoContent
+              ? h(InfoPopover, { title: infoTitle || title, content: infoContent, iconLabel: `${title} info`, onOpenChange: setInfoOpen })
+              : null,
+          ]),
           badge ? h('span', { className: 'text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200' }, badge) : null,
         ]),
         h('div', { className: 'text-xs text-slate-600 dark:text-slate-300' }, subtitle),
@@ -457,7 +667,9 @@ export function PerformancePulse() {
         ? `${Math.round(onPaceHours)}h of ${Math.round(totalPaceHours)}h planned is on pace.`
         : 'Not enough data yet',
       tone: momentumTone,
-      onClick: () => navigate('#/app/performance/at-risk-deliverables?lens=pace'),
+      onClick: () => navigate('#/app/performance/deliverables-in-drift?lens=pace'),
+      infoTitle: 'Momentum',
+      infoContent: MOMENTUM_INFO_CONTENT,
     },
     {
       key: 'jobs',
@@ -468,6 +680,8 @@ export function PerformancePulse() {
       baseline: `${jobsInDriftTotal} in drift • ${jobsInDriftReviewed} reviewed • ${activeJobsTotal} active`,
       tone: jobsTone,
       onClick: () => navigate('#/app/performance/jobs-at-risk'),
+      infoTitle: 'Jobs in Drift',
+      infoContent: JOBS_DRIFT_INFO_CONTENT,
     },
     {
       key: 'capacity',
@@ -481,6 +695,8 @@ export function PerformancePulse() {
         : 'Not enough data yet',
       tone: capacityTone,
       onClick: () => navigate('#/app/performance/capacity?horizonDays=30'),
+      infoTitle: 'Capacity Outlook',
+      infoContent: CAPACITY_INFO_CONTENT,
     },
     {
       key: 'deadlines',
@@ -490,7 +706,9 @@ export function PerformancePulse() {
       label: 'Due Soon',
       baseline: `Past due: ${overdueTotal} (${overdueUnreviewed} unreviewed)`,
       tone: dueTone,
-      onClick: () => navigate('#/app/performance/at-risk-deliverables?lens=deadlines'),
+      onClick: () => navigate('#/app/performance/deliverables-in-drift?lens=deadlines'),
+      infoTitle: 'Due Soon',
+      infoContent: DUE_SOON_INFO_CONTENT,
     },
     {
       key: 'sales',
@@ -504,6 +722,8 @@ export function PerformancePulse() {
       subtext: openDeals.length ? `Weighted open: ${formatNumber(data.sales.weightedOpen)}` : '',
       tone: salesTone,
       onClick: () => navigate('#/app/performance/reports/sales?view=revenue-fog'),
+      infoTitle: 'Sales Clarity',
+      infoContent: SALES_CLARITY_INFO_CONTENT,
     },
     {
       key: 'checkins',
@@ -513,7 +733,9 @@ export function PerformancePulse() {
       label: 'Quick check-ins',
       baseline: 'Near completion (85–100%) • confidence not set',
       tone: checkTone,
-      onClick: () => navigate('#/app/performance/at-risk-deliverables?lens=confidence'),
+      onClick: () => navigate('#/app/performance/deliverables-in-drift?lens=confidence'),
+      infoTitle: 'Check-ins',
+      infoContent: CHECKINS_INFO_CONTENT,
     },
   ];
 
@@ -528,7 +750,7 @@ export function PerformancePulse() {
     } }),
     h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Colors show attention, not success: In Flow · Watchlist · Drifting.'),
     h('div', { className: 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3' },
-      signals.map((sig) => h(MiniSignalCard, { key: sig.key, ...sig }))
+      signals.map((sig) => h(MiniSignalCard, { key: sig.key, signalKey: sig.key, ...sig }))
     ),
   ]);
 }
