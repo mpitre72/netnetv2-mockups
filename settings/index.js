@@ -53,6 +53,7 @@ const TEAM_UI_STATE = {
   search: '',
   status: 'active',
   role: 'all',
+  serviceType: 'all',
 };
 
 const SERVICE_TYPES_UI_STATE = {
@@ -637,12 +638,18 @@ function ensureServiceGroupsSeed(wsId) {
 
 function loadTeamMembers(wsId) {
   const members = ensureTeamSeed(wsId);
-  return members.map(member => ({
-    ...member,
-    monthlyCapacityHours: Number.isFinite(member.monthlyCapacityHours) ? member.monthlyCapacityHours : null,
-    monthlySeatCost: Number.isFinite(member.monthlySeatCost) ? member.monthlySeatCost : null,
-    typicalServiceTypeIds: Array.isArray(member.typicalServiceTypeIds) ? member.typicalServiceTypeIds : [],
-  }));
+  return members.map(member => {
+    const fallback = splitName(member.name);
+    return {
+      ...member,
+      firstName: member.firstName || fallback.firstName || '',
+      lastName: member.lastName || fallback.lastName || '',
+      photoDataUrl: member.photoDataUrl || null,
+      monthlyCapacityHours: Number.isFinite(member.monthlyCapacityHours) ? member.monthlyCapacityHours : null,
+      monthlySeatCost: Number.isFinite(member.monthlySeatCost) ? member.monthlySeatCost : null,
+      typicalServiceTypeIds: Array.isArray(member.typicalServiceTypeIds) ? member.typicalServiceTypeIds : [],
+    };
+  });
 }
 
 function saveTeamMembers(wsId, members) {
@@ -714,6 +721,62 @@ function showConfirmModal({ title, message, confirmLabel = 'Confirm', cancelLabe
   overlay.onclick = (e) => { if (e.target === overlay) hide(); };
   layer.querySelector('[data-action="cancel"]').onclick = hide;
   layer.querySelector('[data-action="confirm"]').onclick = () => {
+    hide();
+    if (onConfirm) onConfirm();
+  };
+}
+
+function showTypedConfirmModal({
+  title,
+  message,
+  expectedText,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  onConfirm,
+}) {
+  const layer = ensureModalLayer('settings-typed-confirm-layer');
+  const safeTitle = escapeHtml(title);
+  const safeMessage = escapeHtml(message);
+  const safeExpected = escapeHtml(expectedText);
+  layer.innerHTML = `
+    <div class="nn-modal-overlay" role="presentation">
+      <div class="nn-modal-card" role="dialog" aria-modal="true" aria-label="${safeTitle}">
+        <div class="lookup-modal__header">
+          <h3>${safeTitle}</h3>
+        </div>
+        <div class="lookup-modal__body space-y-3">
+          <p class="text-sm text-slate-700 dark:text-slate-200">${safeMessage}</p>
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-slate-500 dark:text-slate-400">Type ${safeExpected} to confirm.</label>
+            <input id="typed-confirm-input" type="text" class="lookup-input" placeholder="${safeExpected}" />
+          </div>
+        </div>
+        <div class="lookup-modal__actions">
+          <button type="button" class="lookup-btn ghost" data-action="cancel">${cancelLabel}</button>
+          <button type="button" class="lookup-btn primary opacity-60 cursor-not-allowed" data-action="confirm" disabled>${confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  `;
+  const overlay = layer.querySelector('.nn-modal-overlay');
+  const hide = () => { layer.innerHTML = ''; };
+  overlay.onclick = (e) => { if (e.target === overlay) hide(); };
+  layer.querySelector('[data-action="cancel"]').onclick = hide;
+  const input = layer.querySelector('#typed-confirm-input');
+  const confirmBtn = layer.querySelector('[data-action="confirm"]');
+  const updateState = () => {
+    const matches = input.value === expectedText;
+    confirmBtn.toggleAttribute('disabled', !matches);
+    confirmBtn.classList.toggle('opacity-60', !matches);
+    confirmBtn.classList.toggle('cursor-not-allowed', !matches);
+  };
+  if (input) {
+    input.oninput = updateState;
+    input.focus();
+  }
+  updateState();
+  confirmBtn.onclick = () => {
+    if (confirmBtn.hasAttribute('disabled')) return;
     hide();
     if (onConfirm) onConfirm();
   };
@@ -798,6 +861,27 @@ function renderEmptyState(message) {
   `;
 }
 
+function getMemberDisplayName(member) {
+  const fullName = [member.firstName, member.lastName].filter(Boolean).join(' ').trim();
+  if (fullName) return fullName;
+  if (member.name) return member.name;
+  return member.email || 'Unnamed';
+}
+
+function getMemberInitials(member) {
+  const name = getMemberDisplayName(member);
+  const parts = name.split(' ').filter(Boolean);
+  const initials = parts.slice(0, 2).map(part => part[0]).join('');
+  return initials.toUpperCase() || 'NN';
+}
+
+function splitName(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { firstName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
 function renderTeamTab(container) {
   const wsId = workspaceId();
   const role = getCurrentRole();
@@ -809,11 +893,20 @@ function renderTeamTab(container) {
   const search = TEAM_UI_STATE.search.trim().toLowerCase();
   const statusFilter = TEAM_UI_STATE.status;
   const roleFilter = TEAM_UI_STATE.role;
+  const serviceTypeFilter = TEAM_UI_STATE.serviceType;
+  const serviceTypeMap = new Map(serviceTypes.map(type => [type.id, type]));
+  const serviceTypeOptions = serviceTypes.map(type => ({
+    id: type.id,
+    label: `${type.name}${type.active ? '' : ' (inactive)'}`,
+  }));
   const filtered = members.filter(member => {
     if (statusFilter !== 'all' && member.status !== statusFilter) return false;
     if (roleFilter !== 'all' && member.role !== roleFilter) return false;
+    if (serviceTypeFilter !== 'all') {
+      if (!member.typicalServiceTypeIds?.includes(serviceTypeFilter)) return false;
+    }
     if (search) {
-      const hay = `${member.name || ''} ${member.email || ''}`.toLowerCase();
+      const hay = `${getMemberDisplayName(member)} ${member.email || ''}`.toLowerCase();
       if (!hay.includes(search)) return false;
     }
     return true;
@@ -821,7 +914,18 @@ function renderTeamTab(container) {
 
   const memberRows = filtered.length
     ? filtered.map(member => {
+      const displayName = getMemberDisplayName(member);
       const typeCount = member.typicalServiceTypeIds?.length || 0;
+      const typeLabels = (member.typicalServiceTypeIds || []).map(id => {
+        const type = serviceTypeMap.get(id);
+        if (type) return `${type.name}${type.active ? '' : ' (inactive)'}`;
+        return `${id} (inactive)`;
+      });
+      const tooltipValue = typeLabels.length ? typeLabels.join('\n') : 'None';
+      const tooltipAttr = escapeHtml(tooltipValue).replace(/"/g, '&quot;');
+      const tooltipAria = escapeHtml(typeLabels.length ? typeLabels.join(', ') : 'None');
+      const typeDisplay = typeCount ? `${typeCount} selected` : 'None';
+      const typeClass = typeCount ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500';
       const capacity = Number.isFinite(member.monthlyCapacityHours) ? `${member.monthlyCapacityHours}h` : '—';
       const seatCost = formatCurrency(member.monthlySeatCost);
       const statusBadge = member.status === 'active'
@@ -830,13 +934,15 @@ function renderTeamTab(container) {
       return `
         <tr class="border-b border-slate-200 dark:border-white/10">
           <td class="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">
-            <button type="button" class="text-netnet-purple dark:text-white hover:underline" data-member-open="${member.id}">${member.name || 'Unnamed'}</button>
+            <button type="button" class="text-netnet-purple dark:text-white hover:underline" data-member-open="${member.id}">${displayName}</button>
           </td>
           <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">${member.email || '—'}</td>
           <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">${ROLE_LABELS[member.role] || member.role}</td>
           <td class="px-4 py-3 text-sm">${statusBadge}</td>
           <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">${capacity}</td>
-          <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">${typeCount ? `${typeCount} selected` : '—'}</td>
+          <td class="px-4 py-3 text-sm">
+            <span class="inline-flex items-center gap-1 ${typeClass}" data-tooltip="${tooltipAttr}" tabindex="0" aria-label="Typical service types: ${tooltipAria}">${typeDisplay}</span>
+          </td>
           ${canSeeSeatCost ? `<td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">${seatCost}</td>` : ''}
           <td class="px-3 py-3 text-right">
             <button type="button" class="team-more-btn h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" data-member-menu="${member.id}" aria-label="Member actions">
@@ -879,6 +985,12 @@ function renderTeamTab(container) {
             <option value="lead" ${roleFilter === 'lead' ? 'selected' : ''}>Lead</option>
             <option value="admin" ${roleFilter === 'admin' ? 'selected' : ''}>Admin</option>
             <option value="owner" ${roleFilter === 'owner' ? 'selected' : ''}>Owner</option>
+          </select>
+          <select id="team-service-filter" aria-label="Service Type" class="h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-netnet-purple">
+            <option value="all" ${serviceTypeFilter === 'all' ? 'selected' : ''}>All service types</option>
+            ${serviceTypeOptions.map(type => `
+              <option value="${type.id}" ${serviceTypeFilter === type.id ? 'selected' : ''}>${type.label}</option>
+            `).join('')}
           </select>
         </div>
         <button id="team-invite-btn" type="button" class="inline-flex items-center justify-center h-10 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110">
@@ -941,6 +1053,7 @@ function renderTeamTab(container) {
   const searchInput = container.querySelector('#team-search');
   const statusSelect = container.querySelector('#team-status-filter');
   const roleSelect = container.querySelector('#team-role-filter');
+  const serviceTypeSelect = container.querySelector('#team-service-filter');
   const inviteBtn = container.querySelector('#team-invite-btn');
   if (searchInput) {
     searchInput.oninput = (e) => {
@@ -957,6 +1070,12 @@ function renderTeamTab(container) {
   if (roleSelect) {
     roleSelect.onchange = (e) => {
       TEAM_UI_STATE.role = e.target.value || 'all';
+      renderTeamTab(container);
+    };
+  }
+  if (serviceTypeSelect) {
+    serviceTypeSelect.onchange = (e) => {
+      TEAM_UI_STATE.serviceType = e.target.value || 'all';
       renderTeamTab(container);
     };
   }
@@ -2929,9 +3048,10 @@ function handleDeactivate(wsId, member) {
     showToast(guard.reason);
     return;
   }
-  showConfirmModal({
-    title: 'Deactivate member?',
-    message: 'They will lose access, be removed from assignment picklists, and history will be preserved.',
+  showTypedConfirmModal({
+    title: 'DEACTIVATE TEAM MEMBER',
+    message: 'When you deactivate a team member, they will no longer be able to log in to Net Net. Their time logs, reports, and chat messages will remain visible. They will stay assigned to their current tasks until you reassign them, but they cannot be added to new jobs or tasks. You can reactivate them at any time.',
+    expectedText: 'DEACTIVATE',
     confirmLabel: 'Deactivate',
     onConfirm: () => {
       current.status = 'deactivated';
@@ -2976,6 +3096,7 @@ function openMemberDrawer(wsId, memberId) {
     ...member,
     typicalServiceTypeIds: Array.from(selectedIds),
   };
+  const displayName = getMemberDisplayName(member);
 
   const drawer = document.getElementById('drawer-container');
   if (!drawer) return;
@@ -2985,7 +3106,7 @@ function openMemberDrawer(wsId, memberId) {
     <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md">
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-white/10">
         <div>
-          <h2 class="text-lg font-semibold">${member.name || 'Team member'}</h2>
+          <h2 id="member-name-heading" class="text-lg font-semibold">${displayName}</h2>
           <p class="text-xs text-slate-500 dark:text-white/60">${member.email || ''}</p>
         </div>
         <button type="button" id="drawerCloseBtn" class="text-slate-500 hover:text-slate-800 dark:text-white/70 dark:hover:text-white">
@@ -2993,6 +3114,34 @@ function openMemberDrawer(wsId, memberId) {
         </button>
       </div>
       <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div class="space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="lookup-modal__label">First name</label>
+              <input id="member-first-name" type="text" class="lookup-input" value="${draft.firstName || ''}" />
+            </div>
+            <div>
+              <label class="lookup-modal__label">Last name</label>
+              <input id="member-last-name" type="text" class="lookup-input" value="${draft.lastName || ''}" />
+            </div>
+          </div>
+          <div>
+            <label class="lookup-modal__label">Photo</label>
+            <div class="flex items-center gap-4">
+              <div id="member-photo-preview" class="h-16 w-16 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden text-slate-500 dark:text-slate-200">
+                ${draft.photoDataUrl
+                  ? `<img src="${draft.photoDataUrl}" alt="${escapeHtml(displayName)}" class="h-full w-full object-cover" />`
+                  : `<span class="text-sm font-semibold">${getMemberInitials(draft)}</span>`}
+              </div>
+              <div class="flex flex-col gap-2">
+                <button type="button" id="member-photo-upload-btn" class="lookup-btn primary">Upload photo</button>
+                <button type="button" id="member-photo-remove-btn" class="lookup-btn ghost" ${draft.photoDataUrl ? '' : 'disabled'}>Remove photo</button>
+              </div>
+            </div>
+            <input id="member-photo-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">This photo will be used across Net Net. Members can update it later in My Profile.</p>
+          </div>
+        </div>
         <div>
           <label class="lookup-modal__label">Role</label>
           <select id="member-role" class="lookup-input" ${currentRole !== 'owner' && member.role === 'owner' ? 'disabled' : ''}>
@@ -3035,6 +3184,70 @@ function openMemberDrawer(wsId, memberId) {
   if (closeBtn) closeBtn.onclick = closeDrawer;
   const cancelBtn = drawer.querySelector('#drawerCancelBtn');
   if (cancelBtn) cancelBtn.onclick = closeDrawer;
+
+  const nameHeading = drawer.querySelector('#member-name-heading');
+  const photoPreview = drawer.querySelector('#member-photo-preview');
+  const photoInput = drawer.querySelector('#member-photo-input');
+  const photoUploadBtn = drawer.querySelector('#member-photo-upload-btn');
+  const photoRemoveBtn = drawer.querySelector('#member-photo-remove-btn');
+
+  const renderPhotoPreview = () => {
+    if (!photoPreview) return;
+    const currentName = getMemberDisplayName(draft);
+    if (draft.photoDataUrl) {
+      photoPreview.innerHTML = `<img src="${draft.photoDataUrl}" alt="${escapeHtml(currentName)}" class="h-full w-full object-cover" />`;
+    } else {
+      photoPreview.innerHTML = `<span class="text-sm font-semibold">${getMemberInitials(draft)}</span>`;
+    }
+    photoRemoveBtn?.toggleAttribute('disabled', !draft.photoDataUrl);
+  };
+
+  const updateNameHeading = () => {
+    const currentName = getMemberDisplayName(draft);
+    if (nameHeading) nameHeading.textContent = currentName;
+    renderPhotoPreview();
+  };
+
+  const firstNameInput = drawer.querySelector('#member-first-name');
+  if (firstNameInput) {
+    firstNameInput.oninput = (e) => {
+      draft.firstName = e.target.value;
+      draft.name = [draft.firstName, draft.lastName].filter(Boolean).join(' ').trim();
+      updateNameHeading();
+    };
+  }
+  const lastNameInput = drawer.querySelector('#member-last-name');
+  if (lastNameInput) {
+    lastNameInput.oninput = (e) => {
+      draft.lastName = e.target.value;
+      draft.name = [draft.firstName, draft.lastName].filter(Boolean).join(' ').trim();
+      updateNameHeading();
+    };
+  }
+  if (photoUploadBtn && photoInput) {
+    photoUploadBtn.onclick = () => photoInput.click();
+    photoInput.onchange = () => {
+      const file = photoInput.files && photoInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          draft.photoDataUrl = reader.result;
+          renderPhotoPreview();
+          updateNameHeading();
+        }
+      };
+      reader.readAsDataURL(file);
+      photoInput.value = '';
+    };
+  }
+  if (photoRemoveBtn) {
+    photoRemoveBtn.onclick = () => {
+      draft.photoDataUrl = null;
+      renderPhotoPreview();
+      updateNameHeading();
+    };
+  }
 
   const roleSelect = drawer.querySelector('#member-role');
   if (roleSelect) {
@@ -3128,6 +3341,12 @@ function openMemberDrawer(wsId, memberId) {
         return;
       }
       target.role = draft.role;
+      const cleanFirst = String(draft.firstName || '').trim();
+      const cleanLast = String(draft.lastName || '').trim();
+      target.firstName = cleanFirst;
+      target.lastName = cleanLast;
+      target.name = [cleanFirst, cleanLast].filter(Boolean).join(' ').trim();
+      target.photoDataUrl = draft.photoDataUrl || null;
       const capacity = Number.isFinite(draft.monthlyCapacityHours) ? Math.max(0, draft.monthlyCapacityHours) : null;
       target.monthlyCapacityHours = capacity;
       if (currentRole === 'owner') {

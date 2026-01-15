@@ -495,7 +495,8 @@ html:not(.dark) .toast-msg { background: #fff; color: #111; border: 1px solid #e
 }
 
 [data-tooltip] { position: relative; cursor: pointer; z-index: var(--z-tooltip); }
-[data-tooltip]:hover::after {
+[data-tooltip]:hover::after,
+[data-tooltip]:focus::after {
   content: attr(data-tooltip);
   position: absolute;
   top: 100%;
@@ -503,11 +504,12 @@ html:not(.dark) .toast-msg { background: #fff; color: #111; border: 1px solid #e
   transform: translateX(-50%) translateY(8px);
   background: #111; color: #fff;
   padding: 6px 10px; border-radius: 4px;
-  font-size: 12px; white-space: nowrap;
+  font-size: 12px; white-space: pre-line;
   z-index: var(--z-tooltip); pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
-html:not(.dark) [data-tooltip]:hover::after { background: #333; }
+html:not(.dark) [data-tooltip]:hover::after,
+html:not(.dark) [data-tooltip]:focus::after { background: #333; }
 
 html.dark #app-sidebar img[data-icon="performance"] { filter: brightness(0) invert(1); }
 
