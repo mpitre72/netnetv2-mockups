@@ -66,11 +66,31 @@ const SERVICE_TYPES_UI_STATE = {
 const WORKSPACE_UI_STATE = {
   draft: null,
   saved: null,
+  slugStatus: null,
+  slugMessage: '',
+  slugTimer: null,
+  timezoneSearch: '',
+  currencySearch: '',
+  timezones: null,
+  currencies: null,
 };
 
 const SUBSCRIPTION_UI_STATE = {
-  draft: null,
+  selectedPlan: null,
+  monthlyPromoCode: '',
+  monthlyPromo: null,
+  monthlyPromoStatus: null,
+  monthlyPromoMessage: '',
+  annualJobCount: null,
+  annualPromoCode: '',
+  annualPromo: null,
+  annualPromoStatus: null,
+  annualPromoMessage: '',
 };
+
+const DEFAULT_LOGO_URL = 'public/assets/samples/Net-Net-Symbol.svg';
+const TIMEZONE_DATA_URL = '/assets/samples/iana-timezones.json';
+const CURRENCY_DATA_URL = '/assets/samples/iso-currencies.json';
 
 const TERMS_MD_URLS = [
   'public/assets/legal/Net%20Net%20Terms%20%26%20Conditions.md',
@@ -213,10 +233,45 @@ function subscriptionInvoicesKey(wsId) {
   return `netnet_ws_${wsId}_subscription_invoices_v1`;
 }
 
+function normalizeSlug(value) {
+  const cleaned = String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\\s-]/g, '')
+    .replace(/[\\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return cleaned.slice(0, 32);
+}
+
+function slugFromName(name) {
+  return normalizeSlug(name || '') || 'netnet';
+}
+
+function evaluateSlug(slug) {
+  const value = String(slug || '').trim();
+  if (!value) {
+    return { status: 'invalid', message: 'Workspace URL is required.' };
+  }
+  if (value.length < 3) {
+    return { status: 'invalid', message: 'Use at least 3 characters.' };
+  }
+  if (value === 'righthereinteractive') {
+    return { status: 'taken', message: 'Someone else already grabbed this. Try a different URL.' };
+  }
+  return { status: 'available', message: 'Available' };
+}
+
 function normalizeWorkspaceSettings(data, workspaceName = 'Net Net') {
+  const name = String(data?.name || workspaceName || 'Net Net').trim() || 'Net Net';
+  const slug = normalizeSlug(data?.slug || slugFromName(name));
+  const logoDataUrl = data?.logoDataUrl || null;
+  const logoUrl = data?.logoUrl || (!logoDataUrl ? DEFAULT_LOGO_URL : null);
   return {
-    name: String(data?.name || workspaceName || 'Net Net').trim() || 'Net Net',
-    logoDataUrl: data?.logoDataUrl || null,
+    name,
+    slug,
+    industry: data?.industry || 'Digital & Web Services',
+    logoDataUrl,
+    logoUrl,
     timezone: data?.timezone || 'America/New_York',
     currency: data?.currency || 'USD',
   };
@@ -254,10 +309,17 @@ function seedSubscriptionState() {
   const nextRenewal = new Date();
   nextRenewal.setDate(nextRenewal.getDate() + 30);
   return {
-    cadence: 'monthly',
+    currentPlan: 'free',
+    cadence: 'free',
+    monthlyPricePerJob: 30,
+    annualPrepayJobs: 1,
+    promoCode: null,
+    promoDiscountPct: null,
+    promoDiscountLabel: null,
+    promoDiscountEndsAt: null,
     planId: 'active-jobs-standard',
-    planLabel: 'Active Jobs',
-    priceLabel: '$30 / active job / month',
+    planLabel: 'Free',
+    priceLabel: 'Includes 1 active Job',
     paymentMethod: {
       brand: 'Visa',
       last4: '4242',
@@ -266,9 +328,44 @@ function seedSubscriptionState() {
     },
     nextRenewalDate: nextRenewal.toISOString(),
     usage: {
-      activeJobsCount: 3,
+      activeJobsCount: 1,
       notes: '',
     },
+  };
+}
+
+function normalizeSubscriptionState(raw = {}) {
+  const seeded = seedSubscriptionState();
+  const inferredPlan = raw.currentPlan
+    || (raw.cadence === 'annual' ? 'annual' : raw.cadence === 'monthly' ? 'monthly' : 'free');
+  const usage = {
+    activeJobsCount: Number.isFinite(raw.usage?.activeJobsCount)
+      ? raw.usage.activeJobsCount
+      : Number.isFinite(raw.activeJobsCount)
+        ? raw.activeJobsCount
+        : inferredPlan === 'free' ? 1 : 3,
+    notes: raw.usage?.notes || '',
+  };
+  const monthlyPricePerJob = Number.isFinite(raw.monthlyPricePerJob) ? raw.monthlyPricePerJob : 30;
+  const nextRenewal = raw.nextRenewalDate || seeded.nextRenewalDate;
+  const cadence = inferredPlan === 'annual' ? 'annual' : inferredPlan === 'monthly' ? 'monthly' : 'free';
+  const annualPrepayJobs = Number.isFinite(raw.annualPrepayJobs)
+    ? raw.annualPrepayJobs
+    : (cadence === 'annual' ? usage.activeJobsCount : 1);
+
+  return {
+    ...seeded,
+    ...raw,
+    currentPlan: inferredPlan,
+    cadence,
+    monthlyPricePerJob,
+    annualPrepayJobs,
+    nextRenewalDate: nextRenewal,
+    usage,
+    promoCode: raw.promoCode || null,
+    promoDiscountPct: Number.isFinite(raw.promoDiscountPct) ? raw.promoDiscountPct : null,
+    promoDiscountLabel: raw.promoDiscountLabel || null,
+    promoDiscountEndsAt: raw.promoDiscountEndsAt || null,
   };
 }
 
@@ -309,14 +406,15 @@ function seedSubscriptionInvoices() {
 
 function loadSubscriptionState(wsId) {
   const stored = readJson(subscriptionKey(wsId), null);
-  if (stored) return stored;
-  const seeded = seedSubscriptionState();
-  writeJson(subscriptionKey(wsId), seeded);
-  return seeded;
+  const normalized = normalizeSubscriptionState(stored || {});
+  if (!stored) {
+    writeJson(subscriptionKey(wsId), normalized);
+  }
+  return normalized;
 }
 
 function saveSubscriptionState(wsId, state) {
-  writeJson(subscriptionKey(wsId), state);
+  writeJson(subscriptionKey(wsId), normalizeSubscriptionState(state));
 }
 
 function loadSubscriptionActivity(wsId) {
@@ -345,8 +443,45 @@ function saveSubscriptionInvoices(wsId, invoices) {
 
 function hasWorkspaceChanges(draft, saved) {
   if (!draft || !saved) return false;
-  return ['name', 'logoDataUrl', 'timezone', 'currency']
+  return ['name', 'slug', 'industry', 'logoDataUrl', 'logoUrl', 'timezone', 'currency']
     .some((key) => (draft[key] || null) !== (saved[key] || null));
+}
+
+let cachedTimezones = null;
+let cachedCurrencies = null;
+let timezonesLoading = null;
+let currenciesLoading = null;
+
+function loadTimezones() {
+  if (cachedTimezones) return Promise.resolve(cachedTimezones);
+  if (typeof Intl.supportedValuesOf === 'function') {
+    cachedTimezones = Intl.supportedValuesOf('timeZone');
+    return Promise.resolve(cachedTimezones);
+  }
+  if (!timezonesLoading) {
+    timezonesLoading = fetch(TIMEZONE_DATA_URL)
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => {
+        cachedTimezones = Array.isArray(data) ? data : [];
+        return cachedTimezones;
+      })
+      .catch(() => []);
+  }
+  return timezonesLoading;
+}
+
+function loadCurrencies() {
+  if (cachedCurrencies) return Promise.resolve(cachedCurrencies);
+  if (!currenciesLoading) {
+    currenciesLoading = fetch(CURRENCY_DATA_URL)
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => {
+        cachedCurrencies = Array.isArray(data) ? data : [];
+        return cachedCurrencies;
+      })
+      .catch(() => []);
+  }
+  return currenciesLoading;
 }
 
 function loadTeamMembersRaw(wsId) {
@@ -1416,36 +1551,55 @@ function handleDeleteServiceGroup(wsId, group) {
 
 function renderWorkspaceSettingsTab(container) {
   const wsId = workspaceId();
-  const timezones = [
-    { value: 'America/New_York', label: 'Eastern (America/New_York)' },
-    { value: 'America/Chicago', label: 'Central (America/Chicago)' },
-    { value: 'America/Denver', label: 'Mountain (America/Denver)' },
-    { value: 'America/Los_Angeles', label: 'Pacific (America/Los_Angeles)' },
-    { value: 'America/Phoenix', label: 'Arizona (America/Phoenix)' },
-    { value: 'America/Anchorage', label: 'Alaska (America/Anchorage)' },
-    { value: 'Pacific/Honolulu', label: 'Hawaii (Pacific/Honolulu)' },
-    { value: 'Europe/London', label: 'London (Europe/London)' },
-    { value: 'Europe/Berlin', label: 'Berlin (Europe/Berlin)' },
-    { value: 'Europe/Paris', label: 'Paris (Europe/Paris)' },
-    { value: 'Asia/Dubai', label: 'Dubai (Asia/Dubai)' },
-    { value: 'Asia/Kolkata', label: 'India (Asia/Kolkata)' },
-    { value: 'Asia/Singapore', label: 'Singapore (Asia/Singapore)' },
-    { value: 'Asia/Tokyo', label: 'Tokyo (Asia/Tokyo)' },
-    { value: 'Australia/Sydney', label: 'Sydney (Australia/Sydney)' },
-  ];
-  const currencies = [
-    { value: 'USD', label: 'USD' },
-    { value: 'CAD', label: 'CAD' },
-    { value: 'GBP', label: 'GBP' },
-    { value: 'EUR', label: 'EUR' },
-    { value: 'AUD', label: 'AUD' },
-  ];
 
   const saved = loadWorkspaceSettings(wsId);
   const draft = WORKSPACE_UI_STATE.draft || { ...saved };
   WORKSPACE_UI_STATE.saved = saved;
   WORKSPACE_UI_STATE.draft = draft;
   const hasChanges = hasWorkspaceChanges(draft, saved);
+  const slugCheck = evaluateSlug(draft.slug);
+  const slugStatus = WORKSPACE_UI_STATE.slugStatus || slugCheck.status;
+  const slugMessage = WORKSPACE_UI_STATE.slugStatus ? WORKSPACE_UI_STATE.slugMessage : slugCheck.message;
+  const logoSrc = draft.logoDataUrl || draft.logoUrl || DEFAULT_LOGO_URL;
+  const canRemoveLogo = Boolean(draft.logoDataUrl) || (draft.logoUrl && draft.logoUrl !== DEFAULT_LOGO_URL);
+  const timezones = Array.isArray(WORKSPACE_UI_STATE.timezones) ? WORKSPACE_UI_STATE.timezones : [];
+  const currencies = Array.isArray(WORKSPACE_UI_STATE.currencies) ? WORKSPACE_UI_STATE.currencies : [];
+  const timezoneSearch = WORKSPACE_UI_STATE.timezoneSearch || '';
+  const currencySearch = WORKSPACE_UI_STATE.currencySearch || '';
+  const pinnedTimezones = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London'];
+  const pinnedCurrencies = ['USD', 'CAD', 'GBP', 'EUR', 'AUD'];
+
+  const filterText = (value, search) => value.toLowerCase().includes(search.toLowerCase());
+  const filteredTimezones = timezoneSearch
+    ? timezones.filter((tz) => filterText(tz, timezoneSearch))
+    : timezones.slice();
+  const tzPinned = pinnedTimezones.filter((tz) => filteredTimezones.includes(tz));
+  const tzRest = filteredTimezones.filter((tz) => !pinnedTimezones.includes(tz)).sort((a, b) => a.localeCompare(b));
+  const timezoneOptions = [...tzPinned, ...tzRest];
+
+  const filteredCurrencies = currencySearch
+    ? currencies.filter((curr) => (
+      filterText(curr.code || '', currencySearch) || filterText(curr.name || '', currencySearch)
+    ))
+    : currencies.slice();
+  const currencyPinned = pinnedCurrencies
+    .map((code) => filteredCurrencies.find((curr) => curr.code === code))
+    .filter(Boolean);
+  const currencyRest = filteredCurrencies.filter((curr) => !pinnedCurrencies.includes(curr.code))
+    .sort((a, b) => a.code.localeCompare(b.code));
+  const currencyOptions = [...currencyPinned, ...currencyRest];
+  const industries = [
+    'Accounting & Financial Services',
+    'Architecture & Engineering',
+    'Consulting Services',
+    'Creative & Design Services',
+    'Digital & Web Services',
+    'Information Technology (IT) Services',
+    'Marketing & Advertising Agencies',
+    'Public Relations (PR) & Communications',
+    'Software Development Firms',
+    'Other Professional Services',
+  ];
 
   container.innerHTML = `
     <div class="space-y-6 pb-12">
@@ -1455,75 +1609,248 @@ function renderWorkspaceSettingsTab(container) {
           <input id="workspace-name" type="text" class="lookup-input" value="${draft.name || ''}" />
         </div>
         <div>
+          <label class="lookup-modal__label">WORKSPACE URL</label>
+          <input id="workspace-slug" name="workspaceSlug" type="text" class="lookup-input" placeholder="netnet" value="${draft.slug || ''}" />
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">https://netnet.app/<span id="workspace-slug-preview">${draft.slug || 'netnet'}</span></p>
+          <p id="workspace-slug-status" class="mt-1 text-xs hidden"></p>
+        </div>
+        <div>
+          <label class="lookup-modal__label">PRIMARY INDUSTRY</label>
+          <select id="workspace-industry" class="lookup-input">
+            ${industries.map((industry) => `<option value="${industry}" ${draft.industry === industry ? 'selected' : ''}>${industry}</option>`).join('')}
+          </select>
+          <p id="workspace-industry-error" class="mt-1 text-xs text-red-600 dark:text-red-400 hidden">Primary industry is required.</p>
+        </div>
+        <div>
           <label class="lookup-modal__label">Workspace Logo</label>
           <div class="flex items-center gap-4">
             <div class="h-16 w-16 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 flex items-center justify-center overflow-hidden">
-              ${draft.logoDataUrl
-                ? `<img src="${draft.logoDataUrl}" alt="Workspace logo" class="h-full w-full object-cover" />`
-                : '<span class="text-xs text-slate-500 dark:text-slate-400">No logo</span>'}
+              <img id="workspace-logo-preview" data-workspace-logo-preview="true" src="${logoSrc}" alt="Workspace logo" class="h-full w-full object-cover" />
             </div>
             <div class="flex flex-col gap-2">
               <button type="button" id="workspace-logo-upload-btn" class="lookup-btn primary">Upload logo</button>
-              <button type="button" id="workspace-logo-remove-btn" class="lookup-btn ghost" ${draft.logoDataUrl ? '' : 'disabled'}>Remove logo</button>
+              <button type="button" id="workspace-logo-remove-btn" class="lookup-btn ghost" ${canRemoveLogo ? '' : 'disabled'}>Remove logo</button>
             </div>
           </div>
           <input id="workspace-logo-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
         </div>
         <div>
           <label class="lookup-modal__label">Default Time Zone</label>
+          <input id="workspace-timezone-search" type="search" class="lookup-input" placeholder="Search time zones…" value="${timezoneSearch}" />
           <select id="workspace-timezone" class="lookup-input">
-            ${timezones.map(tz => `<option value="${tz.value}" ${draft.timezone === tz.value ? 'selected' : ''}>${tz.label}</option>`).join('')}
+            ${timezoneOptions.length
+              ? timezoneOptions.map((tz) => `<option value="${tz}" ${draft.timezone === tz ? 'selected' : ''}>${tz}</option>`).join('')
+              : '<option value="">Loading time zones…</option>'}
           </select>
         </div>
         <div>
           <label class="lookup-modal__label">Currency</label>
+          <input id="workspace-currency-search" type="search" class="lookup-input" placeholder="Search currencies…" value="${currencySearch}" />
           <select id="workspace-currency" class="lookup-input">
-            ${currencies.map(curr => `<option value="${curr.value}" ${draft.currency === curr.value ? 'selected' : ''}>${curr.label}</option>`).join('')}
+            ${currencyOptions.length
+              ? currencyOptions.map((curr) => `<option value="${curr.code}" ${draft.currency === curr.code ? 'selected' : ''}>${curr.code} — ${curr.name}</option>`).join('')
+              : '<option value="">Loading currencies…</option>'}
           </select>
         </div>
       </section>
 
-      ${hasChanges ? `
-        <div class="sticky bottom-4 z-20">
-          <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-lg px-4 py-3 flex items-center justify-between">
-            <span class="text-sm text-slate-700 dark:text-slate-200">Unsaved changes</span>
-            <div class="flex items-center gap-2">
-              <button type="button" id="workspace-cancel" class="lookup-btn ghost">Cancel</button>
-              <button type="button" id="workspace-save" class="lookup-btn primary">Save changes</button>
-            </div>
+      <div id="workspace-footer" class="sticky bottom-4 z-20 ${hasChanges ? '' : 'hidden'}">
+        <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-lg px-4 py-3 flex items-center justify-between">
+          <span class="text-sm text-slate-700 dark:text-slate-200">Unsaved changes</span>
+          <div class="flex items-center gap-2">
+            <button type="button" id="workspace-cancel" class="lookup-btn ghost">Cancel</button>
+            <button type="button" id="workspace-save" class="lookup-btn primary">Save changes</button>
           </div>
         </div>
-      ` : ''}
+      </div>
     </div>
   `;
 
-  const rerender = () => renderWorkspaceSettingsTab(container);
+  const footerEl = container.querySelector('#workspace-footer');
+  const slugPreviewEl = container.querySelector('#workspace-slug-preview');
+  const slugStatusEl = container.querySelector('#workspace-slug-status');
+  const industryErrorEl = container.querySelector('#workspace-industry-error');
+  const logoImg = container.querySelector('#workspace-logo-preview');
+  const removeBtn = container.querySelector('#workspace-logo-remove-btn');
+
+  const updateFooter = () => {
+    const changed = hasWorkspaceChanges(draft, saved);
+    footerEl?.classList.toggle('hidden', !changed);
+  };
+
+  const updateSlugPreview = () => {
+    const value = draft.slug || 'netnet';
+    if (slugPreviewEl) slugPreviewEl.textContent = value;
+  };
+
+  const updateSlugStatus = (status, message) => {
+    if (!slugStatusEl) return;
+    slugStatusEl.classList.remove('hidden', 'text-emerald-600', 'dark:text-emerald-400', 'text-red-600', 'dark:text-red-400', 'text-slate-500', 'dark:text-slate-400');
+    if (!status) {
+      slugStatusEl.classList.add('hidden');
+      slugStatusEl.textContent = '';
+      return;
+    }
+    if (status === 'available') {
+      slugStatusEl.classList.add('text-emerald-600', 'dark:text-emerald-400');
+      slugStatusEl.textContent = message || 'Available';
+      return;
+    }
+    if (status === 'checking') {
+      slugStatusEl.classList.add('text-slate-500', 'dark:text-slate-400');
+      slugStatusEl.textContent = message || 'Checking availability…';
+      return;
+    }
+    slugStatusEl.classList.add('text-red-600', 'dark:text-red-400');
+    slugStatusEl.textContent = message || 'Unavailable';
+  };
+
+  const updateIndustryError = (show) => {
+    if (!industryErrorEl) return;
+    industryErrorEl.classList.toggle('hidden', !show);
+  };
+
+  const updateLogoPreview = () => {
+    if (logoImg) {
+      logoImg.src = draft.logoDataUrl || draft.logoUrl || DEFAULT_LOGO_URL;
+    }
+    if (removeBtn) {
+      const canRemove = Boolean(draft.logoDataUrl) || (draft.logoUrl && draft.logoUrl !== DEFAULT_LOGO_URL);
+      removeBtn.toggleAttribute('disabled', !canRemove);
+    }
+  };
+
+  const timezoneSelect = container.querySelector('#workspace-timezone');
+  const currencySelect = container.querySelector('#workspace-currency');
+
+  const updateTimezoneOptions = () => {
+    if (!timezoneSelect) return;
+    const list = Array.isArray(WORKSPACE_UI_STATE.timezones) ? WORKSPACE_UI_STATE.timezones : [];
+    const search = (WORKSPACE_UI_STATE.timezoneSearch || '').toLowerCase();
+    const filtered = search
+      ? list.filter((tz) => tz.toLowerCase().includes(search))
+      : list.slice();
+    const pinned = pinnedTimezones.filter((tz) => filtered.includes(tz));
+    const rest = filtered.filter((tz) => !pinnedTimezones.includes(tz)).sort((a, b) => a.localeCompare(b));
+    const options = [...pinned, ...rest];
+    timezoneSelect.innerHTML = options.length
+      ? options.map((tz) => `<option value="${tz}" ${draft.timezone === tz ? 'selected' : ''}>${tz}</option>`).join('')
+      : '<option value="">Loading time zones…</option>';
+  };
+
+  const updateCurrencyOptions = () => {
+    if (!currencySelect) return;
+    const list = Array.isArray(WORKSPACE_UI_STATE.currencies) ? WORKSPACE_UI_STATE.currencies : [];
+    const search = (WORKSPACE_UI_STATE.currencySearch || '').toLowerCase();
+    const filtered = search
+      ? list.filter((curr) => (
+        (curr.code || '').toLowerCase().includes(search) || (curr.name || '').toLowerCase().includes(search)
+      ))
+      : list.slice();
+    const pinned = pinnedCurrencies
+      .map((code) => filtered.find((curr) => curr.code === code))
+      .filter(Boolean);
+    const rest = filtered.filter((curr) => !pinnedCurrencies.includes(curr.code))
+      .sort((a, b) => a.code.localeCompare(b.code));
+    const options = [...pinned, ...rest];
+    currencySelect.innerHTML = options.length
+      ? options.map((curr) => `<option value="${curr.code}" ${draft.currency === curr.code ? 'selected' : ''}>${curr.code} — ${curr.name}</option>`).join('')
+      : '<option value="">Loading currencies…</option>';
+  };
+
+  updateSlugPreview();
+  updateSlugStatus(slugStatus, slugMessage);
+  updateFooter();
+  updateLogoPreview();
+  updateTimezoneOptions();
+  updateCurrencyOptions();
+
+  loadTimezones().then((list) => {
+    WORKSPACE_UI_STATE.timezones = list;
+    updateTimezoneOptions();
+  });
+  loadCurrencies().then((list) => {
+    WORKSPACE_UI_STATE.currencies = list;
+    updateCurrencyOptions();
+  });
 
   const nameInput = container.querySelector('#workspace-name');
   if (nameInput) {
     nameInput.oninput = (e) => {
       draft.name = e.target.value;
-      rerender();
+      if (!draft.slug || draft.slug === slugFromName(saved.name)) {
+        draft.slug = slugFromName(draft.name);
+      }
+      updateSlugPreview();
+      updateFooter();
     };
   }
-  const timezoneSelect = container.querySelector('#workspace-timezone');
+  const slugInput = container.querySelector('#workspace-slug');
+  if (slugInput) {
+    slugInput.oninput = (e) => {
+      const normalized = normalizeSlug(e.target.value);
+      draft.slug = normalized;
+      updateSlugPreview();
+      updateFooter();
+      updateSlugStatus('checking', 'Checking availability…');
+      WORKSPACE_UI_STATE.slugStatus = 'checking';
+      WORKSPACE_UI_STATE.slugMessage = '';
+      if (WORKSPACE_UI_STATE.slugTimer) {
+        clearTimeout(WORKSPACE_UI_STATE.slugTimer);
+      }
+      WORKSPACE_UI_STATE.slugTimer = setTimeout(() => {
+        const result = evaluateSlug(normalized);
+        WORKSPACE_UI_STATE.slugStatus = result.status;
+        WORKSPACE_UI_STATE.slugMessage = result.message;
+        updateSlugStatus(result.status, result.message);
+      }, 400);
+    };
+    slugInput.onblur = () => {
+      const normalized = normalizeSlug(slugInput.value);
+      draft.slug = normalized;
+      const result = evaluateSlug(normalized);
+      WORKSPACE_UI_STATE.slugStatus = result.status;
+      WORKSPACE_UI_STATE.slugMessage = result.message;
+      updateSlugStatus(result.status, result.message);
+    };
+  }
+  const industrySelect = container.querySelector('#workspace-industry');
+  if (industrySelect) {
+    industrySelect.onchange = (e) => {
+      draft.industry = e.target.value;
+      updateIndustryError(false);
+      updateFooter();
+    };
+  }
   if (timezoneSelect) {
     timezoneSelect.onchange = (e) => {
       draft.timezone = e.target.value;
-      rerender();
+      updateFooter();
     };
   }
-  const currencySelect = container.querySelector('#workspace-currency');
+  const timezoneSearchInput = container.querySelector('#workspace-timezone-search');
+  if (timezoneSearchInput) {
+    timezoneSearchInput.oninput = (e) => {
+      WORKSPACE_UI_STATE.timezoneSearch = e.target.value;
+      updateTimezoneOptions();
+    };
+  }
   if (currencySelect) {
     currencySelect.onchange = (e) => {
       draft.currency = e.target.value;
-      rerender();
+      updateFooter();
+    };
+  }
+  const currencySearchInput = container.querySelector('#workspace-currency-search');
+  if (currencySearchInput) {
+    currencySearchInput.oninput = (e) => {
+      WORKSPACE_UI_STATE.currencySearch = e.target.value;
+      updateCurrencyOptions();
     };
   }
 
   const logoInput = container.querySelector('#workspace-logo-input');
   const uploadBtn = container.querySelector('#workspace-logo-upload-btn');
-  const removeBtn = container.querySelector('#workspace-logo-remove-btn');
   if (uploadBtn && logoInput) {
     uploadBtn.onclick = () => logoInput.click();
     logoInput.onchange = () => {
@@ -1532,7 +1859,9 @@ function renderWorkspaceSettingsTab(container) {
       const reader = new FileReader();
       reader.onload = () => {
         draft.logoDataUrl = String(reader.result || '');
-        rerender();
+        draft.logoUrl = null;
+        updateLogoPreview();
+        updateFooter();
       };
       reader.readAsDataURL(file);
     };
@@ -1540,7 +1869,9 @@ function renderWorkspaceSettingsTab(container) {
   if (removeBtn) {
     removeBtn.onclick = () => {
       draft.logoDataUrl = null;
-      rerender();
+      draft.logoUrl = DEFAULT_LOGO_URL;
+      updateLogoPreview();
+      updateFooter();
     };
   }
 
@@ -1548,7 +1879,11 @@ function renderWorkspaceSettingsTab(container) {
   if (cancelBtn) {
     cancelBtn.onclick = () => {
       WORKSPACE_UI_STATE.draft = { ...saved };
-      rerender();
+      WORKSPACE_UI_STATE.slugStatus = null;
+      WORKSPACE_UI_STATE.slugMessage = '';
+      WORKSPACE_UI_STATE.timezoneSearch = '';
+      WORKSPACE_UI_STATE.currencySearch = '';
+      renderWorkspaceSettingsTab(container);
     };
   }
 
@@ -1558,6 +1893,27 @@ function renderWorkspaceSettingsTab(container) {
       const next = normalizeWorkspaceSettings(draft, saved.name);
       if (!next.name.trim()) {
         showToast('Workspace name is required.');
+        return;
+      }
+      const slugResult = evaluateSlug(next.slug);
+      if (slugResult.status === 'invalid') {
+        WORKSPACE_UI_STATE.slugStatus = slugResult.status;
+        WORKSPACE_UI_STATE.slugMessage = slugResult.message;
+        updateSlugStatus(slugResult.status, slugResult.message);
+        return;
+      }
+      if (slugResult.status === 'taken') {
+        WORKSPACE_UI_STATE.slugStatus = slugResult.status;
+        WORKSPACE_UI_STATE.slugMessage = slugResult.message;
+        updateSlugStatus(slugResult.status, slugResult.message);
+        return;
+      }
+      if (WORKSPACE_UI_STATE.slugStatus === 'checking') {
+        updateSlugStatus('checking', 'Checking availability…');
+        return;
+      }
+      if (!next.industry) {
+        updateIndustryError(true);
         return;
       }
       if (!next.timezone) {
@@ -1572,8 +1928,11 @@ function renderWorkspaceSettingsTab(container) {
         saveWorkspaceSettings(wsId, next);
         WORKSPACE_UI_STATE.saved = next;
         WORKSPACE_UI_STATE.draft = { ...next };
+        WORKSPACE_UI_STATE.slugStatus = null;
+        WORKSPACE_UI_STATE.slugMessage = '';
+        updateIndustryError(false);
         showToast('Workspace settings saved');
-        rerender();
+        renderWorkspaceSettingsTab(container);
       };
       if (next.currency !== saved.currency) {
         showConfirmModal({
@@ -1599,6 +1958,55 @@ function appendSubscriptionActivity(wsId, event) {
   saveSubscriptionActivity(wsId, events);
 }
 
+function volumeDiscountPct(jobCount) {
+  if (jobCount >= 51) return 50;
+  if (jobCount >= 35) return 35;
+  if (jobCount >= 16) return 25;
+  if (jobCount >= 5) return 15;
+  return 0;
+}
+
+function volumeDiscountLabel(jobCount) {
+  if (jobCount >= 51) return '50% (51+ Jobs)';
+  if (jobCount >= 35) return '35% (35–50 Jobs)';
+  if (jobCount >= 16) return '25% (16–34 Jobs)';
+  if (jobCount >= 5) return '15% (5–15 Jobs)';
+  return '0% (1–4 Jobs)';
+}
+
+function validatePromoCode(code) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized === 'NETNET70') {
+    return { code: normalized, pct: 70, label: 'Discount of 70%', endsAt: '2026-11-12' };
+  }
+  if (normalized === 'NETNET15') {
+    return { code: normalized, pct: 15, label: 'Discount of 15%', endsAt: '2026-11-12' };
+  }
+  return null;
+}
+
+function annualPricingSummary(jobCount, monthlyPrice, promoPct = 0) {
+  const annualBasePerJob = monthlyPrice * 12;
+  const annualBaseTotal = annualBasePerJob * jobCount;
+  const volumePct = volumeDiscountPct(jobCount);
+  const annualAfterVolume = annualBaseTotal * (1 - volumePct / 100);
+  let finalTotal = annualAfterVolume * (1 - promoPct / 100);
+  const minTotal = annualBaseTotal * 0.2;
+  if (finalTotal < minTotal) finalTotal = minTotal;
+  const savings = annualBaseTotal - finalTotal;
+  const effectiveMonthly = finalTotal / 12;
+  return {
+    annualBasePerJob,
+    annualBaseTotal,
+    volumePct,
+    annualAfterVolume,
+    finalTotal,
+    savings,
+    effectiveMonthly,
+  };
+}
+
 function renderSubscriptionTab(container, route = {}) {
   const wsId = workspaceId();
   const role = getCurrentRole();
@@ -1612,6 +2020,14 @@ function renderSubscriptionTab(container, route = {}) {
     ? `${payment.brand} **** ${payment.last4}`
     : 'No payment method on file';
   const expiryLabel = payment.expMonth && payment.expYear ? `Exp ${payment.expMonth}/${payment.expYear}` : '—';
+  const currentPlan = state.currentPlan || 'free';
+  const activeJobs = Number.isFinite(state.usage?.activeJobsCount) ? state.usage.activeJobsCount : 1;
+  const monthlyPricePerJob = Number.isFinite(state.monthlyPricePerJob) ? state.monthlyPricePerJob : 30;
+  const ui = SUBSCRIPTION_UI_STATE;
+  const selectedPlan = isOwner && ui.selectedPlan && ui.selectedPlan !== currentPlan ? ui.selectedPlan : null;
+  if (!Number.isFinite(ui.annualJobCount)) {
+    ui.annualJobCount = Math.max(1, Number.isFinite(state.annualPrepayJobs) ? state.annualPrepayJobs : activeJobs || 1);
+  }
 
   const activityRows = activity.map(item => `
     <tr class="border-b border-slate-200 dark:border-white/10">
@@ -1634,25 +2050,81 @@ function renderSubscriptionTab(container, route = {}) {
     </div>
   `;
 
+  const currentBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-netnet-purple/10 text-netnet-purple dark:text-white dark:bg-white/10">Current</span>';
+  const adminNote = !isOwner ? '<p class="text-xs text-slate-500 dark:text-slate-400">Only Owners can change subscription.</p>' : '';
+
   const subscriptionSubview = `
     <section class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-800/90 shadow-sm px-6 py-6 md:px-8 md:py-8 space-y-4">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div class="space-y-2">
-          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Current Plan</h3>
-          <div class="text-sm text-slate-600 dark:text-slate-300">${state.planLabel}</div>
-          <div class="text-sm text-slate-600 dark:text-slate-300">${state.priceLabel}</div>
+          <div class="text-sm text-slate-500 dark:text-slate-400">Current plan: <span class="text-slate-900 dark:text-white font-semibold">${currentPlan === 'annual' ? 'Annual' : currentPlan === 'monthly' ? 'Monthly' : 'Free'}</span></div>
+          <div class="text-xs text-slate-500 dark:text-slate-400">Pricing is based on active Jobs (not seats).</div>
+          ${currentPlan === 'annual'
+            ? `<div class="text-xs text-slate-500 dark:text-slate-400">Prepaid jobs: <span class="text-slate-700 dark:text-slate-200">${state.annualPrepayJobs || ui.annualJobCount || 1}</span> · Overages billed monthly</div>`
+            : ''}
+          ${adminNote}
         </div>
-        <div class="text-right text-sm text-slate-600 dark:text-slate-300">
-          <div>Cadence: <span class="text-slate-900 dark:text-white font-medium">${state.cadence === 'annual' ? 'Annual' : 'Monthly'}</span></div>
-          <div>Active jobs: <span class="text-slate-900 dark:text-white font-medium">${state.usage?.activeJobsCount ?? 3}</span></div>
+        <div class="text-sm text-slate-600 dark:text-slate-300 md:text-right">
+          <div>Active Jobs right now: <span class="text-slate-900 dark:text-white font-medium">${activeJobs}</span></div>
           <div>Next renewal: <span class="text-slate-900 dark:text-white font-medium">${formatDateTime(state.nextRenewalDate)}</span></div>
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <button type="button" id="subscription-plan-btn" class="lookup-btn primary" ${isOwner ? '' : 'disabled'}>Change plan…</button>
-        ${!isOwner ? '<span class="text-xs text-slate-500 dark:text-slate-400">Owner only</span>' : ''}
+    </section>
+
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="rounded-2xl border ${currentPlan === 'free' ? 'border-netnet-purple/60' : 'border-slate-200 dark:border-white/10'} bg-white/90 dark:bg-slate-800/90 shadow-sm px-5 py-5 flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <h4 class="text-base font-semibold text-slate-900 dark:text-white">Free</h4>
+          ${currentPlan === 'free' ? currentBadge : ''}
+        </div>
+        <div>
+          <div class="text-2xl font-semibold text-slate-900 dark:text-white">$0</div>
+          <div class="text-sm text-slate-500 dark:text-slate-400">Includes 1 active Job</div>
+        </div>
+        <ul class="text-sm text-slate-600 dark:text-slate-300 space-y-1">
+          <li>No credit card required</li>
+        </ul>
+        <button type="button" class="lookup-btn primary ${currentPlan === 'free' ? 'opacity-60 cursor-not-allowed' : ''}" ${currentPlan === 'free' || !isOwner ? 'disabled' : ''} data-plan-select="free">
+          ${currentPlan === 'free' ? 'Current' : 'Switch to Free'}
+        </button>
+      </div>
+
+      <div class="rounded-2xl border ${currentPlan === 'monthly' ? 'border-netnet-purple/60' : 'border-slate-200 dark:border-white/10'} bg-white/90 dark:bg-slate-800/90 shadow-sm px-5 py-5 flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <h4 class="text-base font-semibold text-slate-900 dark:text-white">Monthly</h4>
+          ${currentPlan === 'monthly' ? currentBadge : ''}
+        </div>
+        <div>
+          <div class="text-xl font-semibold text-slate-900 dark:text-white">$${monthlyPricePerJob} / active Job / month</div>
+        </div>
+        <ul class="text-sm text-slate-600 dark:text-slate-300 space-y-1">
+          <li>Pay for active Jobs at the start of your billing cycle</li>
+          <li>Activate/deactivate Jobs anytime</li>
+          <li>Prorated adjustments when Jobs change mid-cycle</li>
+        </ul>
+        <button type="button" class="lookup-btn primary ${currentPlan === 'monthly' ? 'opacity-60 cursor-not-allowed' : ''}" ${currentPlan === 'monthly' || !isOwner ? 'disabled' : ''} data-plan-select="monthly">
+          ${currentPlan === 'monthly' ? 'Current' : 'Select Monthly'}
+        </button>
+      </div>
+
+      <div class="rounded-2xl border ${currentPlan === 'annual' ? 'border-netnet-purple/60' : 'border-slate-200 dark:border-white/10'} bg-white/90 dark:bg-slate-800/90 shadow-sm px-5 py-5 flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <h4 class="text-base font-semibold text-slate-900 dark:text-white">Annual</h4>
+          ${currentPlan === 'annual' ? currentBadge : ''}
+        </div>
+        <div>
+          <div class="text-xl font-semibold text-slate-900 dark:text-white">Prepay Jobs for the year</div>
+        </div>
+        <ul class="text-sm text-slate-600 dark:text-slate-300 space-y-1">
+          <li>Save 15–50% with volume discounts</li>
+          <li>Overages billed at standard monthly rates</li>
+        </ul>
+        <button type="button" class="lookup-btn primary ${currentPlan === 'annual' ? 'opacity-60 cursor-not-allowed' : ''}" ${currentPlan === 'annual' || !isOwner ? 'disabled' : ''} data-plan-select="annual">
+          ${currentPlan === 'annual' ? 'Current' : 'Select Annual'}
+        </button>
       </div>
     </section>
+    ${selectedPlan ? '<div id="subscription-selection-panel"></div>' : ''}
   `;
 
   const paymentSubview = `
@@ -1713,12 +2185,328 @@ function renderSubscriptionTab(container, route = {}) {
     });
   });
 
-  const planBtn = container.querySelector('#subscription-plan-btn');
-  if (planBtn) {
-    planBtn.onclick = () => {
-      if (!isOwner) return;
-      openPlanModal(wsId, state);
-    };
+  if (activeSubtab.key === 'subscription') {
+    const panelRoot = container.querySelector('#subscription-selection-panel');
+    const selectButtons = container.querySelectorAll('[data-plan-select]');
+    selectButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!isOwner) return;
+        const plan = btn.getAttribute('data-plan-select');
+        ui.selectedPlan = plan;
+        if (plan === 'monthly') {
+          ui.monthlyPromoStatus = null;
+          ui.monthlyPromoMessage = '';
+        }
+        if (plan === 'annual') {
+          ui.annualPromoStatus = null;
+          ui.annualPromoMessage = '';
+          if (!Number.isFinite(ui.annualJobCount)) {
+            ui.annualJobCount = Math.max(1, state.annualPrepayJobs || activeJobs || 1);
+          }
+        }
+        renderSubscriptionTab(container, route);
+      });
+    });
+
+    if (panelRoot && selectedPlan) {
+      const renderCancel = () => {
+        ui.selectedPlan = null;
+        ui.monthlyPromoStatus = null;
+        ui.monthlyPromoMessage = '';
+        ui.monthlyPromo = null;
+        ui.annualPromoStatus = null;
+        ui.annualPromoMessage = '';
+        ui.annualPromo = null;
+        renderSubscriptionTab(container, route);
+      };
+
+      if (selectedPlan === 'monthly') {
+        const baseCost = activeJobs * monthlyPricePerJob;
+        const promoPct = ui.monthlyPromo?.pct || 0;
+        const finalCost = baseCost * (1 - promoPct / 100);
+        const promoNote = ui.monthlyPromo
+          ? `<p class="text-xs text-emerald-600 dark:text-emerald-400">Promo applied: ${ui.monthlyPromo.label} (until ${ui.monthlyPromo.endsAt})</p>`
+          : '';
+        const promoMessage = ui.monthlyPromoStatus === 'invalid'
+          ? `<p class="text-xs text-red-600 dark:text-red-400">${ui.monthlyPromoMessage}</p>`
+          : '';
+        panelRoot.innerHTML = `
+          <section class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-800/90 shadow-sm px-6 py-6 md:px-8 md:py-8 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Switch to Monthly</h3>
+              <button type="button" class="lookup-btn ghost" data-action="cancel-monthly">Cancel</button>
+            </div>
+            <p class="text-sm text-slate-600 dark:text-slate-300">Estimated monthly cost with ${activeJobs} active Jobs: <span class="text-slate-900 dark:text-white font-semibold">${formatCurrency(finalCost)}</span></p>
+            ${promoNote}
+            <div class="space-y-2">
+              <label class="lookup-modal__label">Discount code (optional)</label>
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input id="monthly-promo-input" type="text" class="lookup-input flex-1" placeholder="Enter code" value="${ui.monthlyPromoCode || ''}" />
+                <button type="button" class="lookup-btn ghost" data-action="validate-monthly">Validate</button>
+              </div>
+              ${promoMessage}
+            </div>
+            <div class="flex items-center justify-between">
+              <button type="button" class="lookup-btn ghost" data-action="cancel-monthly">Cancel</button>
+              <button type="button" class="lookup-btn primary" data-action="confirm-monthly">Confirm switch to Monthly</button>
+            </div>
+          </section>
+        `;
+      }
+
+      if (selectedPlan === 'annual') {
+        const annualJobs = Math.max(1, Number(ui.annualJobCount) || 1);
+        const promoPct = ui.annualPromo?.pct || 0;
+        const summary = annualPricingSummary(annualJobs, monthlyPricePerJob, promoPct);
+        const promoNote = ui.annualPromo
+          ? `<p class="text-xs text-emerald-600 dark:text-emerald-400">Promo applied: ${ui.annualPromo.label} (until ${ui.annualPromo.endsAt})</p>`
+          : '';
+        const promoMessage = ui.annualPromoStatus === 'invalid'
+          ? `<p class="text-xs text-red-600 dark:text-red-400">${ui.annualPromoMessage}</p>`
+          : '';
+        panelRoot.innerHTML = `
+          <section class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-800/90 shadow-sm px-6 py-6 md:px-8 md:py-8 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Switch to Annual</h3>
+              <button type="button" class="lookup-btn ghost" data-action="cancel-annual">Cancel</button>
+            </div>
+            <div class="space-y-2">
+              <label class="lookup-modal__label">How many active Jobs do you want to prepay for?</label>
+              <div class="flex items-center gap-2">
+                <button type="button" class="lookup-btn ghost" data-action="annual-decrement">-</button>
+                <input id="annual-job-count" type="number" min="1" class="lookup-input w-24 text-center" value="${annualJobs}" />
+                <button type="button" class="lookup-btn ghost" data-action="annual-increment">+</button>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Volume discount: ${volumeDiscountLabel(annualJobs)}</p>
+              <div class="text-sm text-slate-600 dark:text-slate-300">
+                <div>Annual base total: <span class="line-through text-slate-400">${formatCurrency(summary.annualBaseTotal)}</span></div>
+                <div>After volume discount: <span class="text-slate-900 dark:text-white font-semibold">${formatCurrency(summary.annualAfterVolume)}</span></div>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label class="lookup-modal__label">Discount code (optional)</label>
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input id="annual-promo-input" type="text" class="lookup-input flex-1" placeholder="Enter code" value="${ui.annualPromoCode || ''}" />
+                <button type="button" class="lookup-btn ghost" data-action="validate-annual">Validate</button>
+              </div>
+              ${promoNote}
+              ${promoMessage}
+            </div>
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/60 px-4 py-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+              <div>Final annual total: <span class="text-slate-900 dark:text-white font-semibold">${formatCurrency(summary.finalTotal)}/year</span></div>
+              <div>You save ${formatCurrency(summary.savings)}/year</div>
+              <div>Effective ${formatCurrency(summary.effectiveMonthly)}/month</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400">If you exceed prepaid Jobs, additional active Jobs are billed at the standard monthly rate.</div>
+            </div>
+            <div class="flex items-center justify-between">
+              <button type="button" class="lookup-btn ghost" data-action="cancel-annual">Cancel</button>
+              <button type="button" class="lookup-btn primary" data-action="confirm-annual">Confirm switch to Annual</button>
+            </div>
+          </section>
+        `;
+      }
+
+      if (selectedPlan === 'free') {
+        panelRoot.innerHTML = `
+          <section class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-800/90 shadow-sm px-6 py-6 md:px-8 md:py-8 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Switch to Free</h3>
+              <button type="button" class="lookup-btn ghost" data-action="cancel-free">Cancel</button>
+            </div>
+            <p class="text-sm text-slate-600 dark:text-slate-300">Free includes 1 active Job. Additional active Jobs will need a paid plan.</p>
+            <div class="flex items-center justify-between">
+              <button type="button" class="lookup-btn ghost" data-action="cancel-free">Cancel</button>
+              <button type="button" class="lookup-btn primary" data-action="confirm-free">Confirm switch to Free</button>
+            </div>
+          </section>
+        `;
+      }
+
+      const promoMonthlyBtn = panelRoot?.querySelector('[data-action="validate-monthly"]');
+      if (promoMonthlyBtn) {
+        promoMonthlyBtn.onclick = () => {
+          const input = panelRoot.querySelector('#monthly-promo-input');
+          ui.monthlyPromoCode = input.value;
+          const result = validatePromoCode(input.value);
+          if (!result && input.value.trim()) {
+            ui.monthlyPromoStatus = 'invalid';
+            ui.monthlyPromoMessage = 'Promo code is not valid.';
+            ui.monthlyPromo = null;
+          } else {
+            ui.monthlyPromoStatus = null;
+            ui.monthlyPromoMessage = '';
+            ui.monthlyPromo = result;
+          }
+          renderSubscriptionTab(container, route);
+        };
+      }
+
+      const promoAnnualBtn = panelRoot?.querySelector('[data-action="validate-annual"]');
+      if (promoAnnualBtn) {
+        promoAnnualBtn.onclick = () => {
+          const input = panelRoot.querySelector('#annual-promo-input');
+          ui.annualPromoCode = input.value;
+          const result = validatePromoCode(input.value);
+          if (!result && input.value.trim()) {
+            ui.annualPromoStatus = 'invalid';
+            ui.annualPromoMessage = 'Promo code is not valid.';
+            ui.annualPromo = null;
+          } else {
+            ui.annualPromoStatus = null;
+            ui.annualPromoMessage = '';
+            ui.annualPromo = result;
+          }
+          renderSubscriptionTab(container, route);
+        };
+      }
+
+      const jobInput = panelRoot?.querySelector('#annual-job-count');
+      if (jobInput) {
+        jobInput.oninput = (e) => {
+          const next = Math.max(1, Number(e.target.value) || 1);
+          ui.annualJobCount = next;
+          renderSubscriptionTab(container, route);
+        };
+      }
+      const decBtn = panelRoot?.querySelector('[data-action="annual-decrement"]');
+      if (decBtn) {
+        decBtn.onclick = () => {
+          ui.annualJobCount = Math.max(1, (Number(ui.annualJobCount) || 1) - 1);
+          renderSubscriptionTab(container, route);
+        };
+      }
+      const incBtn = panelRoot?.querySelector('[data-action="annual-increment"]');
+      if (incBtn) {
+        incBtn.onclick = () => {
+          ui.annualJobCount = (Number(ui.annualJobCount) || 1) + 1;
+          renderSubscriptionTab(container, route);
+        };
+      }
+
+      const cancelBtns = panelRoot?.querySelectorAll('[data-action^="cancel"]');
+      cancelBtns?.forEach(btn => {
+        btn.addEventListener('click', renderCancel);
+      });
+
+      const confirmMonthly = panelRoot?.querySelector('[data-action="confirm-monthly"]');
+      if (confirmMonthly) {
+        confirmMonthly.onclick = () => {
+          if (!isOwner) return;
+          const next = {
+            ...state,
+            currentPlan: 'monthly',
+            cadence: 'monthly',
+            planLabel: 'Monthly',
+            priceLabel: `$${monthlyPricePerJob} / active job / month`,
+            annualPrepayJobs: null,
+            promoCode: ui.monthlyPromo?.code || null,
+            promoDiscountPct: ui.monthlyPromo?.pct || null,
+            promoDiscountLabel: ui.monthlyPromo?.label || null,
+            promoDiscountEndsAt: ui.monthlyPromo?.endsAt || null,
+          };
+          const prevCadence = state.cadence;
+          saveSubscriptionState(wsId, next);
+          if (prevCadence && prevCadence !== 'monthly' && (prevCadence === 'annual' || prevCadence === 'monthly')) {
+            appendSubscriptionActivity(wsId, {
+              id: createId('act'),
+              createdAt: new Date().toISOString(),
+              type: 'cadence_changed',
+              message: `Cadence changed — ${prevCadence === 'annual' ? 'Annual' : 'Monthly'} → Monthly`,
+            });
+          }
+          appendSubscriptionActivity(wsId, {
+            id: createId('act'),
+            createdAt: new Date().toISOString(),
+            type: 'plan_changed',
+            message: 'Plan changed to Monthly',
+          });
+          if (ui.monthlyPromo?.code) {
+            appendSubscriptionActivity(wsId, {
+              id: createId('act'),
+              createdAt: new Date().toISOString(),
+              type: 'plan_changed',
+              message: `Promo code ${ui.monthlyPromo.code} applied`,
+            });
+          }
+          renderCancel();
+          showToast('Plan updated');
+        };
+      }
+
+      const confirmAnnual = panelRoot?.querySelector('[data-action="confirm-annual"]');
+      if (confirmAnnual) {
+        confirmAnnual.onclick = () => {
+          if (!isOwner) return;
+          const jobs = Math.max(1, Number(ui.annualJobCount) || 1);
+          const next = {
+            ...state,
+            currentPlan: 'annual',
+            cadence: 'annual',
+            planLabel: 'Annual',
+            priceLabel: 'Annual prepay (discounted)',
+            annualPrepayJobs: jobs,
+            promoCode: ui.annualPromo?.code || null,
+            promoDiscountPct: ui.annualPromo?.pct || null,
+            promoDiscountLabel: ui.annualPromo?.label || null,
+            promoDiscountEndsAt: ui.annualPromo?.endsAt || null,
+          };
+          const prevCadence = state.cadence;
+          saveSubscriptionState(wsId, next);
+          if (prevCadence && prevCadence !== 'annual' && (prevCadence === 'annual' || prevCadence === 'monthly')) {
+            appendSubscriptionActivity(wsId, {
+              id: createId('act'),
+              createdAt: new Date().toISOString(),
+              type: 'cadence_changed',
+              message: `Cadence changed — ${prevCadence === 'annual' ? 'Annual' : 'Monthly'} → Annual`,
+            });
+          }
+          appendSubscriptionActivity(wsId, {
+            id: createId('act'),
+            createdAt: new Date().toISOString(),
+            type: 'plan_changed',
+            message: `Plan changed to Annual (${jobs} prepaid Jobs)`,
+          });
+          if (ui.annualPromo?.code) {
+            appendSubscriptionActivity(wsId, {
+              id: createId('act'),
+              createdAt: new Date().toISOString(),
+              type: 'plan_changed',
+              message: `Promo code ${ui.annualPromo.code} applied`,
+            });
+          }
+          renderCancel();
+          showToast('Plan updated');
+        };
+      }
+
+      const confirmFree = panelRoot?.querySelector('[data-action="confirm-free"]');
+      if (confirmFree) {
+        confirmFree.onclick = () => {
+          if (!isOwner) return;
+          const next = {
+            ...state,
+            currentPlan: 'free',
+            cadence: 'free',
+            planLabel: 'Free',
+            priceLabel: 'Includes 1 active Job',
+            annualPrepayJobs: 1,
+            promoCode: null,
+            promoDiscountPct: null,
+            promoDiscountLabel: null,
+            promoDiscountEndsAt: null,
+          };
+          saveSubscriptionState(wsId, next);
+          appendSubscriptionActivity(wsId, {
+            id: createId('act'),
+            createdAt: new Date().toISOString(),
+            type: 'plan_changed',
+            message: 'Plan changed to Free',
+          });
+          renderCancel();
+          showToast('Plan updated');
+        };
+      }
+    }
   }
 
   const paymentBtn = container.querySelector('#subscription-payment-btn');
@@ -1912,70 +2700,6 @@ function renderTemplatesTab(container) {
       </section>
     </div>
   `;
-}
-
-function openPlanModal(wsId, state) {
-  const layer = ensureModalLayer('subscription-plan-layer');
-  layer.innerHTML = `
-    <div class="nn-modal-overlay" role="presentation">
-      <div class="nn-modal-card" role="dialog" aria-modal="true" aria-label="Change plan">
-        <div class="lookup-modal__header">
-          <h3>Change plan</h3>
-        </div>
-        <div class="space-y-3">
-          <label class="lookup-modal__label">Cadence</label>
-          <select id="plan-cadence" class="lookup-input">
-            <option value="monthly" ${state.cadence === 'monthly' ? 'selected' : ''}>Monthly</option>
-            <option value="annual" ${state.cadence === 'annual' ? 'selected' : ''}>Annual</option>
-          </select>
-          <label class="lookup-modal__label">Plan</label>
-          <select id="plan-id" class="lookup-input">
-            <option value="active-jobs-standard" selected>Active Jobs</option>
-          </select>
-        </div>
-        <div class="lookup-modal__actions">
-          <button type="button" class="lookup-btn ghost" data-action="cancel">Cancel</button>
-          <button type="button" class="lookup-btn primary" data-action="confirm">Update plan</button>
-        </div>
-      </div>
-    </div>
-  `;
-  const hide = () => { layer.innerHTML = ''; };
-  const overlay = layer.querySelector('.nn-modal-overlay');
-  overlay.onclick = (e) => { if (e.target === overlay) hide(); };
-  layer.querySelector('[data-action="cancel"]').onclick = hide;
-  layer.querySelector('[data-action="confirm"]').onclick = () => {
-    const cadence = layer.querySelector('#plan-cadence')?.value || 'monthly';
-    const planId = layer.querySelector('#plan-id')?.value || 'active-jobs-standard';
-    const next = {
-      ...state,
-      cadence,
-      planId,
-      planLabel: 'Active Jobs',
-      priceLabel: cadence === 'annual' ? 'Annual prepay (discounted)' : '$30 / active job / month',
-    };
-    saveSubscriptionState(wsId, next);
-    if (cadence !== state.cadence) {
-      appendSubscriptionActivity(wsId, {
-        id: createId('act'),
-        createdAt: new Date().toISOString(),
-        type: 'cadence_changed',
-        message: `Cadence changed — ${state.cadence === 'annual' ? 'Annual' : 'Monthly'} → ${cadence === 'annual' ? 'Annual' : 'Monthly'}`,
-      });
-    }
-    if (planId !== state.planId) {
-      appendSubscriptionActivity(wsId, {
-        id: createId('act'),
-        createdAt: new Date().toISOString(),
-        type: 'plan_changed',
-        message: 'Plan changed — Active Jobs',
-      });
-    }
-    showToast('Plan updated');
-    hide();
-    const container = document.getElementById('settingsSubscriptionRoot');
-    if (container) renderSubscriptionTab(container);
-  };
 }
 
 function openPaymentModal(wsId, state) {
