@@ -361,6 +361,12 @@ function ItemsList({
   onMoveRequest,
   onCreateTask,
   onDeleteItem,
+  editingTitleId,
+  titleDraft,
+  onStartEditTitle,
+  onChangeTitleDraft,
+  onSaveTitle,
+  onCancelEditTitle,
   editingNotesId,
   notesDraft,
   onStartEditNotes,
@@ -400,7 +406,27 @@ function ItemsList({
             ])
           ) : null,
           h('div', { className: 'flex-1 min-w-0 space-y-1' }, [
-            h('div', { className: 'text-sm font-medium text-slate-900 dark:text-white' }, item.title),
+            editingTitleId === item.id && !showSelection ? h('input', {
+              type: 'text',
+              value: titleDraft,
+              onChange: (e) => onChangeTitleDraft(e.target.value),
+              onKeyDown: (e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onSaveTitle(item.id, titleDraft);
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  onCancelEditTitle();
+                }
+              },
+              onBlur: () => onSaveTitle(item.id, titleDraft),
+              className: 'w-full bg-transparent border-none px-0 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-0',
+              autoFocus: true,
+            }) : h('div', {
+              className: 'text-sm font-medium text-slate-900 dark:text-white cursor-text',
+              onClick: showSelection ? undefined : () => onStartEditTitle(item),
+            }, item.title),
             editingNotesId === item.id && !showSelection ? h('textarea', {
               value: notesDraft,
               rows: 3,
@@ -556,6 +582,8 @@ function MyListsLayout() {
   const [openMenuPos, setOpenMenuPos] = useState(null);
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [folderRenameDraft, setFolderRenameDraft] = useState('');
+  const [editingTitleId, setEditingTitleId] = useState(null);
+  const [titleDraft, setTitleDraft] = useState('');
   const [editingNotesId, setEditingNotesId] = useState(null);
   const [notesDraft, setNotesDraft] = useState('');
 
@@ -584,6 +612,8 @@ function MyListsLayout() {
 
   useEffect(() => {
     if (multiSelect) {
+      setEditingTitleId(null);
+      setTitleDraft('');
       setEditingNotesId(null);
       setNotesDraft('');
     }
@@ -638,8 +668,34 @@ function MyListsLayout() {
     });
   };
 
+  const startEditTitle = (item) => {
+    if (!item || multiSelect) return;
+    setEditingTitleId(item.id);
+    setTitleDraft(item.title || '');
+    setEditingNotesId(null);
+    setNotesDraft('');
+  };
+
+  const saveTitle = (itemId, val) => {
+    const nextVal = (val || '').trim();
+    if (!nextVal) {
+      cancelTitleEdit();
+      return;
+    }
+    setItems((prev) => prev.map((item) => item.id === itemId ? { ...item, title: nextVal } : item));
+    setEditingTitleId(null);
+    setTitleDraft('');
+  };
+
+  const cancelTitleEdit = () => {
+    setEditingTitleId(null);
+    setTitleDraft('');
+  };
+
   const startEditNotes = (item) => {
     if (!item || multiSelect) return;
+    setEditingTitleId(null);
+    setTitleDraft('');
     setEditingNotesId(item.id);
     setNotesDraft(item.notes || '');
   };
@@ -1080,6 +1136,12 @@ function MyListsLayout() {
               onMoveRequest: (item) => setMoveModalItem(item),
               onCreateTask: (item) => openCreateTaskDrawer(item),
               onDeleteItem: (item) => deleteItem(item.id),
+              editingTitleId,
+              titleDraft,
+              onStartEditTitle: startEditTitle,
+              onChangeTitleDraft: setTitleDraft,
+              onSaveTitle: saveTitle,
+              onCancelEditTitle: cancelTitleEdit,
               editingNotesId,
               notesDraft,
               onStartEditNotes: startEditNotes,

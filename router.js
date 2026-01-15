@@ -1,5 +1,6 @@
 import { openTabForHash } from './app-shell/app-tabs.js';
 import { getContactsEntryHash } from './contacts/contacts-ui-state.js';
+import { getCurrentRole } from './app-shell/app-helpers.js';
 
 const DEFAULT_HASH = '#/auth/login';
 const APP_DEFAULT_HASH = '#/app/me/tasks';
@@ -26,6 +27,9 @@ export function setAuthenticated(value) {
 
 function parseRoute(hash) {
   const h = hash || DEFAULT_HASH;
+  const settingsRoot = /^#\/app\/settings\/?$/.test(h);
+  const settingsSubscriptionSub = h.match(/^#\/app\/settings\/subscription\/([^/?#]+)\/?$/);
+  const settingsSub = h.match(/^#\/app\/settings\/([^/?#]+)\/?$/);
   const companyMatch = h.match(/^#\/app\/contacts\/company\/(\d+)$/);
   const companyEdit = h.match(/^#\/app\/contacts\/companies\/(\d+)\/edit$/);
   const companyNew = h === '#/app/contacts/companies/new';
@@ -84,7 +88,37 @@ function parseRoute(hash) {
   if (chat) return { name: 'chat' };
   if (performance || legacyReports) return { name: 'performance', legacy: legacyReports };
   if (components) return { name: 'components' };
-  if (settings) return { name: 'settings' };
+  if (settingsRoot) return { name: 'settings', tab: 'team', needsRedirect: true };
+  if (settingsSubscriptionSub) {
+    const subtab = settingsSubscriptionSub[1];
+    const subtabs = {
+      subscription: 'subscription',
+      payment: 'payment',
+      activity: 'activity',
+    };
+    return subtabs[subtab]
+      ? { name: 'settings', tab: 'subscription', subtab: subtabs[subtab] }
+      : { name: 'settings', tab: 'subscription', subtab: 'subscription', needsRedirect: true };
+  }
+  if (settingsSub) {
+    const key = settingsSub[1];
+    const tabs = {
+      team: 'team',
+      'service-types': 'service-types',
+      workspace: 'workspace',
+      templates: 'templates',
+      subscription: 'subscription',
+      terms: 'terms',
+    };
+    if (!tabs[key]) {
+      return { name: 'settings', tab: 'team', needsRedirect: true };
+    }
+    if (tabs[key] === 'subscription') {
+      return { name: 'settings', tab: 'subscription', subtab: 'subscription', needsRedirect: true };
+    }
+    return { name: 'settings', tab: tabs[key] };
+  }
+  if (settings) return { name: 'settings', tab: 'team', needsRedirect: true };
   if (profile) return { name: 'profile' };
   if (nnu) return { name: 'nnu' };
   if (bot) return { name: 'bot' };
@@ -151,7 +185,24 @@ function handleRoute(renderers) {
   } else if (route.name === 'components') {
     renderers.components();
   } else if (route.name === 'settings') {
-    renderers.settings();
+    const role = getCurrentRole();
+    const canAccessSettings = role === 'admin' || role === 'owner';
+    if (!canAccessSettings) {
+      if (typeof window?.showToast === 'function') {
+        window.showToast("You don't have access to Settings in this workspace.");
+      }
+      navigate(APP_DEFAULT_HASH);
+      return;
+    }
+    if (route.needsRedirect) {
+      if (route.tab === 'subscription') {
+        navigate('#/app/settings/subscription/subscription');
+      } else {
+        navigate('#/app/settings/team');
+      }
+      return;
+    }
+    renderers.settings(route);
   } else if (route.name === 'profile') {
     renderers.profilePage();
   } else if (route.name === 'nnu') {

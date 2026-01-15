@@ -1,5 +1,8 @@
 import { ICONS, WORKSPACES, WORKSPACE_KEY, THEME_KEY, SIDEBAR_MODE_KEY } from './app-constants.js';
 
+const ROLE_KEY = 'netnet_userRole';
+const VALID_ROLES = ['member', 'lead', 'admin', 'owner'];
+
 export function __isDark() {
   return document.documentElement.classList.contains('dark');
 }
@@ -72,4 +75,27 @@ export function getOSKind() {
   if (isMac) return 'mac';
   if (isWin) return 'windows';
   return 'other';
+}
+
+function normalizeRole(role) {
+  const value = String(role || '').toLowerCase();
+  return VALID_ROLES.includes(value) ? value : 'owner';
+}
+
+export function getCurrentRole() {
+  try {
+    return normalizeRole(localStorage.getItem(ROLE_KEY));
+  } catch (e) {
+    return 'owner';
+  }
+}
+
+export function setCurrentRole(role) {
+  const next = normalizeRole(role);
+  try {
+    localStorage.setItem(ROLE_KEY, next);
+  } catch (e) {
+    // Ignore storage errors in prototype
+  }
+  return next;
 }

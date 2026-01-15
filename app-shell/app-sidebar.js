@@ -1,5 +1,5 @@
 import { APP_ICONS, ICONS, SIDEBAR_LINKS } from './app-constants.js';
-import { __norm, __paint, getSidebarMode, setSidebarMode, getOSKind } from './app-helpers.js';
+import { __norm, __paint, getSidebarMode, setSidebarMode, getOSKind, getCurrentRole } from './app-helpers.js';
 import { navigate } from '../router.js';
 
 const MODE_FULL = 'full';
@@ -52,6 +52,9 @@ function renderSection(item) {
 
 export function renderSidebar(hash) {
   const mode = getSidebarMode();
+  const role = getCurrentRole();
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+  const canAccessSettings = role === 'admin' || role === 'owner';
   const order = ['me', 'bot', 'contacts', 'sales', 'jobs', 'quick', 'chat', 'performance', 'nnu'];
   const orderedLinks = order
     .map(key => SIDEBAR_LINKS.find(item => item.key === key))
@@ -64,11 +67,13 @@ export function renderSidebar(hash) {
         </nav>
       </div>
       <div id="sidebar-functions" class="mt-4 flex flex-col gap-2 px-1 pb-1">
+        ${canAccessSettings ? `
         <a href="#/app/settings" class="sidebar-link utility-link" title="Settings" aria-label="Settings">
           <span class="flex-shrink-0">${APP_ICONS.settings}</span>
           <span class="sidebar-label">Settings</span>
           <span class="flyout-label">Settings</span>
         </a>
+        ` : ''}
         <button id="workspaceSwitcherButton" type="button" class="sidebar-link utility-link w-full" title="Workspace" aria-label="Workspace">
           <img id="workspaceSwitcherIcon" src="" alt="Workspace" class="h-6 w-6 flex-shrink-0 rounded-full object-contain"/>
           <span class="sidebar-label">Workspace</span>
@@ -90,7 +95,7 @@ export function renderSidebar(hash) {
             <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-200 text-sm font-semibold">MP</div>
             <div class="flex flex-col">
               <span class="text-sm font-semibold text-slate-100 sidebar-profile-name">Marc Pitre</span>
-              <span class="text-xs text-slate-400 sidebar-profile-role">Owner</span>
+              <span class="text-xs text-slate-400 sidebar-profile-role">${roleLabel}</span>
             </div>
           </button>
           <button type="button" id="sidebarModeToggle" class="sidebar-profile-toggle" data-mode="${mode}">

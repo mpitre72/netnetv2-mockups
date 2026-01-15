@@ -142,7 +142,7 @@ function renderRoute(route) {
   } else if (route.name === 'performance') {
     renderPerformancePage(main);
   } else if (route.name === 'settings') {
-    renderSettingsPage(main);
+    renderSettingsPage(route, main);
   } else if (route.name === 'profile') {
     renderProfilePage(main);
   } else if (route.name === 'nnu') {
@@ -187,7 +187,7 @@ function mountApp() {
       chat: () => renderRoute({ name: 'chat' }),
       performance: () => renderRoute({ name: 'performance' }),
       components: () => renderRoute({ name: 'components' }),
-      settings: () => renderRoute({ name: 'settings' }),
+      settings: (route) => renderRoute(route || { name: 'settings' }),
       profilePage: () => renderRoute({ name: 'profile' }),
       nnu: () => renderRoute({ name: 'nnu' }),
       bot: () => renderRoute({ name: 'bot' }),
