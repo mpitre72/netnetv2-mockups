@@ -50,6 +50,7 @@ const SETTINGS_TABS = [
 ];
 
 const TEAM_UI_STATE = {
+  view: 'active',
   search: '',
   status: 'active',
   role: 'all',
@@ -132,6 +133,7 @@ const FALLBACK_SERVICE_TYPES = [
 ];
 
 let openMenuRef = null;
+let teamMenuRef = null;
 
 function getActiveTab(tabKey) {
   return SETTINGS_TABS.find(tab => tab.key === tabKey) || SETTINGS_TABS[0];
@@ -174,6 +176,10 @@ function teamKey(wsId) {
 
 function invitesKey(wsId) {
   return `netnet_ws_${wsId}_team_invites_v1`;
+}
+
+function joinRequestsKey(wsId) {
+  return `netnet_ws_${wsId}_join_requests_v1`;
 }
 
 function serviceTypesKey(wsId) {
@@ -616,6 +622,49 @@ function ensureInvitesSeed(wsId) {
   return seed;
 }
 
+function ensureJoinRequestsSeed(wsId) {
+  const now = new Date().toISOString();
+  const seed = [
+    {
+      id: 'joinreq_pending_casey_liu',
+      workspaceId: wsId,
+      userId: null,
+      name: 'Casey Liu',
+      email: 'casey@northwindstudio.com',
+      requestedAt: now,
+      status: 'pending',
+      reviewedBy: null,
+      reviewedAt: null,
+    },
+    {
+      id: 'joinreq_denied_jordan_reyes',
+      workspaceId: wsId,
+      userId: null,
+      name: 'Jordan Reyes',
+      email: 'jordan@brightco.io',
+      requestedAt: now,
+      status: 'denied',
+      reviewedBy: null,
+      reviewedAt: now,
+    },
+    {
+      id: 'joinreq_blocked_morgan_hart',
+      workspaceId: wsId,
+      userId: null,
+      name: 'Morgan Hart',
+      email: 'morgan@studioflux.com',
+      requestedAt: now,
+      status: 'blocked',
+      reviewedBy: null,
+      reviewedAt: now,
+    },
+  ];
+  const existing = readJson(joinRequestsKey(wsId), null);
+  if (Array.isArray(existing) && existing.length) return existing;
+  writeJson(joinRequestsKey(wsId), seed);
+  return seed;
+}
+
 function ensureServiceTypesSeed(wsId) {
   const existing = readJson(serviceTypesKey(wsId), null);
   if (Array.isArray(existing) && existing.length) {
@@ -662,6 +711,14 @@ function loadInvites(wsId) {
 
 function saveInvites(wsId, invites) {
   writeJson(invitesKey(wsId), invites);
+}
+
+function loadJoinRequests(wsId) {
+  return ensureJoinRequestsSeed(wsId);
+}
+
+function saveJoinRequests(wsId, requests) {
+  writeJson(joinRequestsKey(wsId), requests);
 }
 
 function loadServiceTypes(wsId) {
@@ -816,6 +873,64 @@ function closeMenu() {
   openMenuRef = null;
 }
 
+function closeTeamMenu() {
+  if (!teamMenuRef) return;
+  const { menu, cleanup } = teamMenuRef;
+  if (menu && menu.parentElement) menu.parentElement.removeChild(menu);
+  if (cleanup) cleanup();
+  teamMenuRef = null;
+}
+
+function openTeamMenu(anchorEl, items) {
+  closeTeamMenu();
+  const menu = document.createElement('div');
+  menu.dataset.kebabMenu = 'true';
+  menu.className = 'rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl text-sm overflow-hidden';
+  menu.innerHTML = items.map(item => `
+    <button type="button" data-key="${item.key}" ${item.disabled ? 'disabled' : ''} class="w-full text-left px-3 py-2 ${item.disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-white/10'} ${item.danger ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}" title="${item.title || ''}">
+      ${item.label}
+    </button>
+  `).join('');
+  menu.style.position = 'fixed';
+  menu.style.zIndex = '1200';
+  menu.style.minWidth = '176px';
+  menu.style.visibility = 'hidden';
+  document.body.appendChild(menu);
+
+  const rect = anchorEl.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const top = rect.bottom + 8;
+  const left = Math.min(window.innerWidth - menuRect.width - 8, Math.max(8, rect.right - menuRect.width));
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+  menu.style.visibility = 'visible';
+
+  const cleanup = () => {
+    document.removeEventListener('click', onClickAway, true);
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onClickAway = (e) => {
+    if (!menu.contains(e.target) && e.target !== anchorEl) closeTeamMenu();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') closeTeamMenu();
+  };
+  menu.querySelectorAll('button[data-key]').forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.getAttribute('data-key');
+      const found = items.find(item => item.key === key);
+      if (found?.disabled) return;
+      closeTeamMenu();
+      if (found && typeof found.onClick === 'function') found.onClick();
+    };
+  });
+  teamMenuRef = { menu, cleanup };
+  setTimeout(() => {
+    document.addEventListener('click', onClickAway, true);
+    document.addEventListener('keydown', onKey, true);
+  }, 0);
+}
+
 function openMenu(buttonEl, items) {
   closeMenu();
   const menu = document.createElement('div');
@@ -882,25 +997,53 @@ function splitName(fullName) {
   return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
 }
 
+function getJoinRequestName(request) {
+  if (request.name) return request.name;
+  const email = String(request.email || '');
+  const prefix = email.split('@')[0];
+  return prefix || 'Unknown';
+}
+
+function joinRequestStatusBadge(status) {
+  if (status === 'pending') {
+    return '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">Pending</span>';
+  }
+  if (status === 'blocked') {
+    return '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300">Blocked</span>';
+  }
+  return '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200">Denied</span>';
+}
+
 function renderTeamTab(container) {
   const wsId = workspaceId();
   const role = getCurrentRole();
   const canSeeSeatCost = role === 'owner';
+  const canManageJoinRequests = role === 'owner' || role === 'admin';
   const members = loadTeamMembers(wsId);
   const invites = loadInvites(wsId);
+  const joinRequests = canManageJoinRequests ? loadJoinRequests(wsId) : [];
   const serviceTypes = loadServiceTypes(wsId);
+  window.__netnetDebug = { role, isAdminOwner: canManageJoinRequests };
+  closeTeamMenu();
 
+  const view = TEAM_UI_STATE.view;
   const search = TEAM_UI_STATE.search.trim().toLowerCase();
   const statusFilter = TEAM_UI_STATE.status;
   const roleFilter = TEAM_UI_STATE.role;
   const serviceTypeFilter = TEAM_UI_STATE.serviceType;
+  const viewStatus = view === 'inactive' ? 'deactivated' : 'active';
+  const effectiveStatusFilter = statusFilter === 'all' || statusFilter === viewStatus ? statusFilter : 'all';
   const serviceTypeMap = new Map(serviceTypes.map(type => [type.id, type]));
   const serviceTypeOptions = serviceTypes.map(type => ({
     id: type.id,
     label: `${type.name}${type.active ? '' : ' (inactive)'}`,
   }));
+  const activeMemberEmails = new Set(
+    members.filter(member => member.status === 'active').map(member => normalizeEmail(member.email))
+  );
   const filtered = members.filter(member => {
-    if (statusFilter !== 'all' && member.status !== statusFilter) return false;
+    if (member.status !== viewStatus) return false;
+    if (effectiveStatusFilter !== 'all' && member.status !== effectiveStatusFilter) return false;
     if (roleFilter !== 'all' && member.role !== roleFilter) return false;
     if (serviceTypeFilter !== 'all') {
       if (!member.typicalServiceTypeIds?.includes(serviceTypeFilter)) return false;
@@ -945,7 +1088,7 @@ function renderTeamTab(container) {
           </td>
           ${canSeeSeatCost ? `<td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">${seatCost}</td>` : ''}
           <td class="px-3 py-3 text-right">
-            <button type="button" class="team-more-btn h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" data-member-menu="${member.id}" aria-label="Member actions">
+            <button type="button" class="team-more-btn h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" data-member-menu="${member.id}" data-kebab-button="member" aria-label="Member actions">
               &#8942;
             </button>
           </td>
@@ -962,17 +1105,47 @@ function renderTeamTab(container) {
       <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">${formatDate(invite.invitedAt)}</td>
       <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">${formatDate(invite.lastSentAt)}</td>
       <td class="px-3 py-3 text-right">
-        <button type="button" class="invite-more-btn h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" data-invite-menu="${invite.id}" aria-label="Invite actions">
+        <button type="button" class="invite-more-btn h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" data-invite-menu="${invite.id}" data-kebab-button="invite" aria-label="Invite actions">
           &#8942;
         </button>
       </td>
     </tr>
   `).join('');
 
+  const viewJoinRequests = joinRequests.filter(request => (
+    view === 'active' ? request.status === 'pending' : request.status !== 'pending'
+  ));
+
+  const joinRequestRows = viewJoinRequests.length
+    ? viewJoinRequests.map(request => {
+      return `
+        <tr class="border-b border-slate-200 dark:border-white/10" data-join-request-row="true" data-join-request-id="${request.id}">
+          <td class="px-4 py-3 text-sm text-slate-900 dark:text-white">${escapeHtml(getJoinRequestName(request))}</td>
+          <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">${request.email || '—'}</td>
+          <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">${formatDate(request.requestedAt)}</td>
+          <td class="px-4 py-3 text-sm">${joinRequestStatusBadge(request.status)}</td>
+          <td class="px-3 py-3 text-right">
+            <button type="button" class="join-more-btn h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" data-join-menu="${request.id}" data-kebab-button="join" aria-label="Join request actions">
+              &#8942;
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('')
+    : renderEmptyState(view === 'active' ? 'No pending join requests.' : 'No denied or blocked join requests.');
+
   container.innerHTML = `
     <div class="space-y-6">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 flex-1">
+          <div class="inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-1 py-1">
+            <button type="button" data-team-view="active" class="px-3 py-1.5 rounded-full text-sm font-semibold transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 ${view === 'active' ? 'bg-[var(--color-brand-purple,#711FFF)] text-white shadow-sm border-transparent' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent'}">
+              Active
+            </button>
+            <button type="button" data-team-view="inactive" class="px-3 py-1.5 rounded-full text-sm font-semibold transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-netnet-purple focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 ${view === 'inactive' ? 'bg-[var(--color-brand-purple,#711FFF)] text-white shadow-sm border-transparent' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent'}">
+              Inactive
+            </button>
+          </div>
           <input id="team-search" type="search" placeholder="Search team…" value="${TEAM_UI_STATE.search}" class="h-10 w-full md:w-64 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-netnet-purple"/>
           <select id="team-status-filter" class="h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-netnet-purple">
             <option value="active" ${statusFilter === 'active' ? 'selected' : ''}>Active</option>
@@ -1020,7 +1193,7 @@ function renderTeamTab(container) {
         </div>
       </div>
 
-      ${invites.length ? `
+      ${view === 'active' && invites.length ? `
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <h3 class="text-base font-semibold text-slate-900 dark:text-white">Pending Invites</h3>
@@ -1047,8 +1220,44 @@ function renderTeamTab(container) {
           </div>
         </div>
       ` : ''}
+
+      ${canManageJoinRequests ? `
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">Join Requests</h3>
+            <span class="text-xs text-slate-500 dark:text-slate-400">${viewJoinRequests.length} ${view === 'active' ? 'pending' : 'reviewed'}</span>
+          </div>
+          <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-800/90 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 dark:bg-slate-900/60 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold">
+                  <tr>
+                    <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Name</th>
+                    <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Email</th>
+                    <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Requested</th>
+                    <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Status</th>
+                    <th class="px-3 py-3 border-b border-slate-200 dark:border-white/10 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                  ${joinRequestRows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ` : ''}
     </div>
   `;
+
+  container.querySelectorAll('[data-team-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const next = btn.getAttribute('data-team-view');
+      if (!next || next === TEAM_UI_STATE.view) return;
+      TEAM_UI_STATE.view = next;
+      renderTeamTab(container);
+    });
+  });
 
   const searchInput = container.querySelector('#team-search');
   const statusSelect = container.querySelector('#team-status-filter');
@@ -1102,7 +1311,7 @@ function renderTeamTab(container) {
           ? { key: 'deactivate', label: 'Deactivate', danger: true, onClick: () => handleDeactivate(wsId, member) }
           : { key: 'reactivate', label: 'Reactivate', onClick: () => handleReactivate(wsId, member) },
       ];
-      openMenu(btn, menuItems);
+      openTeamMenu(btn, menuItems);
     });
   });
 
@@ -1112,10 +1321,40 @@ function renderTeamTab(container) {
       if (!id) return;
       const invite = invites.find(i => i.id === id);
       if (!invite) return;
-      openMenu(btn, [
+      openTeamMenu(btn, [
         { key: 'resend', label: 'Resend invite', onClick: () => handleResendInvite(wsId, invite) },
         { key: 'delete', label: 'Delete invite', danger: true, onClick: () => handleDeleteInvite(wsId, invite) },
       ]);
+    });
+  });
+
+  container.querySelectorAll('[data-join-menu]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-join-menu');
+      if (!id) return;
+      const request = joinRequests.find(r => r.id === id);
+      if (!request) return;
+      const emailKey = normalizeEmail(request.email);
+      const alreadyActive = activeMemberEmails.has(emailKey);
+      let menuItems = [];
+      if (request.status === 'pending') {
+        menuItems = [
+          { key: 'approve', label: 'Approve', disabled: alreadyActive, title: alreadyActive ? 'Already an active member' : '', onClick: () => handleApproveJoinRequest(wsId, request) },
+          { key: 'deny', label: 'Deny', onClick: () => handleDenyJoinRequest(wsId, request) },
+          { key: 'block', label: 'Block', danger: true, onClick: () => handleBlockJoinRequest(wsId, request) },
+        ];
+      } else if (request.status === 'denied') {
+        menuItems = [
+          { key: 'approve', label: 'Approve', disabled: alreadyActive, title: alreadyActive ? 'Already an active member' : '', onClick: () => handleApproveJoinRequest(wsId, request) },
+          { key: 'block', label: 'Block', danger: true, onClick: () => handleBlockJoinRequest(wsId, request) },
+        ];
+      } else if (request.status === 'blocked') {
+        menuItems = [
+          { key: 'unblock', label: 'Unblock', onClick: () => handleUnblockJoinRequest(wsId, request) },
+          { key: 'approve', label: 'Approve', disabled: alreadyActive, title: alreadyActive ? 'Already an active member' : '', onClick: () => handleApproveJoinRequest(wsId, request) },
+        ];
+      }
+      if (menuItems.length) openTeamMenu(btn, menuItems);
     });
   });
 }
@@ -2905,7 +3144,7 @@ function roleOptionsForMember(currentRole, member) {
   return options;
 }
 
-function openInviteModal(wsId, currentRole) {
+function openInviteModal(wsId, currentRole, presetEmail, onInviteSent) {
   const layer = ensureModalLayer('settings-invite-layer');
   const options = inviteRoleOptions(currentRole);
   layer.innerHTML = `
@@ -2939,6 +3178,9 @@ function openInviteModal(wsId, currentRole) {
   const emailInput = layer.querySelector('#invite-email');
   const roleSelect = layer.querySelector('#invite-role');
   const errorEl = layer.querySelector('#invite-error');
+  if (emailInput && presetEmail) {
+    emailInput.value = presetEmail;
+  }
   layer.querySelector('[data-action="confirm"]').onclick = () => {
     const email = normalizeEmail(emailInput.value || '');
     const role = roleSelect.value || 'member';
@@ -2995,6 +3237,10 @@ function openInviteModal(wsId, currentRole) {
     saveInvites(wsId, invites);
     hide();
     showToast(`Invite sent to ${email}`);
+    if (typeof onInviteSent === 'function') {
+      onInviteSent(email);
+      return;
+    }
     const container = document.getElementById('settingsTeamRoot');
     if (container) renderTeamTab(container);
   };
@@ -3024,6 +3270,114 @@ function handleDeleteInvite(wsId, invite) {
       if (container) renderTeamTab(container);
     },
   });
+}
+
+function handleApproveJoinRequest(wsId, request) {
+  const members = loadTeamMembers(wsId);
+  const email = normalizeEmail(request.email);
+  const alreadyActive = members.some(member => normalizeEmail(member.email) === email && member.status === 'active');
+  if (alreadyActive) {
+    showToast('This email already belongs to an active member.');
+    return;
+  }
+  showConfirmModal({
+    title: 'Approve join request?',
+    message: 'This will add the user to your active team members.',
+    confirmLabel: 'Approve',
+    onConfirm: () => {
+      const { firstName, lastName } = splitName(request.name);
+      members.push({
+        id: createId('team'),
+        name: request.name || email.split('@')[0] || 'Team Member',
+        firstName,
+        lastName,
+        email: request.email,
+        role: 'member',
+        status: 'active',
+        monthlyCapacityHours: null,
+        monthlySeatCost: null,
+        typicalServiceTypeIds: [],
+        photoDataUrl: null,
+      });
+      saveTeamMembers(wsId, members);
+      const requests = loadJoinRequests(wsId).filter(r => r.id !== request.id);
+      saveJoinRequests(wsId, requests);
+      showToast('Join request approved');
+      const container = document.getElementById('settingsTeamRoot');
+      if (container) renderTeamTab(container);
+    },
+  });
+}
+
+function handleDenyJoinRequest(wsId, request) {
+  showConfirmModal({
+    title: 'Deny join request?',
+    message: 'Access will not be granted for this request.',
+    confirmLabel: 'Deny',
+    onConfirm: () => {
+      const requests = loadJoinRequests(wsId);
+      const target = requests.find(r => r.id === request.id);
+      if (!target) return;
+      target.status = 'denied';
+      target.reviewedBy = currentUserEmail();
+      target.reviewedAt = new Date().toISOString();
+      saveJoinRequests(wsId, requests);
+      showToast('Join request denied');
+      const container = document.getElementById('settingsTeamRoot');
+      if (container) renderTeamTab(container);
+    },
+  });
+}
+
+function handleBlockJoinRequest(wsId, request) {
+  showTypedConfirmModal({
+    title: 'Block join request?',
+    message: 'Blocking prevents this user from requesting access again. You can unblock them later to allow requests.',
+    expectedText: 'BLOCK',
+    confirmLabel: 'Block',
+    onConfirm: () => {
+      const requests = loadJoinRequests(wsId);
+      const target = requests.find(r => r.id === request.id);
+      if (!target) return;
+      target.status = 'blocked';
+      target.reviewedBy = currentUserEmail();
+      target.reviewedAt = new Date().toISOString();
+      saveJoinRequests(wsId, requests);
+      showToast('Join request blocked');
+      const container = document.getElementById('settingsTeamRoot');
+      if (container) renderTeamTab(container);
+    },
+  });
+}
+
+function handleUnblockJoinRequest(wsId, request) {
+  showConfirmModal({
+    title: 'Unblock join request?',
+    message: 'They will be allowed to request access again.',
+    confirmLabel: 'Unblock',
+    onConfirm: () => {
+      const requests = loadJoinRequests(wsId);
+      const target = requests.find(r => r.id === request.id);
+      if (!target) return;
+      target.status = 'denied';
+      target.reviewedBy = currentUserEmail();
+      target.reviewedAt = new Date().toISOString();
+      saveJoinRequests(wsId, requests);
+      showToast('Join request unblocked');
+      const container = document.getElementById('settingsTeamRoot');
+      if (container) renderTeamTab(container);
+    },
+  });
+}
+
+function handleInviteJoinRequest(wsId, request, role) {
+  const removeRequest = () => {
+    const requests = loadJoinRequests(wsId).filter(r => r.id !== request.id);
+    saveJoinRequests(wsId, requests);
+    const container = document.getElementById('settingsTeamRoot');
+    if (container) renderTeamTab(container);
+  };
+  openInviteModal(wsId, role, request.email, removeRequest);
 }
 
 function countActiveOwners(members) {
@@ -3405,10 +3759,15 @@ export function renderSettingsPage(route = {}, container = document.getElementBy
   const headerRoot = document.getElementById('settingsHeaderRoot');
   if (headerRoot) {
     try {
+      const breadcrumb = h('div', { className: 'flex items-center gap-2' }, [
+        h('span', { className: 'text-sm text-slate-500 dark:text-white/70' }, 'Settings'),
+        h('span', { className: 'text-slate-400 dark:text-white/50' }, '›'),
+        h('span', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, activeTab.label || 'Settings'),
+      ]);
       const root = createRoot(headerRoot);
       root.render(h(SectionHeader, {
-        title: 'Settings',
-        showHelpIcon: false,
+        title: breadcrumb,
+        showHelpIcon: true,
         showSecondaryRow: false,
         leftActions: [],
       }));
