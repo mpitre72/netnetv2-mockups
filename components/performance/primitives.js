@@ -81,27 +81,34 @@ export function InfoPopover({ title = 'Info', content, iconLabel = 'Info', width
     if (!isOpen) return;
     positionPanel();
     const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setPinnedOpen(false); setHoverOpen(false); } };
+    const onPointer = (e) => {
+      const pop = popRef.current;
+      const btn = btnRef.current;
+      if (pop && pop.contains(e.target)) return;
+      if (btn && btn.contains(e.target)) return;
+      setPinnedOpen(false);
+      setHoverOpen(false);
+    };
+    const onHash = () => {
+      setPinnedOpen(false);
+      setHoverOpen(false);
+    };
     window.addEventListener('resize', positionPanel);
     window.addEventListener('scroll', positionPanel, true);
     document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('hashchange', onHash);
     return () => {
       window.removeEventListener('resize', positionPanel);
       window.removeEventListener('scroll', positionPanel, true);
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('hashchange', onHash);
     };
   }, [isOpen, widthPx]);
 
   const tooltip = isOpen ? createPortal(
     h('div', { className: 'fixed inset-0 z-[2000] pointer-events-none' }, [
-      pinnedOpen ? h('div', {
-        className: 'fixed inset-0 z-[2000] pointer-events-auto',
-        onClick: (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setPinnedOpen(false);
-          setHoverOpen(false);
-        },
-      }) : null,
       h('div', {
         ref: popRef,
         role: 'dialog',
@@ -322,29 +329,31 @@ export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu, menuIte
   useEffect(() => {
     if (!open) return;
     const handleKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    const handleClick = (e) => {
+    const handlePointer = (e) => {
       if (!menuRef.current || !btnRef.current) return;
       if (!menuRef.current.contains(e.target) && !btnRef.current.contains(e.target)) {
         setOpen(false);
       }
     };
+    const handleHash = () => setOpen(false);
     document.addEventListener('keydown', handleKey);
-    document.addEventListener('click', handleClick);
+    document.addEventListener('pointerdown', handlePointer, true);
+    window.addEventListener('hashchange', handleHash);
     return () => {
       document.removeEventListener('keydown', handleKey);
-      document.removeEventListener('click', handleClick);
+      document.removeEventListener('pointerdown', handlePointer, true);
+      window.removeEventListener('hashchange', handleHash);
     };
   }, [open]);
 
   const menu = open ? createPortal(
-    h('div', { className: 'fixed inset-0 z-50', role: 'presentation' }, [
-      h('div', { className: 'absolute inset-0', onClick: () => setOpen(false) }),
+    h('div', { className: 'fixed inset-0 z-50 pointer-events-none', role: 'presentation' }, [
       h(
         'div',
         {
           ref: menuRef,
           'data-demo': dataDemoMenu,
-          className: 'absolute min-w-[180px] rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden',
+          className: 'pointer-events-auto absolute min-w-[180px] rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden',
           style: { top: `${coords.top}px`, left: `${coords.left}px` },
         },
         items.map((item) =>
@@ -411,16 +420,19 @@ export function ProgressConfidenceChip({ level, onChange, dataDemo }) {
 
   useEffect(() => {
     if (!open) return;
-    const onClick = (e) => {
+    const onPointer = (e) => {
       if (!menuRef.current || !btnRef.current) return;
       if (!menuRef.current.contains(e.target) && !btnRef.current.contains(e.target)) setOpen(false);
     };
     const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('click', onClick);
+    const onHash = () => setOpen(false);
+    document.addEventListener('pointerdown', onPointer, true);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('hashchange', onHash);
     return () => {
-      document.removeEventListener('click', onClick);
+      document.removeEventListener('pointerdown', onPointer, true);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('hashchange', onHash);
     };
   }, [open]);
 
@@ -438,11 +450,10 @@ export function ProgressConfidenceChip({ level, onChange, dataDemo }) {
       ]),
     ]),
     open ? createPortal(
-      h('div', { className: 'fixed inset-0 z-50', role: 'presentation' }, [
-        h('div', { className: 'absolute inset-0', onClick: () => setOpen(false) }),
+      h('div', { className: 'fixed inset-0 z-50 pointer-events-none', role: 'presentation' }, [
         h('div', {
           ref: menuRef,
-          className: 'absolute mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden',
+          className: 'pointer-events-auto absolute mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl overflow-hidden',
           style: { top: (btnRef.current?.getBoundingClientRect().bottom || 0) + 6, left: (btnRef.current?.getBoundingClientRect().left || 0) },
         },
           opts.map((opt) =>
@@ -515,28 +526,30 @@ export function MovedDateIndicator({ originalDate, newDate, changedAt, changedBy
 
   useEffect(() => {
     if (!open) return;
-    const handleClick = (e) => {
+    const handlePointer = (e) => {
       if (!chipRef.current || !popRef.current) return;
       if (!popRef.current.contains(e.target) && !chipRef.current.contains(e.target)) setOpen(false);
     };
     const handleKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('click', handleClick);
+    const handleHash = () => setOpen(false);
+    document.addEventListener('pointerdown', handlePointer, true);
     document.addEventListener('keydown', handleKey);
+    window.addEventListener('hashchange', handleHash);
     return () => {
-      document.removeEventListener('click', handleClick);
+      document.removeEventListener('pointerdown', handlePointer, true);
       document.removeEventListener('keydown', handleKey);
+      window.removeEventListener('hashchange', handleHash);
     };
   }, [open]);
 
   const popover = open ? createPortal(
-    h('div', { className: 'fixed inset-0 z-40', role: 'presentation' }, [
-      h('div', { className: 'absolute inset-0', onClick: () => setOpen(false) }),
+    h('div', { className: 'fixed inset-0 z-40 pointer-events-none', role: 'presentation' }, [
       h(
         'div',
         {
           ref: popRef,
           'data-demo': dataDemoPopover,
-          className: 'absolute w-64 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl p-4 space-y-2 text-sm text-slate-800 dark:text-slate-100',
+          className: 'pointer-events-auto absolute w-64 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl p-4 space-y-2 text-sm text-slate-800 dark:text-slate-100',
           style: { top: `${coords.top}px`, left: `${coords.left}px` },
         },
         [

@@ -75,6 +75,44 @@ function parseLocalDate(dateStr) {
   return new Date(parts[0], parts[1] - 1, parts[2]);
 }
 
+export function renderDueInDays(dueDate, status) {
+  if (status === 'completed') {
+    return '<span class="whitespace-nowrap text-slate-400 dark:text-slate-500">—</span>';
+  }
+  const target = parseLocalDate(dueDate);
+  if (!target) {
+    return '<span class="whitespace-nowrap text-slate-400 dark:text-slate-500">—</span>';
+  }
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const diffDays = Math.round((target.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays === 0) {
+    return '<span class="whitespace-nowrap text-slate-600 dark:text-slate-300">Due today</span>';
+  }
+  if (diffDays > 0) {
+    return `<span class="whitespace-nowrap text-slate-600 dark:text-slate-300 tabular-nums">Due in ${diffDays}d</span>`;
+  }
+  const overdue = Math.abs(diffDays);
+  return `<span class="whitespace-nowrap text-rose-600 dark:text-rose-400 tabular-nums">Overdue ${overdue}d</span>`;
+}
+
+export function renderPeopleStack(assignee, assignor) {
+  const assigneeName = getDisplayName(assignee) || 'Unassigned';
+  const assignorName = getDisplayName(assignor) || '—';
+  return `
+    <div class="flex flex-col gap-1 min-w-0">
+      <div class="flex items-center gap-2 min-w-0">
+        ${renderAvatar(assignee, { sizeClass: 'h-6 w-6', textClass: 'text-[9px]' })}
+        <span class="min-w-0 truncate text-xs text-slate-700 dark:text-slate-200">${escapeHtml(assigneeName)}</span>
+      </div>
+      <div class="flex items-center gap-2 min-w-0">
+        ${renderAvatar(assignor, { sizeClass: 'h-6 w-6', textClass: 'text-[9px]' })}
+        <span class="min-w-0 truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(assignorName)}</span>
+      </div>
+    </div>
+  `;
+}
+
 function formatHourValue(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return '-';
@@ -122,7 +160,7 @@ export function renderMiniMeters(task, actualHours) {
     : 'LOE: -';
   const dueMeta = getDueMeta(task?.dueDate);
   return `
-    <div class="space-y-2 min-w-[140px]">
+    <div class="space-y-2 min-w-[160px]">
       <div class="space-y-1" data-tooltip="${escapeHtml(loeTooltip)}" tabindex="0">
         <div class="h-1.5 w-full rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
           <div class="${loeColor} h-full rounded-full" style="width:${loePercent}%"></div>

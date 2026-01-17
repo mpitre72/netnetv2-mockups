@@ -1,5 +1,5 @@
 import { getMemberById, getServiceTypeById, getTaskActualHours } from './quick-tasks-store.js';
-import { escapeHtml, formatHours, renderAvatar, renderMiniMeters, renderStatusPill } from './quick-tasks-helpers.js';
+import { escapeHtml, renderDueInDays, renderMiniMeters, renderPeopleStack, renderStatusPill } from './quick-tasks-helpers.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
 
 function findCompanyById(id, companies) {
@@ -98,20 +98,19 @@ export function renderQuickTasksList({ tasks = [], members = [], serviceTypes = 
           <table class="w-full text-left border-collapse">
             <thead class="bg-gray-50 dark:bg-gray-800/80 text-xs uppercase text-gray-500 dark:text-gray-400 font-semibold">
               <tr>
-                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[34%]">Task</th>
-                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[18%]">Client</th>
-                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[14%]">Service Type</th>
-                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 text-right w-[7%]">LOE</th>
-                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[14%]">Meter</th>
-                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[9%]">Status</th>
-                <th class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 text-center w-[52px]">Assignee</th>
-                <th class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 text-center w-[52px]">Assignor</th>
+                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[30%]">Task</th>
+                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[16%]">Client</th>
+                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[12%]">Service Type</th>
+                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[9%]">Days to Due</th>
+                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[18%]">Meter</th>
+                <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[8%]">Status</th>
+                <th class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 w-[12%]">People</th>
                 <th class="px-3 py-3 border-b border-gray-200 dark:border-gray-700 text-center w-[36px]"></th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td colspan="9" class="px-6 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">
+                <td colspan="8" class="px-6 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">
                   <div class="mx-auto max-w-md">
                     <div class="text-base font-semibold text-slate-900 dark:text-white">${title}</div>
                     <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">${body}</div>
@@ -147,11 +146,10 @@ export function renderQuickTasksList({ tasks = [], members = [], serviceTypes = 
         </td>
         <td class="px-6 py-3 align-top">${renderClientCell(task, companies, individuals)}</td>
         <td class="px-6 py-3 text-sm text-gray-600 dark:text-gray-400">${escapeHtml(serviceType?.name || 'Unassigned')}</td>
-        <td class="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 text-right tabular-nums">${formatHours(task.loeHours)}</td>
+        <td class="px-6 py-3 text-sm text-gray-600 dark:text-gray-400">${renderDueInDays(task.dueDate, task.status)}</td>
         <td class="px-6 py-3">${renderMiniMeters(task, actual)}</td>
         <td class="px-6 py-3">${renderStatusPill(task.status)}</td>
-        <td class="px-4 py-3 text-center">${renderAvatar(assignee, { sizeClass: 'h-7 w-7', textClass: 'text-[10px]' })}</td>
-        <td class="px-4 py-3 text-center">${renderAvatar(assignor, { sizeClass: 'h-7 w-7', textClass: 'text-[10px]' })}</td>
+        <td class="px-4 py-3 align-top">${renderPeopleStack(assignee, assignor)}</td>
         <td class="px-3 py-3 text-center">${renderRowMenu(task, { canDelete, hasTime })}</td>
       </tr>
     `;
@@ -163,14 +161,13 @@ export function renderQuickTasksList({ tasks = [], members = [], serviceTypes = 
         <table class="w-full text-left border-collapse">
           <thead class="bg-gray-50 dark:bg-gray-800/80 text-xs uppercase text-gray-500 dark:text-gray-400 font-semibold">
             <tr>
-              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[34%]">Task</th>
-              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[18%]">Client</th>
-              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[14%]">Service Type</th>
-              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 text-right w-[7%]">LOE</th>
-              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[14%]">Meter</th>
-              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[9%]">Status</th>
-              <th class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 text-center w-[52px]">Assignee</th>
-              <th class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 text-center w-[52px]">Assignor</th>
+              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[30%]">Task</th>
+              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[16%]">Client</th>
+              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[12%]">Service Type</th>
+              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[9%]">Days to Due</th>
+              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[18%]">Meter</th>
+              <th class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 w-[8%]">Status</th>
+              <th class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 w-[12%]">People</th>
               <th class="px-3 py-3 border-b border-gray-200 dark:border-gray-700 text-center w-[36px]"></th>
             </tr>
           </thead>
