@@ -1,8 +1,6 @@
 import { SectionHeader } from '../components/layout/SectionHeader.js';
 import { navigate } from '../router.js';
-import { mountCompanyLookup } from '../contacts/company-lookup.js';
-import { mountPersonLookup } from '../contacts/person-lookup.js';
-import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
+import { openQuickTaskDrawer } from '../quick-tasks/quick-task-detail.js';
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 const { createRoot } = ReactDOM;
 
@@ -851,155 +849,19 @@ function MyListsLayout() {
   };
 
   const openCreateTaskDrawer = (item) => {
-    const shell = document.getElementById('app-shell');
-    const drawer = document.getElementById('drawer-container');
-    if (!drawer || !shell) return;
-    const existingDesc = (item.notes || '').replace(/</g, '&lt;');
-    const existingTitle = (item.title || '').replace(/"/g, '&quot;');
-    let selectedCompany = null;
-    let selectedPerson = null;
-    const renderContactResolver = () => {
-      const contactRoot = drawer.querySelector('#listsQuickContactLookup');
-      if (!contactRoot) return;
-      contactRoot.innerHTML = `
-        <div id="quickTaskCompanyLookup"></div>
-        <div id="quickTaskPersonLookup"></div>
-      `;
-      const companySlot = contactRoot.querySelector('#quickTaskCompanyLookup');
-      const personSlot = contactRoot.querySelector('#quickTaskPersonLookup');
-      let personLookupApi = null;
-      const findCompanyById = (id) => getContactsData().find((c) => String(c.id) === String(id)) || null;
-      const findPersonById = (id) => {
-        const companies = getContactsData();
-        for (const company of companies) {
-          const match = (company.people || []).find((p) => String(p.id) === String(id));
-          if (match) return { ...match, companyId: company.id, companyName: company.name, type: 'company' };
+    openQuickTaskDrawer({
+      mode: 'create',
+      sourceItem: {
+        id: item.id,
+        title: item.title,
+        notes: item.notes,
+        folderId: item.folderId ?? null,
+      },
+      onCreated: ({ deleteSourceItem }) => {
+        if (deleteSourceItem) {
+          deleteItem(item.id);
         }
-        const standalone = getIndividualsData().find((p) => String(p.id) === String(id));
-        return standalone ? { ...standalone, companyId: null, companyName: '', type: 'standalone' } : null;
-      };
-      const setCompany = (company) => {
-        selectedCompany = company ? findCompanyById(company.id) || company : null;
-        if (!company) selectedPerson = null;
-        personLookupApi?.setCompany(selectedCompany);
-        personLookupApi?.setValue(null);
-      };
-      const setPerson = (person, meta) => {
-        selectedPerson = person ? findPersonById(person.id) || person : null;
-        if (meta?.companyCreated && !selectedCompany) {
-          selectedCompany = meta.companyCreated;
-          renderCompanyLookup(selectedCompany);
-          personLookupApi?.setCompany(selectedCompany);
-        }
-      };
-      const renderCompanyLookup = (value) => {
-        if (!companySlot) return;
-        companySlot.innerHTML = '';
-        mountCompanyLookup(companySlot, {
-          label: 'Company',
-          placeholder: 'Search companies...',
-          value,
-          onChange: (company) => setCompany(company),
-        });
-      };
-      renderCompanyLookup(selectedCompany);
-      if (personSlot) {
-        personLookupApi = mountPersonLookup(personSlot, {
-          label: 'Person',
-          placeholder: 'Search people...',
-          value: selectedPerson,
-          company: selectedCompany,
-          onChange: (person, meta) => {
-            setPerson(person, meta);
-          },
-        });
-      }
-    };
-    drawer.innerHTML = `
-      <div id="app-drawer-backdrop"></div>
-      <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md h-full">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-white/10">
-          <div>
-            <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">Create Task</p>
-            <h2 class="text-lg font-semibold">From list item</h2>
-          </div>
-          <button type="button" id="drawerCloseBtn" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close create task">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div class="p-4 pb-14 space-y-4 text-sm flex-1 overflow-y-auto" id="listsCreateTaskBody" data-scrollable="true">
-          <div class="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1" role="group" aria-label="Task type">
-            <button type="button" data-role="task-type" data-value="quick" class="px-3 py-1 rounded-full text-sm font-semibold bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10">Quick Task</button>
-            <button type="button" data-role="task-type" data-value="job" class="px-3 py-1 rounded-full text-sm text-slate-600 dark:text-white/70">Job Task</button>
-          </div>
-          <label class="flex flex-col gap-1">Title <input id="listsCreateTitle" name="title" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" value="${existingTitle}" /></label>
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Description</span>
-              <button type="button" id="listsOpenFullEditor" class="text-xs text-netnet-purple dark:text-white hover:underline">Open full editor</button>
-            </div>
-            <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900">
-              <div class="flex items-center gap-2 px-2 py-1 border-b border-slate-100 dark:border-white/10 text-slate-500 dark:text-white/70 text-xs">
-                <span class="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">B</span>
-                <span class="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">I</span>
-                <span class="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">Link</span>
-              </div>
-              <div id="listsCreateDesc" name="description" contenteditable="true" class="min-h-[140px] px-3 py-2 text-sm text-slate-800 dark:text-white focus:outline-none" aria-label="Description">${existingDesc}</div>
-            </div>
-          </div>
-          <div class="space-y-2" data-panel="quick">
-            <label class="flex flex-col gap-1">Assignee <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select assignee (mock)" /></label>
-            <label class="flex flex-col gap-1">Due date <input type="date" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" /></label>
-            <label class="flex flex-col gap-1">Estimated hours <input type="number" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="0" /></label>
-            <div class="pt-2 border-t border-slate-200 dark:border-white/10">
-              <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">Contact</p>
-              <div id="listsQuickContactLookup" class="mt-2 space-y-3"></div>
-            </div>
-          </div>
-          <div class="space-y-2 hidden" data-panel="job">
-            <label class="flex flex-col gap-1">Job <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select job (mock)" /></label>
-            <label class="flex flex-col gap-1">Deliverable <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select deliverable (mock)" /></label>
-            <label class="flex flex-col gap-1">Assignee <input class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="Select assignee (mock)" /></label>
-            <label class="flex flex-col gap-1">Due date <input type="date" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" /></label>
-            <label class="flex flex-col gap-1">Estimated hours <input type="number" class="rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3 py-2" placeholder="0" /></label>
-          </div>
-        </div>
-        <div class="p-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-3">
-          <button type="button" id="listsCreateCancel" class="px-4 py-2 rounded-md border border-slate-200 dark:border-white/10 text-sm">Cancel</button>
-          <button type="button" id="listsCreateSave" class="px-4 py-2 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:bg-[#6020df]">Create</button>
-        </div>
-      </aside>
-    `;
-    shell.classList.remove('drawer-closed');
-    const close = () => shell.classList.add('drawer-closed');
-    const togglePanels = (type) => {
-      drawer.querySelectorAll('[data-panel]').forEach((el) => el.classList.toggle('hidden', el.getAttribute('data-panel') !== type));
-      drawer.querySelectorAll('[data-role="task-type"]').forEach((btn) => {
-        const active = btn.getAttribute('data-value') === type;
-        btn.classList.toggle('bg-white', active);
-        btn.classList.toggle('dark:bg-slate-700', active);
-        btn.classList.toggle('shadow', active);
-        btn.classList.toggle('border', active);
-        btn.classList.toggle('text-slate-600', !active);
-        btn.classList.toggle('dark:text-white/70', !active);
-      });
-    };
-    drawer.querySelectorAll('[data-role="task-type"]').forEach((btn) => {
-      btn.onclick = () => togglePanels(btn.getAttribute('data-value') || 'quick');
-    });
-    togglePanels('quick');
-    renderContactResolver();
-    drawer.querySelector('#drawerCloseBtn')?.addEventListener('click', close);
-    drawer.querySelector('#listsCreateCancel')?.addEventListener('click', close);
-    drawer.querySelector('#app-drawer-backdrop')?.addEventListener('click', close);
-    drawer.querySelector('#listsCreateSave')?.addEventListener('click', () => {
-      close();
-    });
-    drawer.querySelector('#listsOpenFullEditor')?.addEventListener('click', () => {
-      const descInput = drawer.querySelector('#listsCreateDesc');
-      openFullEditorModal(descInput?.innerHTML || '', (val) => {
-        if (descInput) descInput.innerHTML = val;
-      });
+      },
     });
   };
 

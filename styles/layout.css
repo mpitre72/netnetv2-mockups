@@ -494,7 +494,7 @@ html:not(.dark) .toast-msg { background: #fff; color: #111; border: 1px solid #e
   to { opacity: 0; transform: translateY(10px); }
 }
 
-[data-tooltip] { position: relative; cursor: pointer; z-index: var(--z-tooltip); }
+[data-tooltip] { position: relative; cursor: pointer; }
 [data-tooltip]:hover::after,
 [data-tooltip]:focus::after {
   content: attr(data-tooltip);
