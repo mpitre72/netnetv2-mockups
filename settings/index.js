@@ -595,7 +595,6 @@ function ensureInvitesSeed(wsId) {
   const seed = [
     {
       id: 'invite_bishwajit_halder',
-      name: 'Bishwajit Halder',
       email: 'bishwajit@righthereinteractive.com',
       role: 'member',
       invitedAt: now,
@@ -603,7 +602,6 @@ function ensureInvitesSeed(wsId) {
     },
     {
       id: 'invite_marcos_barreto',
-      name: 'Marcos Barreto',
       email: 'marcos@righthereinteractive.com',
       role: 'member',
       invitedAt: now,
@@ -1099,7 +1097,6 @@ function renderTeamTab(container) {
 
   const inviteRows = invites.map(invite => `
     <tr class="border-b border-slate-200 dark:border-white/10">
-      <td class="px-4 py-3 text-sm text-netnet-purple dark:text-white">${invite.name || '—'}</td>
       <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">${invite.email}</td>
       <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">${ROLE_LABELS[invite.role || 'member']}</td>
       <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">${formatDate(invite.invitedAt)}</td>
@@ -1204,7 +1201,6 @@ function renderTeamTab(container) {
               <table class="w-full text-left border-collapse">
                 <thead class="bg-slate-50 dark:bg-slate-900/60 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold">
                   <tr>
-                    <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Name</th>
                     <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Email</th>
                     <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Role</th>
                     <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Invited</th>
@@ -3468,34 +3464,6 @@ function openMemberDrawer(wsId, memberId) {
         </button>
       </div>
       <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        <div class="space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="lookup-modal__label">First name</label>
-              <input id="member-first-name" type="text" class="lookup-input" value="${draft.firstName || ''}" />
-            </div>
-            <div>
-              <label class="lookup-modal__label">Last name</label>
-              <input id="member-last-name" type="text" class="lookup-input" value="${draft.lastName || ''}" />
-            </div>
-          </div>
-          <div>
-            <label class="lookup-modal__label">Photo</label>
-            <div class="flex items-center gap-4">
-              <div id="member-photo-preview" class="h-16 w-16 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden text-slate-500 dark:text-slate-200">
-                ${draft.photoDataUrl
-                  ? `<img src="${draft.photoDataUrl}" alt="${escapeHtml(displayName)}" class="h-full w-full object-cover" />`
-                  : `<span class="text-sm font-semibold">${getMemberInitials(draft)}</span>`}
-              </div>
-              <div class="flex flex-col gap-2">
-                <button type="button" id="member-photo-upload-btn" class="lookup-btn primary">Upload photo</button>
-                <button type="button" id="member-photo-remove-btn" class="lookup-btn ghost" ${draft.photoDataUrl ? '' : 'disabled'}>Remove photo</button>
-              </div>
-            </div>
-            <input id="member-photo-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
-            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">This photo will be used across Net Net. Members can update it later in My Profile.</p>
-          </div>
-        </div>
         <div>
           <label class="lookup-modal__label">Role</label>
           <select id="member-role" class="lookup-input" ${currentRole !== 'owner' && member.role === 'owner' ? 'disabled' : ''}>
@@ -3538,70 +3506,6 @@ function openMemberDrawer(wsId, memberId) {
   if (closeBtn) closeBtn.onclick = closeDrawer;
   const cancelBtn = drawer.querySelector('#drawerCancelBtn');
   if (cancelBtn) cancelBtn.onclick = closeDrawer;
-
-  const nameHeading = drawer.querySelector('#member-name-heading');
-  const photoPreview = drawer.querySelector('#member-photo-preview');
-  const photoInput = drawer.querySelector('#member-photo-input');
-  const photoUploadBtn = drawer.querySelector('#member-photo-upload-btn');
-  const photoRemoveBtn = drawer.querySelector('#member-photo-remove-btn');
-
-  const renderPhotoPreview = () => {
-    if (!photoPreview) return;
-    const currentName = getMemberDisplayName(draft);
-    if (draft.photoDataUrl) {
-      photoPreview.innerHTML = `<img src="${draft.photoDataUrl}" alt="${escapeHtml(currentName)}" class="h-full w-full object-cover" />`;
-    } else {
-      photoPreview.innerHTML = `<span class="text-sm font-semibold">${getMemberInitials(draft)}</span>`;
-    }
-    photoRemoveBtn?.toggleAttribute('disabled', !draft.photoDataUrl);
-  };
-
-  const updateNameHeading = () => {
-    const currentName = getMemberDisplayName(draft);
-    if (nameHeading) nameHeading.textContent = currentName;
-    renderPhotoPreview();
-  };
-
-  const firstNameInput = drawer.querySelector('#member-first-name');
-  if (firstNameInput) {
-    firstNameInput.oninput = (e) => {
-      draft.firstName = e.target.value;
-      draft.name = [draft.firstName, draft.lastName].filter(Boolean).join(' ').trim();
-      updateNameHeading();
-    };
-  }
-  const lastNameInput = drawer.querySelector('#member-last-name');
-  if (lastNameInput) {
-    lastNameInput.oninput = (e) => {
-      draft.lastName = e.target.value;
-      draft.name = [draft.firstName, draft.lastName].filter(Boolean).join(' ').trim();
-      updateNameHeading();
-    };
-  }
-  if (photoUploadBtn && photoInput) {
-    photoUploadBtn.onclick = () => photoInput.click();
-    photoInput.onchange = () => {
-      const file = photoInput.files && photoInput.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          draft.photoDataUrl = reader.result;
-          renderPhotoPreview();
-          updateNameHeading();
-        }
-      };
-      reader.readAsDataURL(file);
-      photoInput.value = '';
-    };
-  }
-  if (photoRemoveBtn) {
-    photoRemoveBtn.onclick = () => {
-      draft.photoDataUrl = null;
-      renderPhotoPreview();
-      updateNameHeading();
-    };
-  }
 
   const roleSelect = drawer.querySelector('#member-role');
   if (roleSelect) {
@@ -3695,12 +3599,6 @@ function openMemberDrawer(wsId, memberId) {
         return;
       }
       target.role = draft.role;
-      const cleanFirst = String(draft.firstName || '').trim();
-      const cleanLast = String(draft.lastName || '').trim();
-      target.firstName = cleanFirst;
-      target.lastName = cleanLast;
-      target.name = [cleanFirst, cleanLast].filter(Boolean).join(' ').trim();
-      target.photoDataUrl = draft.photoDataUrl || null;
       const capacity = Number.isFinite(draft.monthlyCapacityHours) ? Math.max(0, draft.monthlyCapacityHours) : null;
       target.monthlyCapacityHours = capacity;
       if (currentRole === 'owner') {
