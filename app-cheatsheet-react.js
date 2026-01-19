@@ -48,7 +48,7 @@ function NavIconGrid() {
   const themes = ['light', 'dark'];
   const labels = {
     me: 'Me',
-    bot: 'Net Net Bot',
+    bot: 'Net Net',
     contacts: 'Contacts',
     sales: 'Sales',
     jobs: 'Jobs',

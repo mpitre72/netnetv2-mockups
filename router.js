@@ -1,10 +1,13 @@
 import { openTabForHash } from './app-shell/app-tabs.js';
 import { getContactsEntryHash } from './contacts/contacts-ui-state.js';
 import { getCurrentRole } from './app-shell/app-helpers.js';
+import { flushNetNetPanelOpen, queueNetNetPanelOpen } from './ai/netnet-panel.js';
 
 const DEFAULT_HASH = '#/auth/login';
 const APP_DEFAULT_HASH = '#/app/me/tasks';
 const LOGIN_HASH = '#/auth/login';
+const NETNET_LAST_ROUTE_KEY = 'netnet_ai_last_route_v1';
+const LEGACY_NETNET_HASH = '#/app/net-net-bot';
 
 // Temporary, simple auth stub for prototype
 const AUTH_STORAGE_KEY = 'netnet_isAuthenticated';
@@ -23,6 +26,38 @@ export function setAuthenticated(value) {
   } catch (e) {
     // Ignore storage errors in prototype
   }
+}
+
+function rememberLastAppRoute(hash) {
+  if (!hash || !hash.startsWith('#/app/')) return;
+  if (hash.startsWith(LEGACY_NETNET_HASH)) return;
+  try {
+    localStorage.setItem(NETNET_LAST_ROUTE_KEY, hash);
+  } catch (e) {
+    // Ignore storage errors in prototype
+  }
+}
+
+function getLastAppRoute() {
+  try {
+    const stored = localStorage.getItem(NETNET_LAST_ROUTE_KEY);
+    if (!stored || !stored.startsWith('#/app/')) return '';
+    if (stored.startsWith(LEGACY_NETNET_HASH)) return '';
+    return stored;
+  } catch (e) {
+    return '';
+  }
+}
+
+function handleLegacyNetNetRoute(hash) {
+  const last = getLastAppRoute();
+  const fallback = APP_DEFAULT_HASH;
+  let target = last || fallback;
+  if (!target || target.startsWith(LEGACY_NETNET_HASH)) target = fallback;
+  if (target === hash) target = fallback;
+  queueNetNetPanelOpen();
+  navigate(target);
+  setTimeout(() => flushNetNetPanelOpen(), 0);
 }
 
 function parseRoute(hash) {
@@ -241,6 +276,11 @@ export function initRouter(renderers) {
       location.hash = desiredHash;
       return;
     }
+    if (desiredHash.startsWith(LEGACY_NETNET_HASH)) {
+      handleLegacyNetNetRoute(desiredHash);
+      return;
+    }
+    rememberLastAppRoute(desiredHash);
     handleRoute(renderers);
   };
 

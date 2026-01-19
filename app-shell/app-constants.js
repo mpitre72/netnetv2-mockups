@@ -43,7 +43,6 @@ export const SIDEBAR_LINKS = [
         { key: 'me-performance', name: 'My Performance', path: '#/app/me/performance' },
     ]
   },
-  { name: 'Net Net Bot', path: '#/app/net-net-bot', basePath: '#/app/net-net-bot', key: 'bot' },
   { name: 'Contacts', path: '#/app/contacts', basePath: '#/app/contacts', key: 'contacts' },
   { name: 'Sales', path: '#/app/sales', basePath: '#/app/sales', key: 'sales' },
   { name: 'Jobs', path: '#/app/jobs', basePath: '#/app/jobs', key: 'jobs' },

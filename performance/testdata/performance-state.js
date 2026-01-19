@@ -6,7 +6,7 @@ import {
 } from '../performance-data.js';
 import { getStore, setStore } from './performance-store.js';
 
-const DEFAULT_STORE = { deliverables: {}, tasks: {} };
+const DEFAULT_STORE = { deliverables: {}, tasks: {}, createdTasks: [] };
 
 function readStore() {
   const raw = getStore();
@@ -21,6 +21,7 @@ function cloneStore(store) {
   return {
     deliverables: { ...(store.deliverables || {}) },
     tasks: { ...(store.tasks || {}) },
+    createdTasks: Array.isArray(store.createdTasks) ? [...store.createdTasks] : [],
   };
 }
 
@@ -51,11 +52,18 @@ function normalizeStatus(status) {
   return 'in-progress';
 }
 
-function buildEffectiveTasks(storeTasks = {}) {
-  return performanceTasks.map((task) => {
+function buildEffectiveTasks(storeTasks = {}, createdTasks = []) {
+  const base = performanceTasks.map((task) => {
     const override = storeTasks[task.id];
     return override ? { ...task, ...override } : task;
   });
+  const extras = Array.isArray(createdTasks)
+    ? createdTasks.map((task) => {
+      const override = storeTasks[task.id];
+      return override ? { ...task, ...override } : task;
+    })
+    : [];
+  return [...base, ...extras];
 }
 
 function buildEffectiveDeliverable({ base, override, job, today }) {
@@ -125,7 +133,7 @@ export function getEffectiveState() {
   const jobsById = new Map(performanceJobs.map((j) => [j.id, j]));
   let dirty = false;
 
-  const tasks = buildEffectiveTasks(nextStore.tasks);
+  const tasks = buildEffectiveTasks(nextStore.tasks, nextStore.createdTasks);
 
   const deliverables = performanceDeliverables.map((d) => {
     const override = nextStore.deliverables?.[d.id] || {};
@@ -258,4 +266,80 @@ export function createChangeOrder(deliverableId, note = '') {
   delete entry.reviewed;
   writeStore(nextStore);
   return getEffectiveState();
+}
+
+function createTaskId() {
+  return `jt-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 6)}`;
+}
+
+function createTimeEntryId() {
+  return `jt_time-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 6)}`;
+}
+
+export function createJobTask(payload = {}) {
+  const required = payload.jobId && payload.deliverableId && payload.title && payload.serviceTypeId;
+  if (!required) return null;
+  const now = Date.now();
+  const loeHours = Number(payload.loeHours) || 0;
+  if (!loeHours) return null;
+  const current = getEffectiveState();
+  const nextStore = cloneStore(current.store);
+  if (!Array.isArray(nextStore.createdTasks)) nextStore.createdTasks = [];
+  const task = {
+    id: payload.id || createTaskId(),
+    title: payload.title,
+    description: payload.description || '',
+    jobId: payload.jobId,
+    deliverableId: payload.deliverableId,
+    serviceTypeId: payload.serviceTypeId,
+    estimatedHours: loeHours,
+    actualHours: 0,
+    remainingHours: loeHours,
+    assigneeId: payload.assigneeUserId || null,
+    assigneeUserId: payload.assigneeUserId || null,
+    dueDate: payload.dueDate || null,
+    timeEntries: Array.isArray(payload.timeEntries) ? payload.timeEntries : [],
+    createdAt: payload.createdAt || now,
+    createdByUserId: payload.createdByUserId || null,
+    createdVia: payload.createdVia || 'netnet_ai',
+  };
+  nextStore.createdTasks.push(task);
+  writeStore(nextStore);
+  return task;
+}
+
+export function addJobTaskTimeEntry(taskId, entry = {}) {
+  if (!taskId) return null;
+  const hours = Number(entry.hours) || 0;
+  if (!hours) return null;
+  const date = entry.date || '';
+  if (!date) return null;
+
+  const current = getEffectiveState();
+  const task = current.tasks.find((item) => String(item.id) === String(taskId));
+  if (!task) return null;
+
+  const nextStore = cloneStore(current.store);
+  if (!nextStore.tasks) nextStore.tasks = {};
+  const override = nextStore.tasks[taskId] || {};
+  const existingEntries = Array.isArray(override.timeEntries)
+    ? [...override.timeEntries]
+    : Array.isArray(task.timeEntries)
+      ? [...task.timeEntries]
+      : [];
+
+  const nextEntry = {
+    id: entry.id || createTimeEntryId(),
+    date,
+    hours,
+    note: entry.note || '',
+    createdAt: entry.createdAt || new Date().toISOString(),
+    createdByUserId: entry.createdByUserId || null,
+    createdVia: entry.createdVia || 'netnet_ai',
+  };
+
+  existingEntries.push(nextEntry);
+  nextStore.tasks[taskId] = { ...override, timeEntries: existingEntries };
+  writeStore(nextStore);
+  return { ...task, ...nextStore.tasks[taskId] };
 }

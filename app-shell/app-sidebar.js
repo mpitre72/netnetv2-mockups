@@ -55,7 +55,7 @@ export function renderSidebar(hash) {
   const role = getCurrentRole();
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
   const canAccessSettings = role === 'admin' || role === 'owner';
-  const order = ['me', 'bot', 'contacts', 'sales', 'jobs', 'quick', 'chat', 'performance', 'nnu'];
+  const order = ['me', 'contacts', 'sales', 'jobs', 'quick', 'chat', 'performance', 'nnu'];
   const orderedLinks = order
     .map(key => SIDEBAR_LINKS.find(item => item.key === key))
     .filter(Boolean);

@@ -17,6 +17,9 @@ export function renderTopBar() {
           <span class="flyout-label">Time</span>
         </button>
         <span class="h-5 w-px bg-white/25"></span>
+        <button id="netnetBtn" class="header-icon-button header-icon-button--small relative" aria-label="Open Net Net" title="Net Net">
+          <img src="public/assets/brand/nav/AI-Active-white.svg" alt="" aria-hidden="true" class="h-4 w-4 select-none pointer-events-none" />
+        </button>
         <button id="helpBtn" class="header-icon-button header-icon-button--small relative" aria-label="Help and documentation">
           <svg class="header-icon-glyph-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 1-1 1.7V14"/><circle cx="12" cy="17" r="1"/></svg>
         </button>
@@ -45,19 +48,27 @@ export function wireAppTimer() {
   const mButton = document.getElementById('mobileTimerBtn');
   const mImg = document.getElementById('mobileTimerIcon');
   const key = 'timerActive';
-  let running = !!(JSON.parse(localStorage.getItem(key)));
+  let running = !!(JSON.parse(localStorage.getItem(key) || 'false'));
   const touch = window.matchMedia && window.matchMedia('(hover:none)').matches;
-  function setVisualState(isActiveVisual) {
+  const setVisualState = (isActiveVisual) => {
     const url = isActiveVisual ? TIMER_ICONS.active : TIMER_ICONS.idle;
     if (img && img.getAttribute('src') !== url) img.setAttribute('src', url);
     if (mImg) mImg.setAttribute('src', TIMER_ICONS.active); // mobile stays active visual
     if (button) {
       button.classList.toggle('time-icon-active', isActiveVisual);
     }
-  }
+  };
 
   // Initial paint: touch devices always show active; desktop reflects running state
   setVisualState(touch || running);
+
+  const readRunning = () => {
+    try {
+      return !!JSON.parse(localStorage.getItem(key) || 'false');
+    } catch (e) {
+      return false;
+    }
+  };
 
   const toggle = () => {
     running = !running;
@@ -72,11 +83,32 @@ export function wireAppTimer() {
     if (!touch) {
       // Hover shows active visual, leave restores to running state
       button.onmouseenter = () => setVisualState(true);
-      button.onmouseleave = () => setVisualState(running);
+      button.onmouseleave = () => setVisualState(readRunning());
     } else {
       button.onmouseenter = button.onmouseleave = null;
     }
     button.onclick = toggle;
   }
   if (mButton) { mButton.onclick = toggle; }
+}
+
+export function updateTimerVisuals(isRunning = null) {
+  const img = document.getElementById('timerIcon');
+  const button = document.getElementById('timerBtn');
+  const mImg = document.getElementById('mobileTimerIcon');
+  const touch = window.matchMedia && window.matchMedia('(hover:none)').matches;
+  let running = isRunning;
+  if (running === null) {
+    try {
+      running = !!JSON.parse(localStorage.getItem('timerActive') || 'false');
+    } catch (e) {
+      running = false;
+    }
+  }
+  const isActiveVisual = touch || running;
+  const url = isActiveVisual ? TIMER_ICONS.active : TIMER_ICONS.idle;
+  if (img && img.getAttribute('src') !== url) img.setAttribute('src', url);
+  if (mImg) mImg.setAttribute('src', TIMER_ICONS.active);
+  if (button) button.classList.toggle('time-icon-active', isActiveVisual);
+  return isActiveVisual;
 }

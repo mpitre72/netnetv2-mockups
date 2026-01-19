@@ -339,6 +339,8 @@ export function createQuickTask(payload, wsId = workspaceId()) {
     personId: payload.personId || null,
     isArchived: !!payload.isArchived,
     createdAt: payload.createdAt || now,
+    createdByUserId: payload.createdByUserId || null,
+    createdVia: payload.createdVia || 'manual',
     updatedAt: now,
     jobId: payload.jobId ?? null,
     deliverableId: payload.deliverableId ?? null,
@@ -402,11 +404,17 @@ export function addTimeEntry(taskId, entry, wsId = workspaceId()) {
   const task = getTaskById(taskId, wsId);
   if (!task) return null;
   const timeEntries = Array.isArray(task.timeEntries) ? [...task.timeEntries] : [];
+  const user = getCurrentUser();
+  const userId = getCurrentUserId();
   const nextEntry = {
     id: entry?.id || createId('qt_time'),
     date: entry?.date || localDateISO(),
     hours: Number(entry?.hours) || 0,
     note: entry?.note || '',
+    createdAt: entry?.createdAt || Date.now(),
+    createdByUserId: entry?.createdByUserId || userId,
+    createdByName: entry?.createdByName || user?.name || 'Net Net',
+    createdVia: entry?.createdVia || 'manual',
   };
   timeEntries.push(nextEntry);
   return updateTask(taskId, { timeEntries }, wsId);

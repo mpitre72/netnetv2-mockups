@@ -6,6 +6,7 @@ const { createRoot } = ReactDOM;
 
 const MY_LISTS_STORAGE_KEY = 'netnet_my_lists_items_v1';
 const MY_LISTS_FOLDERS_STORAGE_KEY = 'netnet_my_lists_folders_v1';
+export const NETNET_LAST_LIST_ITEM_KEY = 'netnet_my_lists_last_item_v1';
 const MENU_ACTIONS = [
   { key: 'move', label: 'Move to folder…' },
   { key: 'create-task', label: 'Create Task…' },
@@ -32,6 +33,44 @@ function safeSaveItems(items) {
     localStorage.setItem(MY_LISTS_STORAGE_KEY, JSON.stringify(items));
   } catch (e) {
     // Ignore write failures in prototype
+  }
+}
+
+export function addMyListItem({ title, notes = '', folderId = null } = {}) {
+  const trimmed = String(title || '').trim();
+  if (!trimmed) return null;
+  const items = safeLoadItems();
+  const item = {
+    id: uid(),
+    title: trimmed,
+    notes: String(notes || '').trim(),
+    isArchived: false,
+    createdAt: Date.now(),
+    folderId: folderId ?? null,
+  };
+  safeSaveItems([item, ...items]);
+  return item;
+}
+
+export function loadMyListItems() {
+  return safeLoadItems();
+}
+
+export function deleteMyListItem(itemId) {
+  if (!itemId) return false;
+  const items = safeLoadItems();
+  const next = items.filter((item) => String(item.id) !== String(itemId));
+  if (next.length === items.length) return false;
+  safeSaveItems(next);
+  return true;
+}
+
+function rememberLastListItem(itemId) {
+  try {
+    if (!itemId) return;
+    localStorage.setItem(NETNET_LAST_LIST_ITEM_KEY, String(itemId));
+  } catch (e) {
+    // Ignore storage errors in prototype
   }
 }
 
@@ -381,6 +420,7 @@ function ItemsList({
       key: item.id,
       className: 'relative w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3 shadow-sm',
       style: { overflow: 'visible' },
+      onClick: () => rememberLastListItem(item.id),
     }, [
       h('div', { className: 'flex items-start justify-between gap-3' }, [
         h('div', { className: 'flex items-start gap-3 flex-1 min-w-0' }, [

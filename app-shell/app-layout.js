@@ -5,6 +5,7 @@ import { renderMobileBottomNav } from './app-bottom-nav.js';
 import { initWorkspaceTabs, renderWorkspaceTabs } from './app-tabs.js';
 import { __isDark, getActiveWorkspace, setActiveWorkspace, setTheme } from './app-helpers.js';
 import { setAuthenticated, navigate } from '../router.js';
+import { flushNetNetPanelOpen, refreshNetNetPanelIcons, toggleNetNetPanel } from '../ai/netnet-panel.js';
 
 function renderMobileHeader() {
   return `
@@ -155,10 +156,11 @@ export function applyMainWrapperClass(hash) {
   const isComponents = h.startsWith('#/app/components');
   const isMeLists = h.startsWith('#/app/me/lists');
   const isMeMyLists = h.startsWith('#/app/me/my-lists');
+  const isChat = h.startsWith('#/app/chat');
   const isReportsOrTable =
     h.startsWith('#/app/performance') ||
     h.startsWith('#/app/contacts') ||
-    h.startsWith('#/app/net-net-bot') ||
+    isChat ||
     h.startsWith('#/app/settings') ||
     h.startsWith('#/app/profile') ||
     h.startsWith('#/app/net-net-u') ||
@@ -332,6 +334,7 @@ export function wireAppShell(hash) {
       const shell = document.getElementById('app-shell');
       if (drawer) {
         drawer.innerHTML = renderContextPanelDrawer('This section');
+        drawer.dataset.drawerView = 'context';
       }
       if (shell) shell.classList.remove('drawer-closed');
       wireGenericDrawerClose();
@@ -365,15 +368,21 @@ export function wireAppShell(hash) {
       const drawer = document.getElementById('drawer-container');
       if (drawer) {
         drawer.innerHTML = renderNotificationsDrawer();
+        drawer.dataset.drawerView = 'notifications';
       }
       if (shell) shell.classList.remove('drawer-closed');
       wireGenericDrawerClose();
     };
   }
-  wireSidebarIcons(hash); wireTopBarLogo(); wireAppTimer(); wireMobileEvents(); 
-  if (hash.startsWith('#/app/net-net-bot')) {
-    // chat events placeholder
+  const netnetBtn = document.getElementById('netnetBtn');
+  if (netnetBtn) {
+    netnetBtn.onclick = () => toggleNetNetPanel({ focusInput: true });
   }
+  const mobileNetNetBtn = document.getElementById('mobileNetNetBtn');
+  if (mobileNetNetBtn) {
+    mobileNetNetBtn.onclick = () => toggleNetNetPanel({ focusInput: true });
+  }
+  wireSidebarIcons(hash); wireTopBarLogo(); wireAppTimer(); wireMobileEvents(); 
   initWorkspaceSwitcher(); initMobileWorkspaceSwitcher(); 
   refreshDynamicIcons();
 }
@@ -394,6 +403,7 @@ function refreshDynamicIcons() {
   wireSidebarIcons();
   wireTopBarLogo();
   wireMobileHeaderLogo();
+  refreshNetNetPanelIcons();
   const performanceIcon = document.getElementById('performanceFeaturedIcon');
   if (performanceIcon) {
     const dark = __isDark();
@@ -472,8 +482,12 @@ export function mountShell(hash) {
   const root = document.getElementById('app-root') || document.body;
   root.innerHTML = renderAppShell(hash);
   const drawer = document.getElementById('drawer-container');
-  if (drawer) drawer.innerHTML = renderNotificationsDrawer();
+  if (drawer) {
+    drawer.innerHTML = renderNotificationsDrawer();
+    drawer.dataset.drawerView = 'notifications';
+  }
   initWorkspaceTabs();
   renderWorkspaceTabs();
   wireAppShell(hash);
+  flushNetNetPanelOpen();
 }
