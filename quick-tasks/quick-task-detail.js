@@ -337,7 +337,7 @@ function buildInitialTask({ mode, taskId, sourceItem, serviceTypes, members }) {
     loeHours: '',
     assigneeUserId: currentUserId,
     assignorUserId: currentUserId,
-    isInternal: true,
+    isInternal: false,
     companyId: null,
     personId: null,
     isArchived: false,
@@ -640,117 +640,132 @@ export function openQuickTaskDrawer({
             <button type="button" data-qt-task-type="job" class="px-3 py-1 rounded-full text-sm font-semibold text-slate-600 dark:text-white/70">Job Task</button>
           </div>
         ` : ''}
-        <div data-qt-panel="quick" class="space-y-5">
-          <div class="space-y-2">
-          <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Status</div>
-          <div class="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1" id="qtStatusPicker">
-            <button type="button" data-qt-status="backlog" class="px-3 py-1 rounded-full text-sm font-semibold ${task.status === 'backlog' ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}">Backlog</button>
-            <button type="button" data-qt-status="in_progress" class="px-3 py-1 rounded-full text-sm font-semibold ${task.status === 'in_progress' ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}">In Progress</button>
-            <button type="button" data-qt-status="completed" class="px-3 py-1 rounded-full text-sm font-semibold ${task.status === 'completed' ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}">Completed</button>
+        <div data-qt-panel="quick" class="space-y-6">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Basics</div>
+            </div>
+            <p id="qtCompletedAt" class="text-xs text-slate-500 dark:text-slate-400 ${task.completedAt ? '' : 'hidden'}">Completed on ${task.completedAt ? formatDateLabel(task.completedAt) : ''}</p>
+
+            <label class="flex flex-col gap-1">
+              <div class="flex items-center justify-between">
+                <span>Title</span>
+                <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
+              </div>
+              <input id="qtTitle" name="title" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm" value="${escapeHtml(task.title || '')}" />
+              <span class="text-xs text-red-500 hidden" data-qt-error></span>
+            </label>
+
+            <label class="flex flex-col gap-1">
+              Description
+              <textarea id="qtDescription" rows="4" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm">${escapeHtml(task.description || '')}</textarea>
+            </label>
           </div>
-          <p id="qtCompletedAt" class="text-xs text-slate-500 dark:text-slate-400 ${task.completedAt ? '' : 'hidden'}">Completed on ${task.completedAt ? formatDateLabel(task.completedAt) : ''}</p>
-        </div>
 
-        <label class="flex flex-col gap-1">
-          <div class="flex items-center justify-between">
-            <span>Title</span>
-            <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
+          <div class="border-t border-slate-200 dark:border-white/10 pt-4 space-y-3">
+            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Planning</div>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1">
+                <div class="flex items-center justify-between">
+                  <span>Service Type</span>
+                  <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
+                </div>
+                <select id="qtServiceType" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm" ${hasServiceTypes ? '' : 'disabled'}>
+                  <option value="">Select service type</option>
+                  ${serviceTypeOptions}
+                </select>
+                <span class="text-xs text-red-500 hidden" data-qt-error></span>
+              </label>
+              <label class="flex flex-col gap-1">
+                <div class="flex items-center justify-between">
+                  <span>LOE (hours)</span>
+                  <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
+                </div>
+                <input id="qtLoe" type="number" min="0" step="0.25" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm" value="${escapeHtml(task.loeHours || '')}" />
+                <span class="text-xs text-red-500 hidden" data-qt-error></span>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1">
+                <div class="flex items-center justify-between">
+                  <span>Due date</span>
+                  <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
+                </div>
+                <input id="qtDueDate" type="hidden" value="${escapeHtml(task.dueDate || '')}" />
+                <div class="relative">
+                  <input id="qtDueDateDisplay" type="text" readonly class="h-10 w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm pr-10" placeholder="Select date" />
+                  <button type="button" id="qtDuePickerBtn" class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Open calendar">
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                  </button>
+                </div>
+                <span class="text-xs text-red-500 hidden" data-qt-error></span>
+              </label>
+              <label class="flex flex-col gap-1">
+                <div class="flex items-center justify-between">
+                  <span>Status</span>
+                </div>
+                <select id="qtStatusSelect" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm">
+                  <option value="backlog" ${task.status === 'backlog' ? 'selected' : ''}>Backlog</option>
+                  <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                  <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>Completed</option>
+                </select>
+              </label>
+            </div>
           </div>
-          <input id="qtTitle" name="title" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm" value="${escapeHtml(task.title || '')}" />
-          <span class="text-xs text-red-500 hidden" data-qt-error></span>
-        </label>
 
-        <label class="flex flex-col gap-1">
-          Description
-          <textarea id="qtDescription" rows="4" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm">${escapeHtml(task.description || '')}</textarea>
-        </label>
+          <div class="border-t border-slate-200 dark:border-white/10 pt-4 space-y-3">
+            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Ownership</div>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1">
+                <div class="flex items-center justify-between">
+                  <span>Assignee</span>
+                  <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
+                </div>
+                <select id="qtAssignee" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm">
+                  <option value="">Select assignee</option>
+                  ${memberOptions}
+                </select>
+                <span class="text-xs text-red-500 hidden" data-qt-error></span>
+                <div id="qtAssigneePreview" class="pt-1"></div>
+              </label>
+              <label class="flex flex-col gap-1">
+                Assignor
+                <select id="qtAssignor" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm">
+                  <option value="">Select assignor</option>
+                  ${memberOptions}
+                </select>
+                <div id="qtAssignorPreview" class="pt-1"></div>
+              </label>
+            </div>
+          </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <label class="flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <span>Service Type</span>
-              <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-            </div>
-            <select id="qtServiceType" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm" ${hasServiceTypes ? '' : 'disabled'}>
-              <option value="">Select service type</option>
-              ${serviceTypeOptions}
-            </select>
-            <span class="text-xs text-red-500 hidden" data-qt-error></span>
-          </label>
-          <label class="flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <span>LOE (hours)</span>
-              <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-            </div>
-            <input id="qtLoe" type="number" min="0" step="0.25" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm" value="${escapeHtml(task.loeHours || '')}" />
-            <span class="text-xs text-red-500 hidden" data-qt-error></span>
-          </label>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <label class="flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <span>Assignee</span>
-              <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-            </div>
-            <select id="qtAssignee" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm">
-              <option value="">Select assignee</option>
-              ${memberOptions}
-            </select>
-            <span class="text-xs text-red-500 hidden" data-qt-error></span>
-            <div id="qtAssigneePreview" class="pt-1"></div>
-          </label>
-          <label class="flex flex-col gap-1">
-            Assignor
-            <select id="qtAssignor" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm">
-              <option value="">Select assignor</option>
-              ${memberOptions}
-            </select>
-            <div id="qtAssignorPreview" class="pt-1"></div>
-          </label>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <label class="flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <span>Due date</span>
-              <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-            </div>
-            <div class="relative">
-            <input id="qtDueDate" type="hidden" value="${escapeHtml(task.dueDate || '')}" />
-            <div class="relative">
-              <input id="qtDueDateDisplay" type="text" readonly class="h-10 w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm pr-10" placeholder="Select date" />
-              <button type="button" id="qtDuePickerBtn" class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Open calendar">
-                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2"></rect>
-                  <line x1="16" y1="2" x2="16" y2="6"></line>
-                  <line x1="8" y1="2" x2="8" y2="6"></line>
-                  <line x1="3" y1="10" x2="21" y2="10"></line>
-                </svg>
-              </button>
-            </div>
-            <span class="text-xs text-red-500 hidden" data-qt-error></span>
-          </label>
-          <div class="flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <span>Anchor</span>
-              <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-            </div>
-            <div class="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1">
-              <button type="button" data-qt-anchor="internal" class="px-3 py-1 rounded-full text-sm font-semibold ${task.isInternal ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}">Internal</button>
+          <div class="border-t border-slate-200 dark:border-white/10 pt-4 space-y-3">
+            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Who is this for?</div>
+            <div class="flex flex-col gap-1">
+              <div class="flex items-center justify-between">
+                <span>Client or Internal</span>
+                <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
+              </div>
+            <div class="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1 self-start">
               <button type="button" data-qt-anchor="client" class="px-3 py-1 rounded-full text-sm font-semibold ${!task.isInternal ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}">Client</button>
+              <button type="button" data-qt-anchor="internal" class="px-3 py-1 rounded-full text-sm font-semibold ${task.isInternal ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}">Internal</button>
             </div>
             <span class="text-xs text-red-500 hidden" id="qtAnchorError"></span>
           </div>
-        </div>
 
-        <div id="qtClientBlock" class="space-y-3 ${task.isInternal ? 'hidden' : ''}">
-          <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Client</div>
-          <div id="qtCompanyLookup"></div>
-          <div id="qtPersonLookup"></div>
-          <p class="text-xs text-slate-500 dark:text-slate-400">Company required. Person optional.</p>
-          <p class="text-xs text-red-500 hidden" id="qtCompanyError"></p>
-        </div>
+            <div id="qtClientBlock" class="space-y-3 ${task.isInternal ? 'hidden' : ''}">
+              <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Client</div>
+              <div id="qtCompanyLookup"></div>
+              <div id="qtPersonLookup"></div>
+              <p class="text-xs text-red-500 hidden" id="qtCompanyError"></p>
+            </div>
+          </div>
 
         ${!hasServiceTypes ? `
           <div class="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 p-3 text-xs">
@@ -779,9 +794,7 @@ export function openQuickTaskDrawer({
               <button type="button" id="qtLogTimeBtn" class="inline-flex items-center justify-center rounded-md border border-slate-200 dark:border-white/10 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">Log time</button>
             </div>
           `
-          : `
-            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4"></div>
-          `}
+          : ''}
 
         ${mode === 'edit' ? `
           <button type="button" id="qtPromoteBtn" class="inline-flex items-center justify-center rounded-md border border-slate-200 dark:border-white/10 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">Promote to Job Task</button>
@@ -823,7 +836,6 @@ export function openQuickTaskDrawer({
         ` : ''}
       </div>
       <div class="p-4 border-t border-slate-200 dark:border-white/10 flex flex-col gap-3">
-        <p id="qtSaveHint" class="text-xs text-slate-500 dark:text-slate-400 hidden">Complete required fields to save.</p>
         <p id="qtJobHint" class="text-xs text-amber-700 dark:text-amber-300 hidden">Job Tasks will be enabled once Jobs is shipped.</p>
         <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
@@ -864,9 +876,8 @@ export function openQuickTaskDrawer({
   const assigneePreview = drawer.querySelector('#qtAssigneePreview');
   const assignorPreview = drawer.querySelector('#qtAssignorPreview');
   const saveBtn = drawer.querySelector('#qtSaveBtn');
-  const saveHint = drawer.querySelector('#qtSaveHint');
+  const statusSelect = drawer.querySelector('#qtStatusSelect');
   const jobHint = drawer.querySelector('#qtJobHint');
-  const statusButtons = drawer.querySelectorAll('[data-qt-status]');
   const completedAtLabel = drawer.querySelector('#qtCompletedAt');
   const completeBtn = drawer.querySelector('#qtCompleteBtn');
   const taskTypeButtons = drawer.querySelectorAll('[data-qt-task-type]');
@@ -917,9 +928,6 @@ export function openQuickTaskDrawer({
       saveBtn.classList.toggle('opacity-40', !ready);
       saveBtn.classList.toggle('cursor-not-allowed', !ready);
     }
-    if (saveHint) {
-      saveHint.classList.toggle('hidden', ready || isJobMode);
-    }
     if (jobHint) {
       jobHint.classList.toggle('hidden', !isJobMode);
     }
@@ -943,17 +951,9 @@ export function openQuickTaskDrawer({
   };
 
   const syncStatusUI = () => {
-    statusButtons.forEach((btn) => {
-      const value = btn.getAttribute('data-qt-status');
-      const active = value === task.status;
-      btn.classList.toggle('bg-white', active);
-      btn.classList.toggle('dark:bg-slate-700', active);
-      btn.classList.toggle('shadow', active);
-      btn.classList.toggle('border', active);
-      btn.classList.toggle('border-slate-200', active);
-      btn.classList.toggle('text-slate-600', !active);
-      btn.classList.toggle('dark:text-white/70', !active);
-    });
+    if (statusSelect) {
+      statusSelect.value = task.status;
+    }
     if (completedAtLabel) {
       completedAtLabel.classList.toggle('hidden', !task.completedAt);
       completedAtLabel.textContent = task.completedAt ? `Completed on ${formatDateLabel(task.completedAt)}` : '';
@@ -1093,25 +1093,23 @@ export function openQuickTaskDrawer({
     });
   });
 
-  statusButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const nextStatus = btn.getAttribute('data-qt-status') || 'backlog';
-      if (nextStatus === task.status) return;
-      if (nextStatus === 'completed') {
-        const previousStatus = task.status;
-        openCompletionDateModal({
-          onConfirm: (date) => {
-            setStatus('completed', date);
-          },
-          onCancel: () => {
-            task.status = previousStatus;
-            syncStatusUI();
-          },
-        });
-        return;
-      }
-      setStatus(nextStatus, null);
-    });
+  statusSelect?.addEventListener('change', () => {
+    const nextStatus = statusSelect.value || 'backlog';
+    if (nextStatus === task.status) return;
+    if (nextStatus === 'completed') {
+      const previousStatus = task.status;
+      openCompletionDateModal({
+        onConfirm: (date) => {
+          setStatus('completed', date);
+        },
+        onCancel: () => {
+          task.status = previousStatus;
+          syncStatusUI();
+        },
+      });
+      return;
+    }
+    setStatus(nextStatus, null);
   });
 
   const validate = () => {
