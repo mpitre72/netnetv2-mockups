@@ -94,12 +94,15 @@ function safeSaveFolders(folders) {
 
 function sanitizeFolders(folders) {
   if (!Array.isArray(folders)) return [];
-  const withIds = folders.filter((f) => f && f.id).map((f) => ({
-    id: f.id,
-    name: f.name || 'Untitled',
+  const withIds = folders.filter((f) => f && f.id).map((f) => {
+    const rawName = typeof f.name === 'string' ? f.name.trim() : '';
+    return {
+      id: f.id,
+      name: rawName || 'General',
     parentId: f.parentId ?? null,
     sortOrder: typeof f.sortOrder === 'number' ? f.sortOrder : 0,
-  }));
+    };
+  });
   const idSet = new Set(withIds.map((f) => f.id));
   const idMap = new Map(withIds.map((f) => [f.id, f]));
 
@@ -188,6 +191,14 @@ function folderDotClass(depth) {
   if (depth === 1) return 'bg-amber-400';
   if (depth === 2) return 'bg-netnet-purple';
   return 'bg-white/80';
+}
+
+function getBottomOffset() {
+  if (typeof window === 'undefined') return 16;
+  const nav = document.getElementById('mobileBottomNav');
+  const navHeight = nav ? nav.offsetHeight || 64 : 0;
+  const isMobile = window.innerWidth < 768;
+  return isMobile && navHeight ? navHeight + 12 : 16;
 }
 
 function isDescendant(nodes, nodeId, potentialParentId) {
@@ -382,6 +393,21 @@ function OptionsMenu({ isOpen, onClose, position }) {
       onClick: () => { onClose(action.key); },
     }, action.label);
   }));
+}
+
+function FolderOptionsMenu({ isOpen, onClose, position }) {
+  if (!isOpen) return null;
+  return h('div', {
+    className: 'absolute right-0 top-8 z-50 w-44 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-lg py-1',
+    onClick: (e) => e.stopPropagation(),
+    style: position ? { position: 'fixed', top: position.top, left: position.left } : { position: 'fixed' },
+  }, [
+    h('button', {
+      type: 'button',
+      className: 'w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/40',
+      onClick: () => onClose('delete'),
+    }, 'Delete folder…'),
+  ]);
 }
 
 function ItemsList({
@@ -620,6 +646,9 @@ function MyListsLayout() {
   const [openMenuPos, setOpenMenuPos] = useState(null);
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [folderRenameDraft, setFolderRenameDraft] = useState('');
+  const [openFolderMenuId, setOpenFolderMenuId] = useState(null);
+  const [openFolderMenuPos, setOpenFolderMenuPos] = useState(null);
+  const [folderDeleteTargetId, setFolderDeleteTargetId] = useState(null);
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [titleDraft, setTitleDraft] = useState('');
   const [editingNotesId, setEditingNotesId] = useState(null);
@@ -643,9 +672,15 @@ function MyListsLayout() {
     const handler = () => {
       setOpenMenuId(null);
       setOpenMenuPos(null);
+      setOpenFolderMenuId(null);
+      setOpenFolderMenuPos(null);
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
+  }, []);
+
+  useEffect(() => {
+    setFolders((prev) => sanitizeFolders(prev));
   }, []);
 
   useEffect(() => {
@@ -672,6 +707,22 @@ function MyListsLayout() {
       })
       .sort((a, b) => b.createdAt - a.createdAt);
   }, [items, showArchive, normalizedSearch, selectedFolderId]);
+
+  const currentFolder = selectedFolderId ? folders.find((f) => f.id === selectedFolderId) : null;
+  const getFolderBreadcrumb = () => {
+    if (!selectedFolderId) return 'All items';
+    const map = new Map(folders.map((f) => [f.id, f]));
+    const names = [];
+    const visited = new Set();
+    let current = map.get(selectedFolderId);
+    while (current && !visited.has(current.id)) {
+      names.push(current.name || 'General');
+      visited.add(current.id);
+      current = current.parentId ? map.get(current.parentId) : null;
+    }
+    return names.length ? names.reverse().join(' \u203a ') : 'All items';
+  };
+  const currentFolderLabel = getFolderBreadcrumb();
 
   const allSelected = visibleItems.length > 0 && visibleItems.every((item) => selectedIds.has(item.id));
   const selectedCount = Array.from(selectedIds).filter(id => visibleItems.some(item => item.id === id)).length;
@@ -784,6 +835,38 @@ function MyListsLayout() {
     });
     return counts;
   }, [items]);
+
+  const getFolderDeleteSet = (targetId) => {
+    const ids = new Set();
+    if (!targetId) return ids;
+    ids.add(targetId);
+    let added = true;
+    while (added) {
+      added = false;
+      folders.forEach((folder) => {
+        if (folder.parentId && ids.has(folder.parentId) && !ids.has(folder.id)) {
+          ids.add(folder.id);
+          added = true;
+        }
+      });
+    }
+    return ids;
+  };
+
+  const confirmFolderDelete = () => {
+    if (!folderDeleteTargetId) return;
+    const removeIds = getFolderDeleteSet(folderDeleteTargetId);
+    setFolders((prev) => sanitizeFolders(prev.filter((f) => !removeIds.has(f.id))));
+    setItems((prev) => prev.filter((item) => !item.folderId || !removeIds.has(item.folderId)));
+    if (selectedFolderId && removeIds.has(selectedFolderId)) {
+      setSelectedFolderId(null);
+    }
+    setSelectedIds(new Set());
+    setMultiSelect(false);
+    setFolderDeleteTargetId(null);
+    setOpenFolderMenuId(null);
+    setOpenFolderMenuPos(null);
+  };
 
   const addFolder = (name, parentId = null) => {
     const trimmed = (name || '').trim();
@@ -928,10 +1011,36 @@ function MyListsLayout() {
     ]);
   };
 
+  const renderFolderDeleteModal = () => {
+    if (!folderDeleteTargetId) return null;
+    const target = folders.find((f) => f.id === folderDeleteTargetId);
+    const label = target?.name || 'this folder';
+    return h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center px-4' }, [
+      h('div', { className: 'absolute inset-0 bg-black/40 backdrop-blur-sm' }),
+      h('div', { className: 'relative w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl p-6 space-y-4' }, [
+        h('h2', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, `Delete "${label}"?`),
+        h('p', { className: 'text-sm text-slate-600 dark:text-slate-300' }, 'All items in the folder will also be deleted.'),
+        h('div', { className: 'flex justify-end gap-3' }, [
+          h('button', {
+            type: 'button',
+            className: 'inline-flex items-center justify-center rounded-md border border-slate-200 dark:border-white/20 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
+            onClick: () => setFolderDeleteTargetId(null),
+          }, 'Cancel'),
+          h('button', {
+            type: 'button',
+            className: 'inline-flex items-center justify-center rounded-md bg-red-600 text-white px-4 py-2 text-sm font-semibold hover:bg-red-700',
+            onClick: confirmFolderDelete,
+          }, 'Delete'),
+        ]),
+      ]),
+    ]);
+  };
+
   const renderFolderRow = (folder, depth = 0) => {
     const isSelected = selectedFolderId === folder.id;
     const count = folderCounts[folder.id || '__root'] || 0;
     const isEditing = editingFolderId === folder.id;
+    const menuOpen = openFolderMenuId === folder.id;
     return h('div', {
       key: folder.id || 'root',
       className: `flex items-center justify-between rounded-md border border-transparent px-3 py-2.5 text-sm ${isSelected ? 'bg-[var(--color-brand-purple,#711FFF)]/10 border-[var(--color-brand-purple,#711FFF)] text-[var(--color-brand-purple,#711FFF)] dark:text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`,
@@ -950,10 +1059,23 @@ function MyListsLayout() {
         setSelectedFolderId(folder.id || null);
         setSelectedIds(new Set());
         setMultiSelect(false);
+        setOpenFolderMenuId(null);
+        setOpenFolderMenuPos(null);
       },
     }, [
       h('div', { className: 'flex items-center gap-2 truncate' }, [
         folder.id ? h('span', { className: `h-2 w-2 rounded-full inline-block ${folderDotClass(depth)}` }) : h('span', { className: 'h-2 w-2 rounded-full bg-slate-400 inline-block' }),
+        folder.id ? h('span', { className: 'text-slate-400 dark:text-white/40 cursor-grab' }, h('svg', { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'currentColor' }, [
+          h('circle', { cx: 3, cy: 3, r: 1 }),
+          h('circle', { cx: 7, cy: 3, r: 1 }),
+          h('circle', { cx: 11, cy: 3, r: 1 }),
+          h('circle', { cx: 3, cy: 7, r: 1 }),
+          h('circle', { cx: 7, cy: 7, r: 1 }),
+          h('circle', { cx: 11, cy: 7, r: 1 }),
+          h('circle', { cx: 3, cy: 11, r: 1 }),
+          h('circle', { cx: 7, cy: 11, r: 1 }),
+          h('circle', { cx: 11, cy: 11, r: 1 }),
+        ])) : null,
         isEditing
           ? h('input', {
             type: 'text',
@@ -979,7 +1101,42 @@ function MyListsLayout() {
             onDoubleClick: folder.id ? () => startFolderRename(folder) : undefined,
           }, folder.name),
       ]),
-      h('span', { className: 'text-xs text-slate-500 dark:text-white/70' }, count),
+      h('div', { className: 'flex items-center gap-2' }, [
+        h('span', { className: 'text-xs text-slate-500 dark:text-white/70' }, count),
+        folder.id ? h('div', { className: 'relative flex items-center' }, [
+          h('button', {
+            type: 'button',
+            className: 'p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-white/70',
+            onClick: (e) => {
+              e.stopPropagation();
+              if (menuOpen) {
+                setOpenFolderMenuId(null);
+                setOpenFolderMenuPos(null);
+                return;
+              }
+              const rect = e.currentTarget.getBoundingClientRect();
+              const left = Math.max(8, rect.right - 176);
+              const top = rect.bottom + 6;
+              setOpenFolderMenuPos({ left, top });
+              setOpenFolderMenuId(folder.id);
+            },
+            'aria-label': 'Folder options',
+          }, h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, [
+            h('circle', { cx: 12, cy: 5, r: 1 }),
+            h('circle', { cx: 12, cy: 12, r: 1 }),
+            h('circle', { cx: 12, cy: 19, r: 1 }),
+          ])),
+          h(FolderOptionsMenu, {
+            isOpen: menuOpen,
+            position: openFolderMenuPos,
+            onClose: (action) => {
+              setOpenFolderMenuId(null);
+              setOpenFolderMenuPos(null);
+              if (action === 'delete') setFolderDeleteTargetId(folder.id);
+            },
+          }),
+        ]) : null,
+      ]),
     ]);
   };
 
@@ -1017,12 +1174,16 @@ function MyListsLayout() {
       }),
     ]),
     h('div', { className: 'flex-1 min-h-0 flex flex-col' }, [
-      h('div', { className: 'flex-1 min-h-0 overflow-y-auto px-4 py-4 bg-slate-50 dark:bg-slate-900' }, [
+      h('div', { className: 'flex-1 min-h-0 overflow-y-auto px-4 py-4 bg-slate-50 dark:bg-slate-900', style: { paddingBottom: `${getBottomOffset() + 160}px` } }, [
         h('div', { className: 'flex gap-4 min-h-0' }, [
           h('div', { className: 'flex-1 min-h-0 flex flex-col space-y-2' }, [
             h('div', { className: 'flex items-center justify-between' }, [
               h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-white/60' }, showArchive ? 'Archived items' : 'Active items'),
               h('span', { className: 'text-[11px] text-slate-400 dark:text-white/60' }, `${visibleItems.length} item${visibleItems.length === 1 ? '' : 's'}`),
+            ]),
+            h('div', { className: 'flex items-center gap-2 text-xs text-slate-500 dark:text-white/60 truncate' }, [
+              h('span', { className: 'text-slate-400 dark:text-white/50' }, '\u2022'),
+              h('span', { className: 'font-medium text-slate-700 dark:text-white/80 truncate' }, currentFolderLabel),
             ]),
             h(ItemsList, {
               items: visibleItems,
@@ -1098,11 +1259,16 @@ function MyListsLayout() {
           ]) : null,
         ]),
       ]),
-      h('div', { className: 'flex-shrink-0 border-t border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-4 py-3' }, [
+      h('div', {
+        id: 'myListsComposerBar',
+        className: 'sticky bottom-0 z-40 border-t border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-4 py-3',
+        style: { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${getBottomOffset()}px)` },
+      }, [
         h(AddItemBar, { value: draft, onChange: setDraft, onSubmit: addItem }),
       ]),
     ]),
     renderModal(),
+    renderFolderDeleteModal(),
     renderMoveModal(),
   ]);
 }
