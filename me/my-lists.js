@@ -6,6 +6,7 @@ const { createRoot } = ReactDOM;
 
 const MY_LISTS_STORAGE_KEY = 'netnet_my_lists_items_v1';
 const MY_LISTS_FOLDERS_STORAGE_KEY = 'netnet_my_lists_folders_v1';
+const MY_LISTS_LAST_FOLDER_KEY = 'netnet_my_lists_last_folder_v1';
 export const NETNET_LAST_LIST_ITEM_KEY = 'netnet_my_lists_last_item_v1';
 const MENU_ACTIONS = [
   { key: 'move', label: 'Move to folder…' },
@@ -92,6 +93,25 @@ function safeSaveFolders(folders) {
   }
 }
 
+function safeLoadLastFolderId(folders) {
+  try {
+    const raw = localStorage.getItem(MY_LISTS_LAST_FOLDER_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed) return null;
+    return folders.some((f) => f.id === parsed) ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function safeSaveLastFolderId(folderId) {
+  try {
+    localStorage.setItem(MY_LISTS_LAST_FOLDER_KEY, JSON.stringify(folderId ?? null));
+  } catch (e) {
+    // Ignore write failures in prototype
+  }
+}
+
 function sanitizeFolders(folders) {
   if (!Array.isArray(folders)) return [];
   const withIds = folders.filter((f) => f && f.id).map((f) => {
@@ -99,8 +119,8 @@ function sanitizeFolders(folders) {
     return {
       id: f.id,
       name: rawName || 'General',
-    parentId: f.parentId ?? null,
-    sortOrder: typeof f.sortOrder === 'number' ? f.sortOrder : 0,
+      parentId: f.parentId ?? null,
+      sortOrder: typeof f.sortOrder === 'number' ? f.sortOrder : 0,
     };
   });
   const idSet = new Set(withIds.map((f) => f.id));
@@ -649,6 +669,7 @@ function MyListsLayout() {
   const [openFolderMenuId, setOpenFolderMenuId] = useState(null);
   const [openFolderMenuPos, setOpenFolderMenuPos] = useState(null);
   const [folderDeleteTargetId, setFolderDeleteTargetId] = useState(null);
+  const didInitLastFolder = useRef(false);
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [titleDraft, setTitleDraft] = useState('');
   const [editingNotesId, setEditingNotesId] = useState(null);
@@ -684,6 +705,29 @@ function MyListsLayout() {
   }, []);
 
   useEffect(() => {
+    if (didInitLastFolder.current) return;
+    const restored = safeLoadLastFolderId(folders);
+    if (restored) {
+      setSelectedFolderId(restored);
+    } else {
+      setSelectedFolderId(null);
+      safeSaveLastFolderId(null);
+    }
+    didInitLastFolder.current = true;
+  }, [folders]);
+
+  useEffect(() => {
+    if (!didInitLastFolder.current) return;
+    const exists = selectedFolderId ? folders.some((f) => f.id === selectedFolderId) : true;
+    if (!exists) {
+      setSelectedFolderId(null);
+      safeSaveLastFolderId(null);
+      return;
+    }
+    safeSaveLastFolderId(selectedFolderId);
+  }, [selectedFolderId, folders]);
+
+  useEffect(() => {
     if (multiSelect) {
       setEditingTitleId(null);
       setTitleDraft('');
@@ -710,7 +754,7 @@ function MyListsLayout() {
 
   const currentFolder = selectedFolderId ? folders.find((f) => f.id === selectedFolderId) : null;
   const getFolderBreadcrumb = () => {
-    if (!selectedFolderId) return 'All items';
+    if (!selectedFolderId) return 'General';
     const map = new Map(folders.map((f) => [f.id, f]));
     const names = [];
     const visited = new Set();
@@ -720,7 +764,7 @@ function MyListsLayout() {
       visited.add(current.id);
       current = current.parentId ? map.get(current.parentId) : null;
     }
-    return names.length ? names.reverse().join(' \u203a ') : 'All items';
+    return names.length ? names.reverse().join(' \u203a ') : 'General';
   };
   const currentFolderLabel = getFolderBreadcrumb();
 
@@ -927,7 +971,7 @@ function MyListsLayout() {
 
   const renderMoveModal = () => {
     if (!moveModalItem) return null;
-    const selectable = [{ id: null, name: 'All items', parentId: null, sortOrder: -1 }, ...folders];
+    const selectable = [{ id: null, name: 'General', parentId: null, sortOrder: -1 }, ...folders];
     const renderOption = (node, depth = 0) => {
       const count = folderCounts[node.id || '__root'] || 0;
       return h('button', {
@@ -1039,7 +1083,7 @@ function MyListsLayout() {
   const renderFolderRow = (folder, depth = 0) => {
     const isSelected = selectedFolderId === folder.id;
     const count = folderCounts[folder.id || '__root'] || 0;
-    const isEditing = editingFolderId === folder.id;
+    const isEditing = !!folder.id && editingFolderId === folder.id;
     const menuOpen = openFolderMenuId === folder.id;
     return h('div', {
       key: folder.id || 'root',
@@ -1228,7 +1272,7 @@ function MyListsLayout() {
                 }, '✕'),
               ]),
               h('div', { className: 'flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-1' }, [
-                renderFolderRow({ id: null, name: 'All items' }, 0),
+                renderFolderRow({ id: null, name: 'General' }, 0),
                 ...renderFolderTree(null, 0),
               ]),
               h('div', { className: 'px-4 py-3 border-t border-slate-200 dark:border-white/10 flex items-center gap-2 bg-slate-50 dark:bg-slate-900' }, [
