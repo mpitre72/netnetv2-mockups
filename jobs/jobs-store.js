@@ -279,6 +279,14 @@ function ensureJobsSeed(wsId) {
   const nextCycleKey = nextMonth.slice(0, 7);
   const designDeliverableId = createId('del');
   const buildDeliverableId = createId('del');
+  const contentDeliverableId = createId('del');
+  const launchDeliverableId = createId('del');
+  const teamIds = [
+    'team_marc_pitre',
+    'team_arthur_iturres',
+    'team_andres_naranjo',
+    'team_kumail_abas',
+  ];
 
   const pool = (serviceTypeId, estimatedHours, extras = {}) => {
     if (!serviceTypeId || estimatedHours <= 0) return null;
@@ -318,7 +326,50 @@ function ensureJobsSeed(wsId) {
             pool(designId, 42, { assignedHours: 16, actualHours: 12 }),
             pool(pmId, 8, { assignedHours: 3, actualHours: 2 }),
           ].filter(Boolean),
-          tasks: [],
+          tasks: [
+            {
+              id: createId('task'),
+              title: 'Wireframe core flows',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextWeek,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[0], serviceTypeId: designId, loeHours: 10 },
+                { id: createId('alloc'), assigneeUserId: teamIds[3], serviceTypeId: pmId, loeHours: 2 },
+              ],
+            },
+            {
+              id: createId('task'),
+              title: 'Homepage visual system',
+              status: 'in_progress',
+              isDraft: false,
+              dueDate: nextWeek,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[3], serviceTypeId: designId, loeHours: 8 },
+              ],
+            },
+            {
+              id: createId('task'),
+              title: 'Component inventory',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextWeek,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[1], serviceTypeId: designId, loeHours: 6 },
+              ],
+            },
+            {
+              id: createId('task'),
+              title: 'Design QA pass',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextWeek,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[0], serviceTypeId: pmId, loeHours: 2 },
+                { id: createId('alloc'), assigneeUserId: teamIds[3], serviceTypeId: designId, loeHours: 3 },
+              ],
+            },
+          ],
         },
         {
           id: buildDeliverableId,
@@ -329,7 +380,107 @@ function ensureJobsSeed(wsId) {
             pool(devId, 60, { assignedHours: 20, actualHours: 10 }),
             pool(pmId, 10, { assignedHours: 4, actualHours: 3 }),
           ].filter(Boolean),
-          tasks: [],
+          tasks: [
+            {
+              id: createId('task'),
+              title: 'Setup component library',
+              status: 'in_progress',
+              isDraft: false,
+              dueDate: nextMonth,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[1], serviceTypeId: devId, loeHours: 12 },
+                { id: createId('alloc'), assigneeUserId: teamIds[2], serviceTypeId: devId, loeHours: 10 },
+              ],
+            },
+            {
+              id: createId('task'),
+              title: 'Implement homepage',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextMonth,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[2], serviceTypeId: devId, loeHours: 14 },
+              ],
+            },
+            {
+              id: createId('task'),
+              title: 'CMS integration',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextMonth,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[1], serviceTypeId: devId, loeHours: 16 },
+              ],
+            },
+            {
+              id: createId('task'),
+              title: 'Release readiness review',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextMonth,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[0], serviceTypeId: pmId, loeHours: 3 },
+                { id: createId('alloc'), assigneeUserId: teamIds[1], serviceTypeId: devId, loeHours: 4 },
+              ],
+            },
+          ],
+        },
+        {
+          id: contentDeliverableId,
+          name: 'Content + QA',
+          dueDate: nextMonth,
+          dependencyDeliverableIds: [buildDeliverableId],
+          pools: [
+            pool(designId, 12),
+            pool(pmId, 6),
+            pool(devId, 8),
+          ].filter(Boolean),
+          tasks: [
+            {
+              id: createId('task'),
+              title: 'Content polish pass',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextMonth,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[3], serviceTypeId: designId, loeHours: 5 },
+              ],
+            },
+            {
+              id: createId('task'),
+              title: 'Cross-browser QA',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextMonth,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[1], serviceTypeId: devId, loeHours: 6 },
+                { id: createId('alloc'), assigneeUserId: teamIds[0], serviceTypeId: pmId, loeHours: 2 },
+              ],
+            },
+          ],
+        },
+        {
+          id: launchDeliverableId,
+          name: 'Launch Readiness',
+          dueDate: nextMonth,
+          dependencyDeliverableIds: [contentDeliverableId],
+          pools: [
+            pool(pmId, 10),
+            pool(devId, 12),
+          ].filter(Boolean),
+          tasks: [
+            {
+              id: createId('task'),
+              title: 'Launch checklist',
+              status: 'backlog',
+              isDraft: false,
+              dueDate: nextMonth,
+              allocations: [
+                { id: createId('alloc'), assigneeUserId: teamIds[2], serviceTypeId: pmId, loeHours: 3 },
+                { id: createId('alloc'), assigneeUserId: teamIds[1], serviceTypeId: devId, loeHours: 4 },
+              ],
+            },
+          ],
         },
       ],
     },
@@ -558,6 +709,7 @@ export function createJob(payload = {}, wsId = workspaceId()) {
     completedAt: status === 'completed' ? completedAt : null,
     completedByUserId: status === 'completed' ? (completedByUserId || DEFAULT_USER_ID) : null,
     deliverables: normalizeDeliverables(payload.deliverables || [], jobId),
+    unassignedTasks: normalizeTasks(payload.unassignedTasks || [], { jobId, deliverableId: null }),
   };
   list.unshift(job);
   store.jobs = list;
@@ -605,6 +757,10 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
     completedByUserId = null;
   }
 
+  const nextUnassignedTasks = Array.isArray(updates.unassignedTasks)
+    ? normalizeTasks(updates.unassignedTasks, { jobId, deliverableId: null })
+    : (current.unassignedTasks || []);
+
   const next = {
     ...current,
     ...updates,
@@ -630,6 +786,7 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
     completedAt,
     completedByUserId,
     deliverables: updates.deliverables ? normalizeDeliverables(updates.deliverables, current.id) : current.deliverables,
+    unassignedTasks: nextUnassignedTasks,
     updatedAt: Date.now(),
   };
   if (nextKind !== 'project') {

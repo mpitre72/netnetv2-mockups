@@ -1,22 +1,21 @@
 import { SectionHeader } from '../../components/layout/SectionHeader.js';
 import { navigate } from '../../router.js';
 import { getContactsData } from '../../contacts/contacts-data.js';
-import { loadTeamMembers } from '../../quick-tasks/quick-tasks-store.js';
+import { getCurrentUserId, loadTeamMembers } from '../../quick-tasks/quick-tasks-store.js';
 import { getJobById, loadJobChatMessages, updateJob } from '../jobs-store.js';
 import { getJobNumber } from '../job-number-utils.js';
+import { setJobTasksViewMode } from '../jobs-ui-state.js';
 import { JobPlanTab } from '../jobs-plan.js';
 import { JobSettingsTab } from './job-settings-tab.js';
-import { JobKanbanTab } from './job-kanban-tab.js';
 import { JobTimelineTab } from './job-timeline-tab.js';
 import { JobPerformanceTab } from './job-performance-tab.js';
 import { JobTasksTab } from './job-tasks-tab.js';
-import { JobChatDrawer } from '../job-chat-drawer.js';
+import { closeJobChatDrawer, openJobChatDrawer } from '../job-chat-drawer.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 
 const TAB_CONFIG = [
-  { key: 'plan', label: 'Plan', path: '' },
-  { key: 'kanban', label: 'Kanban', path: 'kanban' },
+  { key: 'plan', label: 'Plan', path: 'plan' },
   { key: 'tasks', label: 'Tasks', path: 'tasks' },
   { key: 'timeline', label: 'Timeline', path: 'timeline' },
   { key: 'performance', label: 'Performance', path: 'performance' },
@@ -57,26 +56,162 @@ export function JobDetailShell({ jobId, subview }) {
   const [job, setJob] = useState(() => getJobById(jobId));
   const [chatMessages, setChatMessages] = useState(() => loadJobChatMessages(jobId));
   const [chatState, setChatState] = useState({ isOpen: false, target: { type: 'job' } });
+  const [chatReadState, setChatReadState] = useState(() => ({
+    job: { lastReadAt: 0, lastMentionReadAt: 0 },
+    deliverable: {},
+    task: {},
+  }));
   const [jobNumberVersion, setJobNumberVersion] = useState(0);
   const companyMap = useMemo(buildCompanyMap, []);
   const members = useMemo(() => loadTeamMembers(), []);
+  const currentUserId = useMemo(() => getCurrentUserId(members) || 'currentUser', [members]);
 
   useEffect(() => {
     setJob(getJobById(jobId));
     setChatMessages(loadJobChatMessages(jobId));
   }, [jobId]);
 
+  useEffect(() => {
+    if (!job || subview) return;
+    const target = job.status === 'active'
+      ? 'tasks'
+      : job.status === 'completed' || job.status === 'archived'
+        ? 'performance'
+        : 'plan';
+    const nextHash = `#/app/jobs/${job.id}/${target}`;
+    if (location.hash !== nextHash) navigate(nextHash);
+  }, [job, subview]);
+
+  useEffect(() => {
+    if (!job || subview !== 'kanban') return;
+    setJobTasksViewMode(job.id, 'kanban');
+    const nextHash = `#/app/jobs/${job.id}/tasks`;
+    if (location.hash !== nextHash) navigate(nextHash);
+  }, [job, subview]);
+
   const handleJobUpdate = (updates) => {
     const next = updateJob(jobId, updates);
     if (next) setJob(next);
   };
+  const markChatRead = (target) => {
+    const timestamp = Date.now();
+    setChatReadState((prev) => {
+      const next = {
+        job: { ...(prev.job || {}) },
+        deliverable: { ...(prev.deliverable || {}) },
+        task: { ...(prev.task || {}) },
+      };
+      if (target.type === 'deliverable' && target.deliverableId) {
+        next.deliverable[String(target.deliverableId)] = { lastReadAt: timestamp, lastMentionReadAt: timestamp };
+      } else if (target.type === 'task' && target.taskId) {
+        next.task[String(target.taskId)] = { lastReadAt: timestamp, lastMentionReadAt: timestamp };
+      } else {
+        next.job = { lastReadAt: timestamp, lastMentionReadAt: timestamp };
+      }
+      return next;
+    });
+  };
+
   const openChat = (target = { type: 'job' }) => {
-    setChatState({ isOpen: true, target });
+    if (!job) return;
+    const normalized = target && typeof target === 'object' ? target : { type: 'job' };
+    if (normalized.type === 'deliverable') {
+      const exists = (job.deliverables || []).some((deliverable) => (
+        String(deliverable.id) === String(normalized.deliverableId)
+      ));
+      if (!exists) {
+        window?.showToast?.('Chat context missing.');
+        return;
+      }
+    }
+    if (normalized.type === 'task') {
+      const deliverableMatch = (job.deliverables || []).some((deliverable) => (
+        (deliverable.tasks || []).some((task) => String(task.id) === String(normalized.taskId))
+      ));
+      const unassignedMatch = (job.unassignedTasks || []).some((task) => (
+        String(task.id) === String(normalized.taskId)
+      ));
+      if (!deliverableMatch && !unassignedMatch) {
+        window?.showToast?.('Chat context missing.');
+        return;
+      }
+    }
+    markChatRead(normalized);
+    setChatState({ isOpen: true, target: normalized });
   };
   const closeChat = () => setChatState((prev) => ({ ...prev, isOpen: false }));
   const refreshChat = () => {
     setChatMessages(loadJobChatMessages(jobId));
   };
+
+  const readOnly = job?.status === 'archived';
+  const jobNumber = useMemo(() => (job ? getJobNumber(job, jobNumberVersion) : ''), [job, jobNumberVersion]);
+  const chatIndicators = useMemo(() => {
+    const deliverable = new Map();
+    const task = new Map();
+    const jobIndicator = { totalMessages: 0, hasUnreadMessages: false, mentionCount: 0 };
+    if (!job) return { job: jobIndicator, deliverable, task };
+    const jobId = String(job.id);
+    const readJob = chatReadState?.job || {};
+    const lastJobReadAt = Number(readJob.lastReadAt) || 0;
+    const lastJobMentionReadAt = Number(readJob.lastMentionReadAt) || 0;
+    const deliverableRead = chatReadState?.deliverable || {};
+    const taskRead = chatReadState?.task || {};
+    const userId = String(currentUserId || '');
+
+    const updateIndicator = (map, readMap, id, timestamp, mentioned) => {
+      const key = String(id || '');
+      if (!key) return;
+      const readInfo = readMap?.[key] || {};
+      const lastReadAt = Number(readInfo.lastReadAt) || 0;
+      const lastMentionReadAt = Number(readInfo.lastMentionReadAt) || 0;
+      const entry = map.get(key) || { totalMessages: 0, hasUnreadMessages: false, mentionCount: 0 };
+      entry.totalMessages += 1;
+      if (timestamp > lastReadAt) entry.hasUnreadMessages = true;
+      if (mentioned && timestamp > lastMentionReadAt) entry.mentionCount += 1;
+      map.set(key, entry);
+    };
+
+    (chatMessages || []).forEach((message) => {
+      if (String(message.jobId) !== jobId) return;
+      const timestamp = Number.isFinite(Date.parse(message.createdAt)) ? Date.parse(message.createdAt) : 0;
+      const mentioned = (message?.mentions?.peopleMentions || []).some((id) => String(id) === userId);
+
+      jobIndicator.totalMessages += 1;
+      if (timestamp > lastJobReadAt) jobIndicator.hasUnreadMessages = true;
+      if (mentioned && timestamp > lastJobMentionReadAt) jobIndicator.mentionCount += 1;
+
+      if (message.tagTarget?.type === 'task' && message.taskId) {
+        updateIndicator(task, taskRead, message.taskId, timestamp, mentioned);
+        if (message.deliverableId) {
+          updateIndicator(deliverable, deliverableRead, message.deliverableId, timestamp, mentioned);
+        }
+      } else if (message.tagTarget?.type === 'deliverable' && message.deliverableId) {
+        updateIndicator(deliverable, deliverableRead, message.deliverableId, timestamp, mentioned);
+      }
+    });
+
+    return { job: jobIndicator, deliverable, task };
+  }, [chatMessages, chatReadState, currentUserId, job]);
+
+  useEffect(() => {
+    if (!job || !chatState.isOpen) {
+      closeJobChatDrawer();
+      return;
+    }
+    openJobChatDrawer({
+      job,
+      jobNumber,
+      target: chatState.target,
+      messages: chatMessages,
+      readOnly,
+      onClose: closeChat,
+      onChatUpdate: refreshChat,
+    });
+    return () => {
+      closeJobChatDrawer();
+    };
+  }, [job, jobNumber, chatMessages, chatState, readOnly]);
 
   if (!job) {
     return h('div', { className: 'space-y-4 px-4 pt-4 pb-12' }, [
@@ -92,13 +227,38 @@ export function JobDetailShell({ jobId, subview }) {
     ]);
   }
 
-  const activeTab = TAB_CONFIG.find((tab) => tab.key === subview) ? subview : 'plan';
+  const normalizedSubview = subview === 'kanban' ? 'tasks' : subview;
+  const statusDefaultTab = job.status === 'active'
+    ? 'tasks'
+    : job.status === 'completed' || job.status === 'archived'
+      ? 'performance'
+      : 'plan';
+  const activeTab = TAB_CONFIG.find((tab) => tab.key === normalizedSubview) ? normalizedSubview : statusDefaultTab;
   const timelineDisabled = job.kind === 'retainer';
-  const readOnly = job.status === 'archived';
 
   const companyName = job.companyId ? companyMap.get(String(job.companyId)) : '';
   const anchorLabel = job.isInternal ? 'Internal' : companyName ? `Client · ${companyName}` : 'Client';
-  const jobNumber = getJobNumber(job, jobNumberVersion);
+  const jobChatIndicator = chatIndicators?.job || { totalMessages: 0, hasUnreadMessages: false, mentionCount: 0 };
+
+  const renderChatIcon = (indicator = {}) => {
+    const total = indicator.totalMessages || 0;
+    const mentionCount = indicator.mentionCount || 0;
+    const hasUnread = indicator.hasUnreadMessages;
+    const badgeValue = mentionCount > 9 ? '9+' : mentionCount || '';
+    const toneClass = total > 0
+      ? 'text-slate-600 dark:text-slate-200'
+      : 'text-slate-400 dark:text-slate-500';
+    return h('span', { className: `relative inline-flex items-center ${toneClass}` }, [
+      h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+        h('path', { d: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z' }),
+      ]),
+      mentionCount > 0
+        ? h('span', { className: 'absolute -top-1 -right-2 min-w-[16px] h-4 rounded-full bg-white text-[10px] font-semibold text-slate-900 px-1 flex items-center justify-center shadow' }, badgeValue)
+        : hasUnread
+          ? h('span', { className: 'absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-white shadow' })
+          : null,
+    ]);
+  };
 
   const breadcrumb = h('div', { className: 'flex items-center gap-2' }, [
     h('button', {
@@ -132,13 +292,16 @@ export function JobDetailShell({ jobId, subview }) {
         job,
         onJobUpdate: handleJobUpdate,
         readOnly,
-        chatMessages,
-        onOpenChat: openChat,
       });
     }
-    if (activeTab === 'kanban') return h(JobKanbanTab, { job, onJobUpdate: handleJobUpdate, readOnly });
     if (activeTab === 'tasks') {
-      return h(JobTasksTab, { job, onJobUpdate: handleJobUpdate, readOnly });
+      return h(JobTasksTab, {
+        job,
+        onJobUpdate: handleJobUpdate,
+        readOnly,
+        chatIndicators,
+        onOpenChat: openChat,
+      });
     }
     if (activeTab === 'timeline') {
       if (timelineDisabled) {
@@ -181,13 +344,8 @@ export function JobDetailShell({ jobId, subview }) {
           className: 'inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white',
           onClick: () => openChat({ type: 'job' }),
         }, [
-          h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-            h('path', { d: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z' }),
-          ]),
+          renderChatIcon(jobChatIndicator),
           'Chat',
-          chatMessages.length
-            ? h('span', { className: 'rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-200' }, String(chatMessages.length))
-            : null,
         ].filter(Boolean)),
       ]),
       h('div', { className: 'text-xl font-semibold text-slate-900 dark:text-white' }, job.name || 'Job'),
@@ -199,15 +357,5 @@ export function JobDetailShell({ jobId, subview }) {
     ]),
     h('div', { className: 'flex flex-wrap gap-2' }, TAB_CONFIG.map(renderTab)),
     content,
-    h(JobChatDrawer, {
-      isOpen: chatState.isOpen,
-      job,
-      jobNumber,
-      target: chatState.target,
-      messages: chatMessages,
-      readOnly,
-      onClose: closeChat,
-      onChatUpdate: refreshChat,
-    }),
   ]);
 }

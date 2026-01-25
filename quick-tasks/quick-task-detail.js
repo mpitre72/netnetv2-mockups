@@ -441,7 +441,7 @@ function getMonthLabel(year, monthIndex) {
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
-function openSingleDatePickerPopover({ anchorEl, value, onSelect, onClear, onClose } = {}) {
+export function openSingleDatePickerPopover({ anchorEl, value, onSelect, onClear, onClose } = {}) {
   if (!anchorEl) return null;
   const layer = ensureModalLayer('qt-date-picker-layer');
   layer.className = 'fixed inset-0 z-[1100]';

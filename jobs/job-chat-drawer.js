@@ -3,6 +3,77 @@ import { addJobChatMessage, retagJobChatMessage } from './jobs-store.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
+let chatRoot = null;
+let chatRootEl = null;
+
+function getDrawerElements() {
+  const drawer = document.getElementById('drawer-container');
+  const shell = document.getElementById('app-shell');
+  if (!drawer || !shell) return null;
+  return { drawer, shell };
+}
+
+export function closeJobChatDrawer() {
+  const container = getDrawerElements();
+  if (!container) return;
+  const { drawer, shell } = container;
+  if (chatRoot) {
+    chatRoot.unmount();
+    chatRoot = null;
+    chatRootEl = null;
+  }
+  if (drawer.dataset.drawerView !== 'job-chat') return;
+  drawer.innerHTML = '';
+  shell.classList.add('drawer-closed');
+  delete drawer.dataset.drawerView;
+}
+
+export function openJobChatDrawer({
+  job,
+  jobNumber,
+  target,
+  messages,
+  readOnly,
+  onClose,
+  onChatUpdate,
+} = {}) {
+  const container = getDrawerElements();
+  if (!container) return false;
+  const { drawer, shell } = container;
+  if (chatRoot) closeJobChatDrawer();
+  drawer.innerHTML = `
+    <div id="app-drawer-backdrop" class="job-chat-drawer-backdrop"></div>
+    <aside id="app-drawer" class="job-chat-drawer-panel bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md h-full"></aside>
+  `;
+  drawer.dataset.drawerView = 'job-chat';
+  shell.classList.remove('drawer-closed');
+  const panel = drawer.querySelector('#app-drawer');
+  const backdrop = drawer.querySelector('#app-drawer-backdrop');
+  if (!panel) return false;
+  chatRootEl = document.createElement('div');
+  chatRootEl.id = 'job-chat-root';
+  chatRootEl.className = 'h-full flex flex-col';
+  panel.appendChild(chatRootEl);
+  const handleClose = () => {
+    if (typeof onClose === 'function') onClose();
+    closeJobChatDrawer();
+  };
+  if (backdrop) backdrop.addEventListener('click', handleClose);
+  const root = ReactDOM.createRoot(chatRootEl);
+  chatRoot = root;
+  root.render(h(JobChatDrawer, {
+    isOpen: true,
+    job,
+    jobNumber,
+    target,
+    messages,
+    readOnly,
+    onClose: handleClose,
+    onChatUpdate,
+  }));
+  return true;
+}
+
 function getInitials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
@@ -76,6 +147,7 @@ export function JobChatDrawer({
   const currentUserId = useMemo(() => getCurrentUserId(members) || 'currentUser', [members]);
   const currentUser = useMemo(() => getCurrentUser(members), [members]);
   const memberMap = useMemo(() => new Map(members.map((member) => [String(member.id), member])), [members]);
+  const jobId = job?.id;
 
   useEffect(() => {
     if (!isOpen) {
@@ -87,17 +159,15 @@ export function JobChatDrawer({
     }
   }, [isOpen]);
 
-  if (!isOpen || !job) return null;
+  const deliverables = Array.isArray(job?.deliverables) ? job.deliverables : [];
+  const activeTarget = target && typeof target === 'object' ? target : { type: 'job' };
+  const isArchived = readOnly || job?.status === 'archived';
 
-  const deliverables = Array.isArray(job.deliverables) ? job.deliverables : [];
-  const activeTarget = target || { type: 'job' };
-  const isArchived = readOnly || job.status === 'archived';
-
-  const teamIds = Array.isArray(job.teamUserIds) ? job.teamUserIds.map((id) => String(id)) : [];
+  const teamIds = Array.isArray(job?.teamUserIds) ? job.teamUserIds.map((id) => String(id)) : [];
   let peopleOptions = teamIds.length
     ? members.filter((member) => teamIds.includes(String(member.id)))
     : members;
-  if (job.jobLeadUserId && !peopleOptions.some((member) => String(member.id) === String(job.jobLeadUserId))) {
+  if (job?.jobLeadUserId && !peopleOptions.some((member) => String(member.id) === String(job.jobLeadUserId))) {
     const lead = memberMap.get(String(job.jobLeadUserId));
     if (lead) peopleOptions = [lead, ...peopleOptions];
   }
@@ -141,8 +211,11 @@ export function JobChatDrawer({
   }, [mentionState, peopleMentions, smartOptions]);
 
   const messagesForJob = useMemo(
-    () => (messages || []).filter((message) => String(message.jobId) === String(job.id)),
-    [messages, job.id]
+    () => {
+      if (!jobId) return [];
+      return (messages || []).filter((message) => String(message.jobId) === String(jobId));
+    },
+    [messages, jobId]
   );
 
   const visibleMessages = useMemo(() => {
@@ -166,17 +239,30 @@ export function JobChatDrawer({
   const contextDeliverable = deliverables.find((deliverable) => String(deliverable.id) === String(activeTarget.deliverableId)) || null;
   const contextTask = contextDeliverable?.tasks?.find((task) => String(task.id) === String(activeTarget.taskId)) || null;
 
-  const contextLine = (() => {
-    const label = jobNumber || job.id;
-    const jobLabel = `Job ${label} ${job.name || 'Job'}`;
+  const headerContext = (() => {
+    if (!job) return { title: '', breadcrumb: '' };
+    const jobLabel = job.name || 'Job';
+    const deliverableLabel = contextDeliverable?.name || 'Deliverable';
+    const taskLabel = contextTask?.title || 'Task';
     if (activeTarget.type === 'task' && contextTask && contextDeliverable) {
-      return `${jobLabel} - ${contextDeliverable.name || 'Deliverable'} / ${contextTask.title || 'Task'}`;
+      return {
+        title: taskLabel,
+        breadcrumb: `${jobLabel} › ${deliverableLabel}`,
+      };
     }
     if (activeTarget.type === 'deliverable' && contextDeliverable) {
-      return `${jobLabel} - ${contextDeliverable.name || 'Deliverable'}`;
+      return {
+        title: deliverableLabel,
+        breadcrumb: jobLabel,
+      };
     }
-    return jobLabel;
+    return {
+      title: jobLabel,
+      breadcrumb: '',
+    };
   })();
+
+  if (!isOpen || !job) return null;
 
   const applyTextUpdate = (value, cursor) => {
     setComposerText(value);
@@ -342,20 +428,20 @@ export function JobChatDrawer({
     }))
   ));
 
-  return h('div', { className: 'fixed inset-0 z-50' }, [
-    h('div', {
-      className: 'absolute inset-0 bg-black/30',
-      onClick: () => onClose && onClose(),
-    }),
-    h('aside', { className: 'absolute right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-white/10 shadow-xl flex flex-col' }, [
-      h('div', { className: 'flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-200 dark:border-white/10' }, [
-        h('div', { className: 'space-y-1' }, [
-          h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Chat'),
-          h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, contextLine),
-          isArchived
-            ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Archived - chat is read-only.')
-            : null,
+  return h('div', { className: 'h-full flex flex-col', 'data-job-chat-drawer': 'true' }, [
+    h('div', { className: 'flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-200 dark:border-white/10' }, [
+      h('div', { className: 'space-y-1' }, [
+        h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, [
+          headerContext.title,
+          h('span', { className: 'text-xs font-semibold text-slate-500 dark:text-slate-400 ms-2' }, `· ${visibleMessages.length} ${visibleMessages.length === 1 ? 'message' : 'messages'}`),
         ]),
+        headerContext.breadcrumb
+          ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, headerContext.breadcrumb)
+          : null,
+        isArchived
+          ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Archived - chat is read-only.')
+          : null,
+      ]),
         h('button', {
           type: 'button',
           className: 'h-9 w-9 rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
@@ -522,6 +608,5 @@ export function JobChatDrawer({
           ]),
         ])
         : null,
-    ]),
-  ]);
+    ]);
 }

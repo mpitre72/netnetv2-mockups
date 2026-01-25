@@ -440,6 +440,14 @@ html:not(.dark) #app-sidebar .sidebar-profile-toggle:hover {
   transform: translateX(0);
   transition: transform 250ms ease-in-out;
 }
+#app-drawer.job-chat-drawer-panel {
+  top: var(--top-bar-height);
+  height: calc(100% - var(--top-bar-height));
+  z-index: 45;
+}
+#app-drawer-backdrop.job-chat-drawer-backdrop {
+  z-index: 35;
+}
 #app-shell.drawer-closed #app-drawer-backdrop {
   opacity: 0;
   pointer-events: none;
@@ -455,6 +463,10 @@ html:not(.dark) #app-sidebar .sidebar-profile-toggle:hover {
     height: 85vh;
     border-radius: 16px 16px 0 0;
     transform: translateY(0);
+  }
+  #app-drawer.job-chat-drawer-panel {
+    top: auto;
+    height: 85vh;
   }
   #app-shell.drawer-closed #app-drawer {
     transform: translateY(100%);

@@ -44,10 +44,18 @@ function findTask(job, taskId) {
   return { task: null, deliverable: null };
 }
 
-export function JobKanbanTab({ job, onJobUpdate, readOnly: readOnlyOverride }) {
+export function JobKanbanTab({
+  job,
+  onJobUpdate,
+  readOnly: readOnlyOverride,
+  chatIndicators,
+  onOpenChat,
+  taskFilter,
+}) {
   const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
   const members = useMemo(() => loadTeamMembers(), []);
   const memberMap = useMemo(() => new Map(members.map((m) => [String(m.id), m])), [members]);
+  const taskChatIndicators = chatIndicators?.task instanceof Map ? chatIndicators.task : new Map();
 
   const [drawerState, setDrawerState] = useState({ deliverableId: null, taskId: null });
   const [draggingId, setDraggingId] = useState(null);
@@ -74,11 +82,13 @@ export function JobKanbanTab({ job, onJobUpdate, readOnly: readOnlyOverride }) {
   const showTeamHint = teamIds.length === 0;
 
   const allTasks = (job.deliverables || []).flatMap((deliverable) => (
-    (deliverable.tasks || []).map((task) => ({
-      ...task,
-      deliverableName: deliverableNameMap.get(String(deliverable.id)) || 'Deliverable',
-      deliverableId: deliverable.id,
-    }))
+    (deliverable.tasks || [])
+      .filter((task) => (typeof taskFilter === 'function' ? taskFilter(task, deliverable) : true))
+      .map((task) => ({
+        ...task,
+        deliverableName: deliverableNameMap.get(String(deliverable.id)) || 'Deliverable',
+        deliverableId: deliverable.id,
+      }))
   ));
 
   const grouped = {
@@ -175,6 +185,10 @@ export function JobKanbanTab({ job, onJobUpdate, readOnly: readOnlyOverride }) {
     setBlockedNotice(null);
   };
 
+  const openChat = (target) => {
+    if (typeof onOpenChat === 'function') onOpenChat(target);
+  };
+
   const onDragStart = (task) => (event) => {
     if (readOnly) return;
     dragMetaRef.current = { id: task.id, status: task.status };
@@ -252,12 +266,12 @@ export function JobKanbanTab({ job, onJobUpdate, readOnly: readOnlyOverride }) {
                   h('circle', { cx: '16', cy: '16', r: '1' }),
                 ]),
               ]),
-              h('button', {
-                type: 'button',
-                className: 'min-w-0 flex-1 text-left',
-                onClick: () => openDrawer(task.deliverableId, task.id),
-              }, [
-                h('div', { className: 'min-w-0 space-y-2' }, [
+              h('div', { className: 'min-w-0 flex-1 space-y-2' }, [
+                h('button', {
+                  type: 'button',
+                  className: 'w-full text-left',
+                  onClick: () => openDrawer(task.deliverableId, task.id),
+                }, [
                   h('div', { className: 'flex items-center gap-2 flex-wrap' }, [
                     h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white truncate' }, task.title || 'Untitled'),
                     task.isDraft
@@ -269,7 +283,34 @@ export function JobKanbanTab({ job, onJobUpdate, readOnly: readOnlyOverride }) {
                   task.dueDate
                     ? h('div', { className: 'text-[11px] text-slate-500 dark:text-slate-400' }, `Due ${task.dueDate}`)
                     : null,
-                  h('div', { className: 'pt-1' }, renderAllocationsSummary(task)),
+                ]),
+                h('div', { className: 'pt-1 flex items-center justify-between gap-2' }, [
+                  renderAllocationsSummary(task),
+                  h('button', {
+                    type: 'button',
+                    className: `relative inline-flex items-center gap-1 text-xs font-semibold ${taskChatIndicators.get(String(task.id))?.totalMessages ? 'text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`,
+                    onClick: (event) => {
+                      event.stopPropagation();
+                      openChat({ type: 'task', deliverableId: task.deliverableId, taskId: task.id });
+                    },
+                    'aria-label': 'Open task chat',
+                  }, [
+                    h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+                      h('path', { d: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z' }),
+                    ]),
+                    (() => {
+                      const indicator = taskChatIndicators.get(String(task.id)) || {};
+                      const mentionCount = indicator.mentionCount || 0;
+                      const badgeValue = mentionCount > 9 ? '9+' : mentionCount || '';
+                      if (mentionCount > 0) {
+                        return h('span', { className: 'absolute -top-1 -right-2 min-w-[16px] h-4 rounded-full bg-white text-[10px] font-semibold text-slate-900 px-1 flex items-center justify-center shadow' }, badgeValue);
+                      }
+                      if (indicator.hasUnreadMessages) {
+                        return h('span', { className: 'absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-white shadow' });
+                      }
+                      return null;
+                    })(),
+                  ].filter(Boolean)),
                 ]),
               ]),
             ]),

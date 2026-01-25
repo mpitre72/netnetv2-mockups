@@ -3,7 +3,8 @@ import { getActiveWorkspace } from '../app-shell/app-helpers.js';
 const STATUS_FILTERS = new Set(['default', 'pending', 'active', 'completed', 'archived']);
 const KIND_FILTERS = new Set(['all', 'project', 'retainer']);
 const MAIN_VIEWS = new Set(['jobs', 'tasks']);
-const TASK_VIEWS = new Set(['grouped', 'flat']);
+const TASK_VIEWS = new Set(['list', 'kanban']);
+const LEGACY_TASK_VIEWS = new Set(['grouped', 'flat']);
 const CYCLE_KEY_RE = /^\d{4}-\d{2}$/;
 const JOB_NUMBER_RE = /^\d{3,6}$/;
 
@@ -23,6 +24,7 @@ const defaultState = () => ({
   jobTasksView: {},
   jobCycleKeys: {},
   jobNumberOverrides: {},
+  deliverableCollapsed: {},
 });
 
 let memoryState = defaultState();
@@ -39,7 +41,11 @@ function ensureShape(raw) {
     const normalized = {};
     Object.keys(jobTasksView).forEach((key) => {
       const value = jobTasksView[key];
-      if (TASK_VIEWS.has(value)) normalized[key] = value;
+      if (TASK_VIEWS.has(value)) {
+        normalized[key] = value;
+      } else if (LEGACY_TASK_VIEWS.has(value)) {
+        normalized[key] = 'list';
+      }
     });
     next.jobTasksView = normalized;
   } else {
@@ -66,6 +72,22 @@ function ensureShape(raw) {
     next.jobNumberOverrides = normalized;
   } else {
     next.jobNumberOverrides = {};
+  }
+  const deliverableCollapsed = raw?.deliverableCollapsed;
+  if (deliverableCollapsed && typeof deliverableCollapsed === 'object') {
+    const normalized = {};
+    Object.keys(deliverableCollapsed).forEach((jobId) => {
+      const group = deliverableCollapsed[jobId];
+      if (!group || typeof group !== 'object') return;
+      const nextGroup = {};
+      Object.keys(group).forEach((deliverableId) => {
+        nextGroup[deliverableId] = !!group[deliverableId];
+      });
+      normalized[jobId] = nextGroup;
+    });
+    next.deliverableCollapsed = normalized;
+  } else {
+    next.deliverableCollapsed = {};
   }
   return next;
 }
@@ -123,13 +145,16 @@ export function setJobsMainView(view) {
 export function getJobTasksViewMode(jobId) {
   const state = loadState();
   const key = String(jobId || '');
-  return TASK_VIEWS.has(state.jobTasksView?.[key]) ? state.jobTasksView[key] : 'grouped';
+  const stored = state.jobTasksView?.[key];
+  if (TASK_VIEWS.has(stored)) return stored;
+  if (LEGACY_TASK_VIEWS.has(stored)) return 'list';
+  return 'list';
 }
 
 export function setJobTasksViewMode(jobId, mode) {
   const state = loadState();
   const key = String(jobId || '');
-  const nextMode = TASK_VIEWS.has(mode) ? mode : 'grouped';
+  const nextMode = TASK_VIEWS.has(mode) ? mode : 'list';
   const nextMap = { ...(state.jobTasksView || {}) };
   if (key) nextMap[key] = nextMode;
   state.jobTasksView = nextMap;
@@ -176,6 +201,26 @@ export function setJobNumberOverride(jobId, jobNumber) {
 
 export function getJobNumberOverrides() {
   return { ...(loadState().jobNumberOverrides || {}) };
+}
+
+export function getDeliverableCollapsedMap(jobId) {
+  const state = loadState();
+  const key = String(jobId || '');
+  const map = state.deliverableCollapsed?.[key];
+  return map && typeof map === 'object' ? { ...map } : {};
+}
+
+export function setDeliverableCollapsed(jobId, deliverableId, collapsed) {
+  const state = loadState();
+  const jobKey = String(jobId || '');
+  const delivKey = String(deliverableId || '');
+  if (!jobKey || !delivKey) return getDeliverableCollapsedMap(jobId);
+  const nextGroup = { ...(state.deliverableCollapsed?.[jobKey] || {}) };
+  nextGroup[delivKey] = !!collapsed;
+  const next = { ...(state.deliverableCollapsed || {}) };
+  next[jobKey] = nextGroup;
+  state.deliverableCollapsed = next;
+  return persist(state).deliverableCollapsed[jobKey] || nextGroup;
 }
 
 export function isJobNumberFormatValid(value) {

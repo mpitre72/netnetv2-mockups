@@ -25,7 +25,7 @@ function resolveRoute() {
   if (segments[0] === 'tasks') return { view: 'all_tasks' };
   if (!segments[0]) return { redirect: '#/app/jobs' };
   const jobId = segments[0];
-  const subview = segments[1] || 'plan';
+  const subview = segments[1] || null;
   return { view: 'detail', jobId, subview };
 }
 
