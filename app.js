@@ -1,7 +1,7 @@
 import './data/mock-contacts.js';
 import { renderContacts, renderContactProfile } from './contacts/index.js';
 import { renderMePage } from './me/index.js';
-import { renderJobsPage } from './jobs/index.js';
+import { renderJobsPage, unmountJobsPage } from './jobs/index.js';
 import { renderSalesPage } from './sales/index.js';
 import { renderQuickTasksPage } from './quick-tasks/index.js';
 import { renderChatPage } from './chat/index.js';
@@ -104,6 +104,7 @@ function renderRoute(route) {
   if (isAuthRoute) {
     unmountCheatSheet();
     unmountPerformancePage();
+    unmountJobsPage?.();
     ensureShell('auth', location.hash);
     renderAuthScreen(route.name);
     return;
@@ -115,6 +116,9 @@ function renderRoute(route) {
   if (!main) return;
   if (route.name !== 'performance') {
     unmountPerformancePage();
+  }
+  if (route.name !== 'jobs') {
+    unmountJobsPage?.();
   }
   if (route.name === 'components') {
     main.innerHTML = '<div id="components-cheat-sheet-root" class="w-full"></div>';

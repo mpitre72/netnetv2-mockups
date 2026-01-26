@@ -1,6 +1,6 @@
 import { SectionHeader } from '../../components/layout/SectionHeader.js';
 import { navigate } from '../../router.js';
-import { getContactsData } from '../../contacts/contacts-data.js';
+import { getContactsData, getIndividualsData } from '../../contacts/contacts-data.js';
 import { getCurrentUserId, loadTeamMembers } from '../../quick-tasks/quick-tasks-store.js';
 import { getJobById, loadJobChatMessages, updateJob } from '../jobs-store.js';
 import { getJobNumber } from '../job-number-utils.js';
@@ -33,11 +33,27 @@ function statusLabel(status) {
   return 'Pending';
 }
 
+function statusToneClass(status) {
+  if (status === 'active') return 'text-emerald-600 dark:text-emerald-300';
+  if (status === 'completed') return 'text-sky-600 dark:text-sky-300';
+  if (status === 'archived') return 'text-slate-400 dark:text-slate-500';
+  return 'text-amber-600 dark:text-amber-300';
+}
+
 function buildCompanyMap() {
   const companies = getContactsData();
   const map = new Map();
   (companies || []).forEach((company) => {
     if (company?.id) map.set(String(company.id), company.name || `Company ${company.id}`);
+  });
+  return map;
+}
+
+function buildPeopleMap() {
+  const people = getIndividualsData();
+  const map = new Map();
+  (people || []).forEach((person) => {
+    if (person?.id) map.set(String(person.id), person.name || `Person ${person.id}`);
   });
   return map;
 }
@@ -63,6 +79,7 @@ export function JobDetailShell({ jobId, subview }) {
   }));
   const [jobNumberVersion, setJobNumberVersion] = useState(0);
   const companyMap = useMemo(buildCompanyMap, []);
+  const peopleMap = useMemo(buildPeopleMap, []);
   const members = useMemo(() => loadTeamMembers(), []);
   const currentUserId = useMemo(() => getCurrentUserId(members) || 'currentUser', [members]);
 
@@ -237,7 +254,13 @@ export function JobDetailShell({ jobId, subview }) {
   const timelineDisabled = job.kind === 'retainer';
 
   const companyName = job.companyId ? companyMap.get(String(job.companyId)) : '';
-  const anchorLabel = job.isInternal ? 'Internal' : companyName ? `Client · ${companyName}` : 'Client';
+  const personName = job.personId ? peopleMap.get(String(job.personId)) : '';
+  const clientName = job.isInternal ? 'Internal' : (companyName || personName || 'Client');
+  const clientHref = job.companyId
+    ? `#/app/contacts/company/${job.companyId}`
+    : job.personId
+      ? `#/app/contacts/person/${job.personId}`
+      : null;
   const jobChatIndicator = chatIndicators?.job || { totalMessages: 0, hasUnreadMessages: false, mentionCount: 0 };
 
   const renderChatIcon = (indicator = {}) => {
@@ -336,9 +359,9 @@ export function JobDetailShell({ jobId, subview }) {
     job.status === 'archived'
       ? h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-4 py-2 text-xs text-slate-600 dark:text-slate-300' }, 'Archived — view only.')
       : null,
-    h('div', { className: 'rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 p-5 space-y-3' }, [
+    h('div', { className: 'rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-900/50 p-5 space-y-2 mb-2', 'data-job-header': 'true' }, [
       h('div', { className: 'flex items-center justify-between gap-3' }, [
-        h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, `Job ${jobNumber}`),
+        h('div', { className: 'text-xl font-semibold text-slate-900 dark:text-white' }, job.name || 'Job'),
         h('button', {
           type: 'button',
           className: 'inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white',
@@ -348,11 +371,25 @@ export function JobDetailShell({ jobId, subview }) {
           'Chat',
         ].filter(Boolean)),
       ]),
-      h('div', { className: 'text-xl font-semibold text-slate-900 dark:text-white' }, job.name || 'Job'),
-      h('div', { className: 'flex flex-wrap items-center gap-2' }, [
-        h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-800' }, kindLabel(job.kind)),
-        h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-800' }, statusLabel(job.status)),
-        h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-800' }, anchorLabel),
+      h('div', {
+        className: 'text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis',
+        'data-job-header-meta': 'true',
+      }, [
+        h('span', { className: 'text-slate-700 dark:text-slate-200 font-medium' }, `Job ${jobNumber}`),
+        h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
+        h('span', null, kindLabel(job.kind)),
+        h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
+        h('span', { className: statusToneClass(job.status) }, statusLabel(job.status)),
+        h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
+        h('span', null, 'Client: '),
+        clientHref
+          ? h('button', {
+            type: 'button',
+            className: 'text-slate-700 dark:text-slate-200 hover:underline',
+            onClick: () => navigate(clientHref),
+            'data-client-href': clientHref,
+          }, clientName)
+          : h('span', { className: 'text-slate-600 dark:text-slate-300', 'data-client-href': '' }, clientName),
       ]),
     ]),
     h('div', { className: 'flex flex-wrap gap-2' }, TAB_CONFIG.map(renderTab)),

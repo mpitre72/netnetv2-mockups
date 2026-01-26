@@ -66,3 +66,17 @@ export function renderJobsPage(container = document.getElementById('app-main')) 
   }
   root.render(h(JobsApp));
 }
+
+export function unmountJobsPage() {
+  if (!root && !currentContainer) return;
+  try {
+    root?.unmount();
+  } catch (err) {
+    console.warn('[JobsModule] Failed to unmount jobs root.', err);
+  }
+  root = null;
+  if (currentContainer) {
+    currentContainer.innerHTML = '';
+    currentContainer = null;
+  }
+}
