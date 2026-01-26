@@ -280,7 +280,6 @@ function ensureJobsSeed(wsId) {
   const designDeliverableId = createId('del');
   const buildDeliverableId = createId('del');
   const contentDeliverableId = createId('del');
-  const launchDeliverableId = createId('del');
   const teamIds = [
     'team_marc_pitre',
     'team_arthur_iturres',
@@ -427,7 +426,7 @@ function ensureJobsSeed(wsId) {
         },
         {
           id: contentDeliverableId,
-          name: 'Content + QA',
+          name: 'E-commerce',
           dueDate: nextMonth,
           dependencyDeliverableIds: [buildDeliverableId],
           pools: [
@@ -455,29 +454,6 @@ function ensureJobsSeed(wsId) {
               allocations: [
                 { id: createId('alloc'), assigneeUserId: teamIds[1], serviceTypeId: devId, loeHours: 6 },
                 { id: createId('alloc'), assigneeUserId: teamIds[0], serviceTypeId: pmId, loeHours: 2 },
-              ],
-            },
-          ],
-        },
-        {
-          id: launchDeliverableId,
-          name: 'Launch Readiness',
-          dueDate: nextMonth,
-          dependencyDeliverableIds: [contentDeliverableId],
-          pools: [
-            pool(pmId, 10),
-            pool(devId, 12),
-          ].filter(Boolean),
-          tasks: [
-            {
-              id: createId('task'),
-              title: 'Launch checklist',
-              status: 'backlog',
-              isDraft: false,
-              dueDate: nextMonth,
-              allocations: [
-                { id: createId('alloc'), assigneeUserId: teamIds[2], serviceTypeId: pmId, loeHours: 3 },
-                { id: createId('alloc'), assigneeUserId: teamIds[1], serviceTypeId: devId, loeHours: 4 },
               ],
             },
           ],

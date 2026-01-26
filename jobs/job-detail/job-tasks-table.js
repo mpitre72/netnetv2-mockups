@@ -21,13 +21,24 @@ const STATUS_OPTIONS = [
   { value: 'in_progress', label: 'In Progress' },
   { value: 'completed', label: 'Completed' },
 ];
-const HEALTH_TOOLTIP = 'Overall deliverable health based on effort vs timeline drift';
-const DEMO_CHAT_STATES = [
-  { totalMessages: 0, hasUnreadMessages: false, mentionCount: 0 },
-  { totalMessages: 6, hasUnreadMessages: false, mentionCount: 0 },
-  { totalMessages: 4, hasUnreadMessages: true, mentionCount: 0 },
-  { totalMessages: 3, hasUnreadMessages: true, mentionCount: 2 },
+const HEALTH_STATUS_LABELS = {
+  over: 'Drifting',
+  tight: 'Tight',
+  ok: 'On track',
+  muted: 'On track',
+};
+const CONFIDENCE_OPTIONS = [
+  { value: 'not_set', label: 'Not set' },
+  { value: 'low', label: 'Low confidence' },
+  { value: 'medium', label: 'Medium confidence' },
+  { value: 'high', label: 'High confidence' },
 ];
+const DEMO_CHAT_STATES = {
+  'UX + Visual Design': { totalMessages: 0, hasUnreadMessages: false, mentionCount: 0 },
+  'Frontend Build': { totalMessages: 6, hasUnreadMessages: false, mentionCount: 0 },
+  'E-commerce': { totalMessages: 4, hasUnreadMessages: true, mentionCount: 0 },
+  'Unassigned Tasks': { totalMessages: 3, hasUnreadMessages: true, mentionCount: 2 },
+};
 
 function renderHeaderChatIndicator({ hasChats, hasNewChats, mentionCount }) {
   const badgeValue = mentionCount > 9 ? '9+' : mentionCount || '';
@@ -37,10 +48,38 @@ function renderHeaderChatIndicator({ hasChats, hasNewChats, mentionCount }) {
       React.createElement('path', { d: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z' }),
     ]),
     mentionCount > 0
-      ? React.createElement('span', { className: 'absolute -top-1 -right-2 min-w-[16px] h-4 rounded-full bg-amber-400 text-[10px] font-semibold text-slate-900 px-1 flex items-center justify-center shadow' }, badgeValue)
+      ? React.createElement('span', { className: 'absolute -top-1 -right-2 min-w-[16px] h-4 rounded-full bg-[#5FCEA8] text-[10px] font-semibold text-slate-900 px-1 flex items-center justify-center shadow' }, badgeValue)
       : hasNewChats
         ? React.createElement('span', { className: 'absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-white shadow' })
         : null,
+  ]);
+}
+
+function DeliverableIndicatorBox({
+  label,
+  widthClass,
+  boxClass,
+  labelClass,
+  labelWidthClass,
+  control,
+  rolloverLine,
+  boxProps = {},
+}) {
+  return React.createElement('div', { className: widthClass, ...boxProps }, [
+    React.createElement('div', { className: `${boxClass} text-left` }, [
+      React.createElement('div', { className: 'grid grid-rows-[auto_auto] gap-y-1' }, [
+        React.createElement('div', { className: 'grid grid-cols-[auto_1fr] items-center gap-2' }, [
+          React.createElement('div', { className: `${labelClass} ${labelWidthClass}` }, label),
+          React.createElement('div', { className: 'min-w-0' }, control),
+        ]),
+        React.createElement('div', { className: 'grid grid-cols-[auto_1fr] items-center gap-2' }, [
+          React.createElement('div', { className: labelWidthClass }),
+          React.createElement('div', {
+            className: 'text-[11px] leading-[14px] h-[14px] text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity truncate',
+          }, rolloverLine || ''),
+        ]),
+      ]),
+    ]),
   ]);
 }
 
@@ -51,12 +90,17 @@ function DeliverableHeaderRow({
   isMuted,
   healthStatus,
   healthRatio,
+  healthTimelineRatio,
   hasChats,
   hasNewChats,
   mentionCount,
   showPools,
   pools,
   serviceTypes,
+  confidenceValue,
+  onConfidenceChange,
+  confidenceMenuOpen,
+  onToggleConfidenceMenu,
   onToggle,
   onOpenChat,
 }) {
@@ -66,14 +110,22 @@ function DeliverableHeaderRow({
     : healthStatus === 'tight'
       ? 'bg-amber-500'
       : 'bg-emerald-500';
-  const healthBarHeight = isExpanded ? 'h-4' : 'h-8';
-  const healthLabelClass = isExpanded
-    ? 'text-[9px] uppercase tracking-wide text-slate-300'
-    : 'text-[10px] uppercase tracking-wide text-slate-300';
-  const healthWrapClass = isExpanded ? 'w-56' : 'w-[28rem]';
-  const healthPillClass = 'group space-y-1 rounded-lg border border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 p-2';
-  const rowClass = 'bg-[#1F2937] border-b border-slate-900/60';
+  // LOCKED: Expanded health meter approved by Marc — do not change.
+  const expandedHealthBarHeight = 'h-4';
+  const CONTROL_HEIGHT_CLASS = 'h-4';
+  const healthBarHeight = CONTROL_HEIGHT_CLASS;
+  const healthLabelClass = 'text-[10px] uppercase tracking-wide text-slate-400';
+  const indicatorBoxWidthClass = 'w-56';
+  const indicatorBoxClass = 'group rounded-lg border border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 px-2 py-2.5 pb-3';
+  const indicatorLabelClass = 'text-[9px] uppercase tracking-wide text-slate-400 whitespace-nowrap';
+  const indicatorLabelWidthClass = 'w-[72px]';
+  const rowClass = `${isMuted ? 'bg-[#1F194C]' : 'bg-[#1F2937]'} border-b border-slate-900/60`;
   const cellPadding = 'px-6 py-4';
+  const statusLabel = HEALTH_STATUS_LABELS[healthStatus] || 'On track';
+  const effortPercent = Math.round(clamp(healthRatio, 0, 1.2) * 100);
+  const timePercent = Math.round(clamp(healthTimelineRatio || 0, 0, 1.2) * 100);
+  const healthRolloverLine = `${statusLabel} \u00b7 Effort vs Time \u00b7 ${effortPercent}% used \u00b7 ${timePercent}% elapsed`;
+  const confidenceLabel = CONFIDENCE_OPTIONS.find((option) => option.value === confidenceValue)?.label || 'Not set';
 
   return React.createElement('tr', {
     className: rowClass,
@@ -85,66 +137,112 @@ function DeliverableHeaderRow({
     React.createElement('td', { colSpan: COLUMN_ORDER.length, className: cellPadding }, [
       React.createElement('div', { className: isExpanded ? 'space-y-3' : '' }, [
         React.createElement('div', { className: 'grid grid-cols-[1fr_auto] items-center gap-4' }, [
-      React.createElement('div', { className: 'flex items-center justify-between gap-4' }, [
-        React.createElement('div', { className: 'flex items-center gap-3' }, [
-          React.createElement('button', {
-            type: 'button',
-            className: 'h-8 w-8 flex items-center justify-center rounded-full border border-slate-200/70 text-slate-200',
-            onClick: (event) => {
-              event.stopPropagation();
-              onToggle?.();
-            },
-            'aria-label': isExpanded ? 'Collapse deliverable' : 'Expand deliverable',
-          }, React.createElement('svg', { className: 'h-4 w-4 transition-transform', style: { transform: chevronRotation }, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
-            React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M19 9l-7 7-7-7' }),
-          ])),
-          React.createElement('div', { className: `text-sm font-semibold ${isMuted ? 'text-slate-300' : 'text-white'}` }, groupName),
-        ]),
-      ]),
-      React.createElement('div', { className: 'justify-self-end flex flex-col items-end gap-2' }, [
-        React.createElement('div', { className: 'flex items-center gap-3' }, [
-          React.createElement('div', { className: healthWrapClass }, [
-            React.createElement('div', { className: healthPillClass, title: !isExpanded ? HEALTH_TOOLTIP : undefined }, [
-              React.createElement('div', { className: healthLabelClass }, 'Health'),
-              React.createElement('div', { className: `mt-1 ${healthBarHeight} rounded-full border border-slate-200/70 dark:border-white/10 bg-slate-100 dark:bg-white/10 shadow-inner overflow-hidden` }, [
+          React.createElement('div', { className: 'flex items-center gap-3' }, [
+            React.createElement('button', {
+              type: 'button',
+              className: 'h-8 w-8 flex items-center justify-center rounded-full border border-slate-200/70 text-slate-200',
+              onClick: (event) => {
+                event.stopPropagation();
+                onToggle?.();
+              },
+              'aria-label': isExpanded ? 'Collapse deliverable' : 'Expand deliverable',
+            }, React.createElement('svg', { className: 'h-4 w-4 transition-transform', style: { transform: chevronRotation }, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M19 9l-7 7-7-7' }),
+            ])),
+            React.createElement('div', { className: `text-sm font-semibold ${isMuted ? 'text-slate-300' : 'text-white'}` }, groupName),
+          ]),
+          React.createElement('div', { className: 'justify-self-end flex items-stretch gap-3 pb-2' }, [
+            DeliverableIndicatorBox({
+              label: 'Health',
+              widthClass: indicatorBoxWidthClass,
+              boxClass: indicatorBoxClass,
+              labelClass: indicatorLabelClass,
+              labelWidthClass: indicatorLabelWidthClass,
+              rolloverLine: healthRolloverLine,
+              control: React.createElement('div', {
+                className: `${CONTROL_HEIGHT_CLASS} w-full rounded-full border border-slate-200/70 dark:border-white/10 bg-slate-100 dark:bg-white/10 shadow-inner overflow-hidden`,
+              }, [
                 React.createElement('div', {
                   className: `${healthColor} h-full`,
                   style: { width: `${clamp(healthRatio * 100, 0, 100)}%` },
                 }),
               ]),
-            ]),
-          ]),
-          !isMuted && onOpenChat
-            ? React.createElement('button', {
+            }),
+            DeliverableIndicatorBox({
+              label: 'Confidence',
+              widthClass: indicatorBoxWidthClass,
+              boxClass: indicatorBoxClass,
+              labelClass: indicatorLabelClass,
+              labelWidthClass: indicatorLabelWidthClass,
+              rolloverLine: 'Manual delivery forecast',
+              boxProps: {
+                onClick: (event) => event.stopPropagation(),
+                onMouseDown: (event) => event.stopPropagation(),
+              },
+              control: React.createElement('div', { className: 'relative w-full flex items-center' }, [
+                React.createElement('button', {
+                  type: 'button',
+                  className: `inline-flex w-full items-center justify-between gap-2 rounded-full border border-slate-200/70 dark:border-white/10 bg-slate-100 dark:bg-white/10 px-2 text-[10px] text-slate-600 dark:text-slate-200 ${CONTROL_HEIGHT_CLASS} leading-none`,
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    onToggleConfidenceMenu?.();
+                  },
+                  onMouseDown: (event) => event.stopPropagation(),
+                  'data-confidence-trigger': groupId,
+                  'aria-haspopup': 'menu',
+                  'aria-expanded': confidenceMenuOpen ? 'true' : 'false',
+                }, [
+                  React.createElement('span', { className: 'truncate' }, confidenceLabel),
+                  React.createElement('svg', { className: 'h-3 w-3 text-slate-400', viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+                    React.createElement('path', { d: 'M6 8l4 4 4-4', strokeLinecap: 'round', strokeLinejoin: 'round' }),
+                  ]),
+                ]),
+                confidenceMenuOpen
+                  ? React.createElement('div', {
+                    className: 'contacts-action-menu',
+                    'data-confidence-menu': groupId,
+                  }, CONFIDENCE_OPTIONS.map((option) => (
+                    React.createElement('button', {
+                      key: option.value,
+                      type: 'button',
+                      onClick: (event) => {
+                        event.stopPropagation();
+                        onConfidenceChange?.(option.value);
+                      },
+                    }, option.label)
+                  )))
+                  : null,
+              ]),
+            }),
+            React.createElement('button', {
               type: 'button',
               className: 'inline-flex items-center',
               onClick: (event) => {
+                if (!onOpenChat || isMuted) return;
                 event.stopPropagation();
                 onOpenChat({ type: 'deliverable', deliverableId: groupId });
               },
+              disabled: !onOpenChat || isMuted,
               'aria-label': 'Open deliverable chat',
             }, renderHeaderChatIndicator({
               hasChats,
               hasNewChats,
               mentionCount,
-            }))
-            : null,
-        ].filter(Boolean)),
-        isExpanded
-          ? React.createElement('div', { className: 'text-[11px] text-slate-400 flex items-center gap-2' }, [
-            React.createElement('span', { className: 'uppercase tracking-wide' }, 'Confidence'),
-            React.createElement('span', { className: 'rounded-full border border-slate-500/40 px-2 py-0.5 text-[10px] text-slate-300' }, 'Not set'),
-          ])
-          : null,
-      ]),
-    ]),
+            })),
+          ]),
+        ]),
         showPools
-          ? React.createElement(DeliverableLOEMeters, {
-            deliverableId: groupId,
-            pools,
-            serviceTypes,
-            className: 'mt-3',
-          })
+          ? React.createElement('div', { className: 'group relative rounded-xl border border-slate-200/10 dark:border-white/10 bg-slate-900/40 p-3' }, [
+            React.createElement('div', {
+              className: 'absolute left-3 top-2 text-[10px] tracking-wide text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none',
+            }, 'Available Services'),
+            React.createElement(DeliverableLOEMeters, {
+              deliverableId: groupId,
+              pools,
+              serviceTypes,
+              className: 'mt-1',
+            }),
+          ])
           : null,
       ]),
     ]),
@@ -165,6 +263,31 @@ function createEmptyDraftRow() {
     serviceTypeId: '',
     loeHours: '',
   };
+}
+
+function confidenceStorageKey(jobId) {
+  return `netnet_job_confidence_${jobId || 'unknown'}`;
+}
+
+function loadConfidenceMap(jobId) {
+  if (!jobId) return {};
+  try {
+    const raw = localStorage.getItem(confidenceStorageKey(jobId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveConfidenceMap(jobId, map) {
+  if (!jobId) return;
+  try {
+    localStorage.setItem(confidenceStorageKey(jobId), JSON.stringify(map || {}));
+  } catch (e) {
+    // ignore storage errors
+  }
 }
 
 function formatDateInput(value) {
@@ -341,6 +464,8 @@ export function JobTasksExecutionTable({
   };
 
   const [expandedGroups, setExpandedGroups] = useState(() => buildExpandedGroups(deliverables, collapsedMap || {}));
+  const [confidenceMap, setConfidenceMap] = useState(() => loadConfidenceMap(job?.id));
+  const [openConfidenceMenuId, setOpenConfidenceMenuId] = useState(null);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [editingCell, setEditingCell] = useState(null);
   const [editingValue, setEditingValue] = useState('');
@@ -386,6 +511,22 @@ export function JobTasksExecutionTable({
   }, [deliverables, collapsedMap]);
 
   useEffect(() => {
+    setConfidenceMap(loadConfidenceMap(job?.id));
+  }, [job?.id]);
+
+  useEffect(() => {
+    if (!openConfidenceMenuId) return undefined;
+    const handleClick = (event) => {
+      const target = event.target;
+      if (target.closest?.('[data-confidence-menu]')) return;
+      if (target.closest?.('[data-confidence-trigger]')) return;
+      setOpenConfidenceMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openConfidenceMenuId]);
+
+  useEffect(() => {
     if (!expandedTaskId) return undefined;
     const handleClick = (event) => {
       if (!allocationRef.current) return;
@@ -398,6 +539,17 @@ export function JobTasksExecutionTable({
   useEffect(() => () => {
     if (duePickerCleanupRef.current) duePickerCleanupRef.current();
   }, []);
+
+  const updateConfidence = (deliverableId, value) => {
+    if (!deliverableId) return;
+    setConfidenceMap((prev) => {
+      const next = { ...(prev || {}) };
+      next[String(deliverableId)] = value;
+      saveConfidenceMap(job?.id, next);
+      return next;
+    });
+    setOpenConfidenceMenuId(null);
+  };
 
   const toggleGroup = (groupId) => {
     setExpandedGroups((prev) => {
@@ -1179,14 +1331,12 @@ export function JobTasksExecutionTable({
     ].filter(Boolean);
   };
 
-  const renderGroupHeader = (group, isMuted = false, groupIndex = 0) => {
+  const renderGroupHeader = (group, isMuted = false) => {
     const isExpanded = expandedGroups.has(group.id);
     const baseIndicator = !isMuted
       ? (chatIndicators?.deliverable?.get(String(group.id)) || {})
       : {};
-    const demoIndicator = !isExpanded && !isMuted && DEMO_CHAT_STATES[groupIndex]
-      ? DEMO_CHAT_STATES[groupIndex]
-      : null;
+    const demoIndicator = !isExpanded ? DEMO_CHAT_STATES[group.name] : null;
     const deliverableChatIndicator = demoIndicator || baseIndicator;
     const health = (() => {
       const pools = group.effectivePools || [];
@@ -1201,6 +1351,8 @@ export function JobTasksExecutionTable({
     const hasChats = (deliverableChatIndicator.totalMessages || 0) > 0;
     const mentionCount = deliverableChatIndicator.mentionCount || 0;
     const hasNewChats = !!deliverableChatIndicator.hasUnreadMessages && mentionCount === 0;
+    const confidenceValue = confidenceMap?.[String(group.id)] || 'not_set';
+    const confidenceMenuOpen = openConfidenceMenuId === group.id;
     return h(DeliverableHeaderRow, {
       groupId: group.id,
       groupName: group.name || 'Deliverable',
@@ -1208,12 +1360,19 @@ export function JobTasksExecutionTable({
       isMuted,
       healthStatus: health.status,
       healthRatio: health.ratio,
+      healthTimelineRatio: getTimelineRatio(group.dueDate),
       hasChats,
       hasNewChats,
       mentionCount,
       showPools: isExpanded && group.effectivePools,
       pools: group.effectivePools,
       serviceTypes,
+      confidenceValue,
+      onConfidenceChange: (value) => updateConfidence(group.id, value),
+      confidenceMenuOpen,
+      onToggleConfidenceMenu: () => {
+        setOpenConfidenceMenuId((prev) => (prev === group.id ? null : group.id));
+      },
       onToggle: () => toggleGroup(group.id),
       onOpenChat,
     });
@@ -1379,10 +1538,10 @@ export function JobTasksExecutionTable({
 
   return h('div', { className: 'overflow-x-auto' }, [
     h('table', { className: 'w-full text-left border-collapse', ref: tableRef }, [
-      ...groups.map((group, index) => {
+      ...groups.map((group) => {
         const rows = [];
         const draftKeyId = draftKey(group.id);
-        rows.push(renderGroupHeader(group, false, index));
+        rows.push(renderGroupHeader(group));
         if (expandedGroups.has(group.id)) {
           rows.push(renderTaskHeaderRow(group.id));
           (group.tasks || []).forEach((task) => {
