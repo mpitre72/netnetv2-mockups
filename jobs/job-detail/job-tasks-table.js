@@ -257,7 +257,7 @@ function createEmptyDraftRow() {
   return {
     title: '',
     description: '',
-    status: 'backlog',
+    status: 'in_progress',
     dueDate: '',
     assigneeUserId: '',
     serviceTypeId: '',
@@ -420,6 +420,7 @@ function getAllowedServiceTypeIds(deliverable) {
 
 function isTaskReady(task, deliverable) {
   if (!task || !String(task.title || '').trim()) return false;
+  if (!String(task.description || '').trim()) return false;
   if (!task.dueDate) return false;
   const allocations = task.allocations || [];
   if (!allocations.length) return false;
@@ -466,24 +467,36 @@ export function JobTasksExecutionTable({
   const [expandedGroups, setExpandedGroups] = useState(() => buildExpandedGroups(deliverables, collapsedMap || {}));
   const [confidenceMap, setConfidenceMap] = useState(() => loadConfidenceMap(job?.id));
   const [openConfidenceMenuId, setOpenConfidenceMenuId] = useState(null);
-  const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set());
   const [editingCell, setEditingCell] = useState(null);
   const [editingValue, setEditingValue] = useState('');
   const [descriptionEditor, setDescriptionEditor] = useState(null);
+  const [draftDescriptionEditor, setDraftDescriptionEditor] = useState(null);
   const [draftRows, setDraftRows] = useState({});
   const [openDraftRows, setOpenDraftRows] = useState({});
   const [draftFocusKey, setDraftFocusKey] = useState(null);
   const [dragState, setDragState] = useState(null);
-  const allocationRef = useRef(null);
   const duePickerCleanupRef = useRef(null);
+  const draftRowRefs = useRef({});
 
   const serviceTypeMap = useMemo(
     () => new Map((serviceTypes || []).map((type) => [String(type.id), type])),
     [serviceTypes]
   );
+  const assigneeList = useMemo(() => {
+    const base = (assigneeOptions && assigneeOptions.length ? assigneeOptions : (members || [])) || [];
+    const hasMarc = base.some((member) => (
+      member?.name === 'Marc Pitre' || member?.email === 'marc@hellonetnet.com'
+    ));
+    if (hasMarc) return base;
+    return [
+      ...base,
+      { id: 'team_marc_pitre', name: 'Marc Pitre', email: 'marc@hellonetnet.com' },
+    ];
+  }, [assigneeOptions, members]);
   const memberMap = useMemo(
-    () => new Map((members || []).map((member) => [String(member.id), member])),
-    [members]
+    () => new Map(assigneeList.map((member) => [String(member.id), member])),
+    [assigneeList]
   );
 
   const renderChatIndicator = (indicator = {}) => {
@@ -527,14 +540,39 @@ export function JobTasksExecutionTable({
   }, [openConfidenceMenuId]);
 
   useEffect(() => {
-    if (!expandedTaskId) return undefined;
+    const handleOutside = (event) => {
+      const openKeys = Object.keys(openDraftRows || {}).filter((key) => openDraftRows[key]);
+      if (!openKeys.length) return;
+      openKeys.forEach((key) => {
+        const node = draftRowRefs.current[key];
+        if (node && node.contains(event.target)) return;
+        const draft = draftRows[key] || createEmptyDraftRow();
+        if (hasAllocationStarted(draft)) return;
+        setOpenDraftRows((prev) => ({ ...(prev || {}), [key]: false }));
+        setDraftRows((prev) => ({ ...prev, [key]: createEmptyDraftRow() }));
+        setDraftFocusKey((prev) => (prev === key ? null : prev));
+        if (draftDescriptionEditor?.key === key) setDraftDescriptionEditor(null);
+      });
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [openDraftRows, draftRows, draftDescriptionEditor]);
+
+  useEffect(() => {
+    if (!expandedTaskIds || expandedTaskIds.size === 0) return undefined;
     const handleClick = (event) => {
-      if (!allocationRef.current) return;
-      if (!allocationRef.current.contains(event.target)) setExpandedTaskId(null);
+      const table = tableRef.current;
+      if (!table) return;
+      const ids = Array.from(expandedTaskIds);
+      const isInside = ids.some((taskId) => {
+        const rows = Array.from(table.querySelectorAll(`[data-alloc-group='${taskId}']`));
+        return rows.some((row) => row.contains(event.target));
+      });
+      if (!isInside) setExpandedTaskIds(new Set());
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [expandedTaskId]);
+  }, [expandedTaskIds]);
 
   useEffect(() => () => {
     if (duePickerCleanupRef.current) duePickerCleanupRef.current();
@@ -568,16 +606,35 @@ export function JobTasksExecutionTable({
   };
 
   const draftKey = (deliverableId) => deliverableId || 'unassigned';
+  const hasAllocationStarted = (draft) => {
+    if (!draft) return false;
+    if (draft.assigneeUserId) return true;
+    if (draft.serviceTypeId) return true;
+    return String(draft.loeHours || '').trim().length > 0;
+  };
   const getDraftRow = (deliverableId) => {
     const key = draftKey(deliverableId);
     return draftRows[key] || createEmptyDraftRow();
   };
   const updateDraftRow = (deliverableId, patch) => {
     const key = draftKey(deliverableId);
+    const current = draftRows[key] || createEmptyDraftRow();
+    const nextDraft = { ...createEmptyDraftRow(), ...current, ...(patch || {}) };
     setDraftRows((prev) => ({
       ...prev,
-      [key]: { ...createEmptyDraftRow(), ...(prev[key] || {}), ...(patch || {}) },
+      [key]: nextDraft,
     }));
+    if (readOnly) return;
+    if (!String(nextDraft.title || '').trim()) return;
+    if (!hasAllocationStarted(nextDraft)) return;
+    const task = createTaskFromDraft(deliverableId, nextDraft);
+    if (task) {
+      setExpandedTaskIds((prev) => {
+        const next = new Set(prev);
+        next.add(task.id);
+        return next;
+      });
+    }
   };
   const clearDraftRow = (deliverableId) => {
     const key = draftKey(deliverableId);
@@ -600,6 +657,7 @@ export function JobTasksExecutionTable({
     const key = draftKey(deliverableId);
     setOpenDraftRows((prev) => ({ ...(prev || {}), [key]: false }));
     setDraftFocusKey((prev) => (prev === key ? null : prev));
+    if (draftDescriptionEditor?.key === key) setDraftDescriptionEditor(null);
   };
 
   const openDatePicker = (anchorEl, value, onSelect) => {
@@ -660,6 +718,19 @@ export function JobTasksExecutionTable({
     ));
   };
 
+  const isTaskExpanded = (taskId) => expandedTaskIds.has(taskId);
+  const toggleTaskExpanded = (taskId) => {
+    setExpandedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
   const getPrimaryAllocation = (task) => (task?.allocations || [])[0] || null;
 
   const updatePrimaryAllocation = (deliverableId, taskId, patch) => {
@@ -678,10 +749,10 @@ export function JobTasksExecutionTable({
     const primary = getPrimaryAllocation(task);
     if (field === 'title') return task.title || '';
     if (field === 'description') return task.description || '';
-    if (field === 'status') return task.status || 'backlog';
+    if (field === 'status') return task.status || 'in_progress';
     if (field === 'dueDate') return task.dueDate || '';
-    if (field === 'assignees') return primary?.assigneeUserId || '';
-    if (field === 'service') return primary?.serviceTypeId || '';
+    if (field === 'assignees') return primary?.assigneeUserId ? String(primary.assigneeUserId) : '';
+    if (field === 'service') return primary?.serviceTypeId ? String(primary.serviceTypeId) : '';
     if (field === 'loe') return primary?.loeHours ?? '';
     return '';
   };
@@ -720,7 +791,7 @@ export function JobTasksExecutionTable({
     const nextValue = field === 'title' ? String(value || '').trim() : value;
     if (field === 'title' && !nextValue) return false;
     if (field === 'status') {
-      updateTask(deliverableId, task.id, { status: nextValue || 'backlog' });
+      updateTask(deliverableId, task.id, { status: nextValue || 'in_progress' });
       return true;
     }
     if (field === 'dueDate') {
@@ -780,17 +851,18 @@ export function JobTasksExecutionTable({
     }
   };
 
-  const createTaskFromDraft = (deliverableId) => {
-    const draft = getDraftRow(deliverableId);
+  const createTaskFromDraft = (deliverableId, draftOverride) => {
+    const draft = draftOverride || getDraftRow(deliverableId);
     const title = String(draft.title || '').trim();
     if (!title) return null;
-    const hasAllocation = draft.assigneeUserId || draft.serviceTypeId || draft.loeHours;
+    const hasAllocation = draft.assigneeUserId || draft.serviceTypeId || String(draft.loeHours || '').trim().length > 0;
+    if (!hasAllocation) return null;
     const allocations = hasAllocation
       ? [{
         id: createId('alloc'),
         assigneeUserId: draft.assigneeUserId || null,
         serviceTypeId: draft.serviceTypeId || null,
-        loeHours: Number(draft.loeHours) || null,
+        loeHours: String(draft.loeHours || '').trim().length ? Number(draft.loeHours) || null : null,
       }]
       : [];
     const task = {
@@ -799,7 +871,7 @@ export function JobTasksExecutionTable({
       deliverableId: deliverableId || null,
       title,
       description: String(draft.description || ''),
-      status: draft.status || 'backlog',
+      status: draft.status || 'in_progress',
       isDraft: true,
       isRecurring: false,
       recurringTemplateId: null,
@@ -887,6 +959,8 @@ export function JobTasksExecutionTable({
     const allowedTypeIds = getAllowedServiceTypeIds(deliverable);
     const hasPools = allowedTypeIds.length > 0;
     const isReady = isTaskReady(task, deliverable);
+    const draftOutlineClass = !isReady ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
+    const gridStyle = { gridTemplateColumns: '1.2fr 1.2fr 0.6fr 0.8fr 0.8fr' };
 
     const addAllocation = () => {
       if (readOnly) return;
@@ -896,86 +970,109 @@ export function JobTasksExecutionTable({
       ]);
     };
 
-    return h('tr', { key: `${task.id}-allocations`, className: 'bg-slate-50 dark:bg-slate-900/70' }, [
-      h('td', { colSpan: COLUMN_ORDER.length, className: 'px-4 py-3' }, [
+    const rows = [];
+
+    rows.push(h('tr', {
+      key: `${task.id}-alloc-header`,
+      'data-alloc-group': task.id,
+      className: `bg-slate-50 dark:bg-slate-900/70 ${draftOutlineClass}`,
+    }, [
+      h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2' }, [
         hasPools ? null : h('div', { className: 'mb-2 text-xs text-slate-500 dark:text-slate-400' }, 'Assign this task to a deliverable with available hours to set service types.'),
-        h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3', ref: allocationRef }, [
-          h('div', { className: 'grid gap-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-white/10 pb-2', style: { gridTemplateColumns: '1.2fr 1.2fr 0.6fr 0.7fr 0.8fr 0.8fr' } }, [
-            h('div', null, 'Assignee'),
-            h('div', null, 'Service Type'),
-            h('div', null, 'LOE'),
-            h('div', null, 'Assigned'),
-            h('div', null, 'Meter'),
-            h('div', null, 'Due Date'),
-          ]),
-          allocations.length
-            ? allocations.map((alloc) => {
-              const allocComplete = alloc.assigneeUserId && alloc.serviceTypeId && Number(alloc.loeHours) > 0;
-              const pool = (deliverable?.effectivePools || []).find((item) => String(item.serviceTypeId) === String(alloc.serviceTypeId));
-              const poolEstimate = pool ? Number(pool.estimatedHours) || 0 : 0;
-              const allocRatio = poolEstimate ? (Number(alloc.loeHours) || 0) / poolEstimate : 0;
-              return h('div', {
-                key: alloc.id,
-                className: 'grid gap-3 items-center py-2 border-b border-slate-100 dark:border-white/5 last:border-b-0',
-                style: { gridTemplateColumns: '1.2fr 1.2fr 0.6fr 0.7fr 0.8fr 0.8fr' },
-              }, [
-                h('select', {
-                  value: alloc.assigneeUserId || '',
-                  disabled: readOnly,
-                  onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
-                    list.map((item) => item.id === alloc.id ? { ...item, assigneeUserId: event.target.value || null } : item)
-                  )),
-                  className: 'h-8 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
-                }, [
-                  h('option', { value: '' }, 'Unassigned'),
-                  ...(assigneeOptions || members || []).map((member) => h('option', { key: member.id, value: member.id }, member.name || member.email)),
-                ]),
-                h('select', {
-                  value: alloc.serviceTypeId || '',
-                  disabled: readOnly || !hasPools,
-                  onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
-                    list.map((item) => item.id === alloc.id ? { ...item, serviceTypeId: event.target.value || null } : item)
-                  )),
-                  className: 'h-8 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
-                }, [
-                  h('option', { value: '' }, hasPools ? 'Select' : 'No pools'),
-                  ...allowedTypeIds.map((id) => h('option', { key: id, value: id }, serviceTypeMap.get(id)?.name || id)),
-                ]),
-                h('input', {
-                  type: 'number',
-                  min: 0,
-                  step: 0.25,
-                  value: alloc.loeHours ?? '',
-                  disabled: readOnly,
-                  onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
-                    list.map((item) => item.id === alloc.id ? { ...item, loeHours: Number(event.target.value) || 0 } : item)
-                  )),
-                  className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
-                }),
-                h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, allocComplete ? 'Ready' : 'Draft'),
-                h('div', null, h(MiniMeter, { effortRatio: allocRatio, timelineRatio: 0 })),
-                h('input', {
-                  type: 'date',
-                  value: formatDateInput(task.dueDate),
-                  disabled: readOnly,
-                  onChange: (event) => updateTask(deliverable?.id || null, task.id, { dueDate: event.target.value || null }),
-                  className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
-                }),
-              ]);
-            })
-            : h('div', { className: 'py-3 text-xs text-slate-500 dark:text-slate-400' }, 'No allocations yet.'),
-          h('button', {
-            type: 'button',
-            className: 'mt-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60',
-            onClick: addAllocation,
-            disabled: readOnly,
-          }, '+ Add allocation'),
+        h('div', { className: 'grid gap-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400', style: gridStyle }, [
+          h('div', null, 'Assignee'),
+          h('div', null, 'Service Type'),
+          h('div', null, 'LOE'),
+          h('div', null, 'Meter'),
+          h('div', null, 'Due Date'),
         ]),
       ]),
-    ]);
+    ]));
+
+    if (allocations.length) {
+      allocations.forEach((alloc) => {
+        const pool = (deliverable?.effectivePools || []).find((item) => String(item.serviceTypeId) === String(alloc.serviceTypeId));
+        const poolEstimate = pool ? Number(pool.estimatedHours) || 0 : 0;
+        const allocRatio = poolEstimate ? (Number(alloc.loeHours) || 0) / poolEstimate : 0;
+        rows.push(h('tr', {
+          key: alloc.id,
+          'data-alloc-group': task.id,
+          className: `bg-slate-50 dark:bg-slate-900/70 ${draftOutlineClass}`,
+        }, [
+          h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2' }, [
+            h('div', { className: 'grid gap-3 items-center', style: gridStyle }, [
+              h('select', {
+                value: alloc.assigneeUserId ? String(alloc.assigneeUserId) : '',
+                disabled: readOnly,
+                onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
+                  list.map((item) => item.id === alloc.id ? { ...item, assigneeUserId: event.target.value || null } : item)
+                )),
+                className: 'h-8 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
+              }, [
+                h('option', { value: '' }, 'Unassigned'),
+                ...(assigneeList || []).map((member) => h('option', { key: member.id, value: member.id }, member.name || member.email)),
+              ]),
+              h('select', {
+                value: alloc.serviceTypeId ? String(alloc.serviceTypeId) : '',
+                disabled: readOnly || !hasPools,
+                onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
+                  list.map((item) => item.id === alloc.id ? { ...item, serviceTypeId: event.target.value || null } : item)
+                )),
+                className: 'h-8 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
+              }, [
+                h('option', { value: '' }, hasPools ? 'Select' : 'No pools'),
+                ...allowedTypeIds.map((id) => h('option', { key: id, value: id }, serviceTypeMap.get(id)?.name || id)),
+              ]),
+              h('input', {
+                type: 'number',
+                min: 0,
+                step: 0.25,
+                value: alloc.loeHours ?? '',
+                disabled: readOnly,
+                onChange: (event) => {
+                  const raw = event.target.value;
+                  const next = raw === '' ? null : Number(raw);
+                  updateAllocations(deliverable?.id || null, task.id, (list) => (
+                    list.map((item) => item.id === alloc.id ? { ...item, loeHours: Number.isFinite(next) ? next : null } : item)
+                  ));
+                },
+                className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
+              }),
+              h('div', null, h(MiniMeter, { effortRatio: allocRatio, timelineRatio: 0 })),
+              h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, task.dueDate || '—'),
+            ]),
+          ]),
+        ]));
+      });
+    } else {
+      rows.push(h('tr', {
+        key: `${task.id}-alloc-empty`,
+        'data-alloc-group': task.id,
+        className: `bg-slate-50 dark:bg-slate-900/70 ${draftOutlineClass}`,
+      }, [
+        h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2 text-xs text-slate-500 dark:text-slate-400' }, 'No allocations yet.'),
+      ]));
+    }
+
+    rows.push(h('tr', {
+      key: `${task.id}-alloc-add`,
+      'data-alloc-group': task.id,
+      className: `bg-slate-50 dark:bg-slate-900/70 ${draftOutlineClass}`,
+    }, [
+      h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2' }, [
+        h('button', {
+          type: 'button',
+          className: 'inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60',
+          onClick: addAllocation,
+          disabled: readOnly,
+        }, '+ Add allocation'),
+      ]),
+    ]));
+
+    return rows;
   };
 
-  const renderDescriptionEditor = (task, deliverableId) => {
+  const renderDescriptionEditor = (task, deliverableId, isDraft) => {
     const value = descriptionEditor?.value ?? '';
     const save = () => {
       if (readOnly) return;
@@ -985,10 +1082,21 @@ export function JobTasksExecutionTable({
     const cancel = () => {
       setDescriptionEditor(null);
     };
-    return h('tr', { key: `${task.id}-description`, className: 'bg-white dark:bg-slate-900/60' }, [
+    const draftOutlineClass = isDraft ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
+    return h('tr', { key: `${task.id}-description`, className: `bg-white dark:bg-slate-900/60 ${draftOutlineClass}` }, [
       h('td', { colSpan: COLUMN_ORDER.length, className: 'px-4 py-3' }, [
         h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3' }, [
           h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2' }, 'Description'),
+          h('div', { className: 'flex flex-wrap items-center gap-1 border border-slate-200 dark:border-white/10 rounded-md bg-white dark:bg-slate-950/40 px-2 py-1 mb-2' }, [
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500' }, 'B'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] italic text-slate-400 dark:text-slate-500' }, 'I'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] underline text-slate-400 dark:text-slate-500' }, 'U'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, '•'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Link'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'H1'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Quote'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Code'),
+          ]),
           h('textarea', {
             value,
             rows: 3,
@@ -1010,6 +1118,48 @@ export function JobTasksExecutionTable({
                 event.preventDefault();
                 save();
                 startEdit(task, deliverableId, 'status');
+              }
+            },
+            className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200',
+          }),
+          h('div', { className: 'mt-2 text-[11px] text-slate-400 dark:text-slate-500' }, 'Enter to save · Esc to cancel'),
+        ]),
+      ]),
+    ]);
+  };
+
+  const renderDraftDescriptionEditor = (deliverableId) => {
+    const draft = getDraftRow(deliverableId);
+    const close = () => setDraftDescriptionEditor(null);
+    return h('tr', { key: `draft-${deliverableId || 'unassigned'}-description`, className: 'bg-white dark:bg-slate-900/60' }, [
+      h('td', { colSpan: COLUMN_ORDER.length, className: 'px-4 py-3' }, [
+        h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3' }, [
+          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2' }, 'Description'),
+          h('div', { className: 'flex flex-wrap items-center gap-1 border border-slate-200 dark:border-white/10 rounded-md bg-white dark:bg-slate-950/40 px-2 py-1 mb-2' }, [
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500' }, 'B'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] italic text-slate-400 dark:text-slate-500' }, 'I'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] underline text-slate-400 dark:text-slate-500' }, 'U'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, '•'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Link'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'H1'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Quote'),
+            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Code'),
+          ]),
+          h('textarea', {
+            value: draft.description || '',
+            rows: 3,
+            autoFocus: true,
+            disabled: readOnly,
+            onChange: (event) => updateDraftRow(deliverableId, { description: event.target.value }),
+            onBlur: close,
+            onKeyDown: (event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                close();
+              }
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                close();
               }
             },
             className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200',
@@ -1054,13 +1204,19 @@ export function JobTasksExecutionTable({
       : [];
     const hasPools = allowedTypeIds.length > 0;
     const isReady = isTaskReady(task, deliverable);
+    const isDraft = !isReady;
+    const draftOutlineClass = isDraft ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
+    const allocationCount = (task.allocations || []).length;
+    const singleAllocationMode = allocationCount <= 1;
 
     const cellClass = 'px-6 py-3 text-sm text-gray-700 dark:text-gray-200 align-top';
+
+    const allocationRows = isTaskExpanded(task.id) ? renderAllocations(task, deliverable) : [];
 
     return [
       h('tr', {
         key: task.id,
-        className: 'contacts-row border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors',
+        className: `contacts-row border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors ${draftOutlineClass}`,
         onDragOver: (event) => {
           if (readOnly) return;
           if (dragState?.deliverableId !== deliverableId) return;
@@ -1068,10 +1224,10 @@ export function JobTasksExecutionTable({
         },
         onDrop: (event) => handleDrop(event, deliverableId, task.id),
       }, [
-        h('td', { className: `${cellClass} w-10` }, [
+        h('td', { className: `${cellClass} w-10 align-middle` }, [
           h('button', {
             type: 'button',
-            className: 'h-7 w-7 rounded-md border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50',
+            className: 'h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 flex items-center justify-center',
             draggable: !readOnly,
             onDragStart: (event) => handleDragStart(event, deliverableId, task.id),
             disabled: readOnly,
@@ -1106,8 +1262,8 @@ export function JobTasksExecutionTable({
             : h('div', { className: 'space-y-1' }, [
               h('div', { className: 'font-semibold text-gray-900 dark:text-gray-100' }, task.title || 'Untitled task'),
               h('div', { className: 'flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400' }, [
-                !isReady
-                  ? h('span', { className: 'rounded-full border border-amber-200 dark:border-amber-400/30 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-700 dark:text-amber-200' }, 'Draft')
+                isDraft
+                  ? h('span', { className: 'text-[10px] font-semibold tracking-wide text-purple-400 uppercase' }, 'DRAFT')
                   : null,
                 task.isRecurring
                   ? h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-0.5 text-slate-600 dark:text-slate-300' }, 'R')
@@ -1179,10 +1335,10 @@ export function JobTasksExecutionTable({
           onKeyDown: handleKeyNav,
           onClick: (event) => {
             event.stopPropagation();
-            startEdit(task, deliverableId, 'assignees');
+            if (singleAllocationMode) startEdit(task, deliverableId, 'assignees');
           },
         }, [
-          assigneeEditing
+          assigneeEditing && singleAllocationMode
             ? h('select', {
               value: editingValue,
               autoFocus: true,
@@ -1193,7 +1349,7 @@ export function JobTasksExecutionTable({
               className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200',
             }, [
               h('option', { value: '' }, 'Unassigned'),
-              ...(assigneeOptions || members || []).map((member) => (
+              ...(assigneeList || []).map((member) => (
                 h('option', { key: member.id, value: member.id }, member.name || member.email)
               )),
             ])
@@ -1208,10 +1364,11 @@ export function JobTasksExecutionTable({
                 : h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, 'Unassigned'),
               h('button', {
                 type: 'button',
-                className: 'text-xs text-slate-300 hover:text-slate-600 dark:text-slate-500 dark:hover:text-white',
+                className: 'h-6 w-6 flex items-center justify-center text-sm font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white',
                 onClick: (event) => {
+                  event.preventDefault();
                   event.stopPropagation();
-                  setExpandedTaskId(expandedTaskId === task.id ? null : task.id);
+                  toggleTaskExpanded(task.id);
                 },
                 title: 'Toggle allocations',
               }, '▾'),
@@ -1226,10 +1383,10 @@ export function JobTasksExecutionTable({
           onKeyDown: handleKeyNav,
           onClick: (event) => {
             event.stopPropagation();
-            if (hasPools) startEdit(task, deliverableId, 'service');
+            if (hasPools && singleAllocationMode) startEdit(task, deliverableId, 'service');
           },
         }, [
-          serviceEditing
+          serviceEditing && singleAllocationMode
             ? h('select', {
               value: editingValue,
               autoFocus: true,
@@ -1246,10 +1403,11 @@ export function JobTasksExecutionTable({
               h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, hasPools ? serviceTypeLabels : 'No pools'),
               h('button', {
                 type: 'button',
-                className: 'text-xs text-slate-300 hover:text-slate-600 dark:text-slate-500 dark:hover:text-white',
+                className: 'h-6 w-6 flex items-center justify-center text-sm font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white',
                 onClick: (event) => {
+                  event.preventDefault();
                   event.stopPropagation();
-                  setExpandedTaskId(expandedTaskId === task.id ? null : task.id);
+                  toggleTaskExpanded(task.id);
                 },
                 title: 'Toggle allocations',
               }, '▾'),
@@ -1285,9 +1443,11 @@ export function JobTasksExecutionTable({
           'data-row': task.id,
           'data-col': 'meter',
           onKeyDown: handleKeyNav,
-          onClick: () => startEdit(task, deliverableId, 'loe'),
+          onClick: () => {
+            if (singleAllocationMode) startEdit(task, deliverableId, 'loe');
+          },
         }, [
-          loeEditing
+          loeEditing && singleAllocationMode
             ? h('input', {
               type: 'number',
               min: 0,
@@ -1326,8 +1486,8 @@ export function JobTasksExecutionTable({
           }, '⋯'),
         ]),
       ]),
-      descriptionOpen ? renderDescriptionEditor(task, deliverableId) : null,
-      expandedTaskId === task.id ? renderAllocations(task, deliverable) : null,
+      descriptionOpen ? renderDescriptionEditor(task, deliverableId, isDraft) : null,
+      ...(allocationRows || []),
     ].filter(Boolean);
   };
 
@@ -1396,13 +1556,19 @@ export function JobTasksExecutionTable({
   const renderDraftRow = (deliverable, autoFocus = false) => {
     const deliverableId = deliverable?.id || null;
     const draft = getDraftRow(deliverableId);
-    const ready = String(draft.title || '').trim();
     const baseCell = 'px-6 py-3 text-sm text-gray-500 dark:text-gray-300 align-top';
-    const focusField = (field) => {
-      if (!ready) return;
-      createTaskAndEdit(deliverableId, field);
-    };
-    return h('tr', { key: `draft-${deliverableId || 'unassigned'}`, className: 'border-b border-gray-200 dark:border-gray-800' }, [
+    const draftRowKey = draftKey(deliverableId);
+    return h('tr', {
+      key: `draft-${deliverableId || 'unassigned'}`,
+      className: 'border-b border-gray-200 dark:border-gray-800',
+      ref: (node) => {
+        if (node) {
+          draftRowRefs.current[draftRowKey] = node;
+        } else {
+          delete draftRowRefs.current[draftRowKey];
+        }
+      },
+    }, [
       h('td', { className: `${baseCell} w-10` }, [
         h('div', { className: 'h-7 w-7 rounded-md border border-dashed border-slate-200 dark:border-white/10' }),
       ]),
@@ -1415,38 +1581,26 @@ export function JobTasksExecutionTable({
             autoFocus,
             disabled: readOnly,
             onChange: (event) => updateDraftRow(deliverableId, { title: event.target.value }),
-            onBlur: () => {
-              if (ready) createTaskAndEdit(deliverableId, 'description');
-            },
-            onKeyDown: (event) => {
-              if (event.key === 'Enter' || event.key === 'Tab') {
-                event.preventDefault();
-                createTaskAndEdit(deliverableId, 'description');
-              }
-            },
             className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-60',
           }),
           h('select', {
             value: draft.status,
             disabled: readOnly,
             onChange: (event) => updateDraftRow(deliverableId, { status: event.target.value }),
-            onFocus: () => focusField('status'),
             className: 'h-8 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-600 dark:text-slate-300',
           }, STATUS_OPTIONS.map((option) => (
             h('option', { key: option.value, value: option.value }, option.label)
           ))),
         ]),
       ]),
-      h('td', { className: `${baseCell} min-w-[200px]` }, [
-        h('input', {
-          type: 'text',
-          value: draft.description,
-          placeholder: 'Description…',
-          disabled: readOnly,
-          onChange: (event) => updateDraftRow(deliverableId, { description: event.target.value }),
-          onFocus: () => focusField('description'),
-          className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-60',
-        }),
+      h('td', {
+        className: `${baseCell} min-w-[200px]`,
+        onClick: () => {
+          if (readOnly) return;
+          setDraftDescriptionEditor({ key: draftRowKey, deliverableId });
+        },
+      }, [
+        h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate max-w-[240px] cursor-pointer' }, draft.description || 'Add description'),
       ]),
       h('td', { className: `${baseCell} text-center w-16` }, [
         h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, '—'),
@@ -1456,11 +1610,10 @@ export function JobTasksExecutionTable({
           value: draft.assigneeUserId,
           disabled: readOnly,
           onChange: (event) => updateDraftRow(deliverableId, { assigneeUserId: event.target.value }),
-          onFocus: () => focusField('assignees'),
           className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200',
         }, [
           h('option', { value: '' }, 'Unassigned'),
-          ...(assigneeOptions || members || []).map((member) => (
+          ...(assigneeList || []).map((member) => (
             h('option', { key: member.id, value: member.id }, member.name || member.email)
           )),
         ]),
@@ -1470,7 +1623,6 @@ export function JobTasksExecutionTable({
           value: draft.serviceTypeId,
           disabled: readOnly,
           onChange: (event) => updateDraftRow(deliverableId, { serviceTypeId: event.target.value }),
-          onFocus: () => focusField('service'),
           className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200',
         }, [
           h('option', { value: '' }, 'Service type'),
@@ -1488,7 +1640,6 @@ export function JobTasksExecutionTable({
             event.stopPropagation();
             openDatePicker(event.currentTarget, draft.dueDate, (next) => updateDraftRow(deliverableId, { dueDate: next }));
           },
-          onFocus: () => focusField('dueDate'),
           className: 'text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white',
         }, draft.dueDate || 'Select date'),
       ]),
@@ -1500,7 +1651,6 @@ export function JobTasksExecutionTable({
           value: draft.loeHours,
           disabled: readOnly,
           onChange: (event) => updateDraftRow(deliverableId, { loeHours: event.target.value }),
-          onFocus: () => focusField('loe'),
           className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200',
         }),
       ]),
@@ -1549,6 +1699,9 @@ export function JobTasksExecutionTable({
           });
           if (isDraftRowOpen(group.id)) {
             rows.push(renderDraftRow(group, draftFocusKey === draftKeyId));
+            if (draftDescriptionEditor?.key === draftKeyId) {
+              rows.push(renderDraftDescriptionEditor(group.id));
+            }
           } else {
             rows.push(renderAddTaskTrigger(group));
           }
@@ -1562,9 +1715,12 @@ export function JobTasksExecutionTable({
           ? [
             renderTaskHeaderRow('unassigned'),
             ...(unassignedGroup.tasks || []).flatMap((task) => renderTaskRow(task, null, null)),
-            isDraftRowOpen(null)
-              ? renderDraftRow(null, draftFocusKey === draftKey(null))
-              : renderAddTaskTrigger(null),
+            ...(isDraftRowOpen(null)
+              ? [
+                renderDraftRow(null, draftFocusKey === draftKey(null)),
+                ...(draftDescriptionEditor?.key === draftKey(null) ? [renderDraftDescriptionEditor(null)] : []),
+              ]
+              : [renderAddTaskTrigger(null)]),
           ]
           : []),
         renderSectionSpacer('unassigned'),
