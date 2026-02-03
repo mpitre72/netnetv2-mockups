@@ -21,6 +21,11 @@ const STATUS_OPTIONS = [
   { value: 'in_progress', label: 'In Progress' },
   { value: 'completed', label: 'Completed' },
 ];
+const DELIVERABLE_STATUS_OPTIONS = [
+  { value: 'backlog', label: 'Backlog' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'completed', label: 'Completed' },
+];
 const HEALTH_STATUS_LABELS = {
   over: 'Drifting',
   tight: 'Tight',
@@ -29,15 +34,15 @@ const HEALTH_STATUS_LABELS = {
 };
 const CONFIDENCE_OPTIONS = [
   { value: 'not_set', label: 'Not set' },
-  { value: 'low', label: 'Low confidence' },
-  { value: 'medium', label: 'Medium confidence' },
-  { value: 'high', label: 'High confidence' },
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
 ];
 const DEMO_CHAT_STATES = {
   'UX + Visual Design': { totalMessages: 0, hasUnreadMessages: false, mentionCount: 0 },
   'Frontend Build': { totalMessages: 6, hasUnreadMessages: false, mentionCount: 0 },
   'E-commerce': { totalMessages: 4, hasUnreadMessages: true, mentionCount: 0 },
-  'Unassigned Tasks': { totalMessages: 3, hasUnreadMessages: true, mentionCount: 2 },
+  'General Job Tasks': { totalMessages: 3, hasUnreadMessages: true, mentionCount: 2 },
 };
 
 function renderHeaderChatIndicator({ hasChats, hasNewChats, mentionCount }) {
@@ -57,28 +62,17 @@ function renderHeaderChatIndicator({ hasChats, hasNewChats, mentionCount }) {
 
 function DeliverableIndicatorBox({
   label,
-  widthClass,
-  boxClass,
-  labelClass,
-  labelWidthClass,
-  control,
-  rolloverLine,
+  valueNode,
+  revealText,
   boxProps = {},
 }) {
-  return React.createElement('div', { className: widthClass, ...boxProps }, [
-    React.createElement('div', { className: `${boxClass} text-left` }, [
-      React.createElement('div', { className: 'grid grid-rows-[auto_auto] gap-y-1' }, [
-        React.createElement('div', { className: 'grid grid-cols-[auto_1fr] items-center gap-2' }, [
-          React.createElement('div', { className: `${labelClass} ${labelWidthClass}` }, label),
-          React.createElement('div', { className: 'min-w-0' }, control),
-        ]),
-        React.createElement('div', { className: 'grid grid-cols-[auto_1fr] items-center gap-2' }, [
-          React.createElement('div', { className: labelWidthClass }),
-          React.createElement('div', {
-            className: 'text-[11px] leading-[14px] h-[14px] text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity truncate',
-          }, rolloverLine || ''),
-        ]),
-      ]),
+  return React.createElement('div', { className: 'w-[152px] h-[64px]', ...boxProps }, [
+    React.createElement('div', { className: 'h-full rounded-lg border border-slate-200/50 dark:border-white/10 bg-white/5 dark:bg-slate-900/40 px-3 py-2 text-left flex flex-col justify-between' }, [
+      React.createElement('div', { className: 'text-[9px] uppercase tracking-wide text-slate-400' }, label),
+      React.createElement('div', { className: 'min-w-0' }, valueNode),
+      React.createElement('div', {
+        className: 'text-[10px] leading-[12px] h-[12px] text-slate-400/80 opacity-0 group-hover/kpi:opacity-60 transition-opacity whitespace-nowrap',
+      }, revealText || ''),
     ]),
   ]);
 }
@@ -88,6 +82,9 @@ function DeliverableHeaderRow({
   groupName,
   isExpanded,
   isMuted,
+  deliverableStatus,
+  deliverableDueDate,
+  deliverableOverdue,
   healthStatus,
   healthRatio,
   healthTimelineRatio,
@@ -101,6 +98,10 @@ function DeliverableHeaderRow({
   onConfidenceChange,
   confidenceMenuOpen,
   onToggleConfidenceMenu,
+  statusMenuOpen,
+  onToggleStatusMenu,
+  onStatusChange,
+  onOpenDuePicker,
   onToggle,
   onOpenChat,
 }) {
@@ -110,30 +111,19 @@ function DeliverableHeaderRow({
     : healthStatus === 'tight'
       ? 'bg-amber-500'
       : 'bg-emerald-500';
-  // LOCKED: Expanded health meter approved by Marc — do not change.
-  const expandedHealthBarHeight = 'h-4';
-  const CONTROL_HEIGHT_CLASS = 'h-4';
-  const healthBarHeight = CONTROL_HEIGHT_CLASS;
-  const healthLabelClass = 'text-[10px] uppercase tracking-wide text-slate-400';
-  const indicatorBoxWidthClass = 'w-56';
-  const indicatorBoxClass = 'group rounded-lg border border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 px-2 py-2.5 pb-3';
-  const indicatorLabelClass = 'text-[9px] uppercase tracking-wide text-slate-400 whitespace-nowrap';
-  const indicatorLabelWidthClass = 'w-[72px]';
+  const healthBarHeight = 'h-4';
   const rowClass = `${isMuted ? 'bg-[#1F194C]' : 'bg-[#1F2937]'} border-b border-slate-900/60`;
   const cellPadding = 'px-6 py-4';
   const statusLabel = HEALTH_STATUS_LABELS[healthStatus] || 'On track';
   const effortPercent = Math.round(clamp(healthRatio, 0, 1.2) * 100);
   const timePercent = Math.round(clamp(healthTimelineRatio || 0, 0, 1.2) * 100);
-  const healthRolloverLine = `${statusLabel} \u00b7 Effort vs Time \u00b7 ${effortPercent}% used \u00b7 ${timePercent}% elapsed`;
+  const healthRolloverLine = `${statusLabel} \u00b7 E${effortPercent}% \u00b7 T${timePercent}%`;
   const confidenceLabel = CONFIDENCE_OPTIONS.find((option) => option.value === confidenceValue)?.label || 'Not set';
+  const confidenceRolloverLine = 'Manual forecast';
+  const deliverableStatusLabel = DELIVERABLE_STATUS_OPTIONS.find((option) => option.value === deliverableStatus)?.label || 'Backlog';
+  const dueDateLabel = formatShortDate(deliverableDueDate);
 
-  return React.createElement('tr', {
-    className: rowClass,
-    onClick: (event) => {
-      if (event.defaultPrevented) return;
-      onToggle?.();
-    },
-  }, [
+  return React.createElement('tr', { className: rowClass }, [
     React.createElement('td', { colSpan: COLUMN_ORDER.length, className: cellPadding }, [
       React.createElement('div', { className: isExpanded ? 'space-y-3' : '' }, [
         React.createElement('div', { className: 'grid grid-cols-[1fr_auto] items-center gap-4' }, [
@@ -152,68 +142,111 @@ function DeliverableHeaderRow({
             React.createElement('div', { className: `text-sm font-semibold ${isMuted ? 'text-slate-300' : 'text-white'}` }, groupName),
           ]),
           React.createElement('div', { className: 'justify-self-end flex items-stretch gap-3 pb-2' }, [
-            DeliverableIndicatorBox({
-              label: 'Health',
-              widthClass: indicatorBoxWidthClass,
-              boxClass: indicatorBoxClass,
-              labelClass: indicatorLabelClass,
-              labelWidthClass: indicatorLabelWidthClass,
-              rolloverLine: healthRolloverLine,
-              control: React.createElement('div', {
-                className: `${CONTROL_HEIGHT_CLASS} w-full rounded-full border border-slate-200/70 dark:border-white/10 bg-slate-100 dark:bg-white/10 shadow-inner overflow-hidden`,
-              }, [
-                React.createElement('div', {
-                  className: `${healthColor} h-full`,
-                  style: { width: `${clamp(healthRatio * 100, 0, 100)}%` },
-                }),
-              ]),
-            }),
-            DeliverableIndicatorBox({
-              label: 'Confidence',
-              widthClass: indicatorBoxWidthClass,
-              boxClass: indicatorBoxClass,
-              labelClass: indicatorLabelClass,
-              labelWidthClass: indicatorLabelWidthClass,
-              rolloverLine: 'Manual delivery forecast',
-              boxProps: {
-                onClick: (event) => event.stopPropagation(),
-                onMouseDown: (event) => event.stopPropagation(),
-              },
-              control: React.createElement('div', { className: 'relative w-full flex items-center' }, [
-                React.createElement('button', {
+            React.createElement('div', { className: 'flex items-stretch gap-3 group/kpi' }, [
+              DeliverableIndicatorBox({
+                label: 'Status',
+                revealText: `Status: ${deliverableStatusLabel}`,
+                valueNode: React.createElement('div', { className: 'relative w-full' }, [
+                  React.createElement('button', {
+                    type: 'button',
+                    className: 'text-[12px] font-semibold text-slate-200 whitespace-nowrap text-left w-full',
+                    onClick: (event) => {
+                      event.stopPropagation();
+                      onToggleStatusMenu?.();
+                    },
+                    onMouseDown: (event) => event.stopPropagation(),
+                    'data-deliverable-status-trigger': groupId,
+                    'aria-haspopup': 'menu',
+                    'aria-expanded': statusMenuOpen ? 'true' : 'false',
+                  }, deliverableStatusLabel),
+                  statusMenuOpen
+                    ? React.createElement('div', {
+                      className: 'contacts-action-menu',
+                      'data-deliverable-status-menu': groupId,
+                    }, DELIVERABLE_STATUS_OPTIONS.map((option) => (
+                      React.createElement('button', {
+                        key: option.value,
+                        type: 'button',
+                        onClick: (event) => {
+                          event.stopPropagation();
+                          onStatusChange?.(option.value);
+                        },
+                      }, option.label)
+                    )))
+                    : null,
+                ]),
+              }),
+              DeliverableIndicatorBox({
+                label: 'Due',
+                revealText: deliverableDueDate
+                  ? `${deliverableOverdue ? 'Overdue' : 'Due'} ${dueDateLabel}`
+                  : 'No due date',
+                valueNode: React.createElement('button', {
                   type: 'button',
-                  className: `inline-flex w-full items-center justify-between gap-2 rounded-full border border-slate-200/70 dark:border-white/10 bg-slate-100 dark:bg-white/10 px-2 text-[10px] text-slate-600 dark:text-slate-200 ${CONTROL_HEIGHT_CLASS} leading-none`,
+                  className: `text-[12px] font-semibold whitespace-nowrap text-left w-full ${deliverableOverdue ? 'text-rose-400' : 'text-slate-200'}`,
                   onClick: (event) => {
                     event.stopPropagation();
-                    onToggleConfidenceMenu?.();
+                    onOpenDuePicker?.(event.currentTarget, groupId, deliverableDueDate);
                   },
                   onMouseDown: (event) => event.stopPropagation(),
-                  'data-confidence-trigger': groupId,
-                  'aria-haspopup': 'menu',
-                  'aria-expanded': confidenceMenuOpen ? 'true' : 'false',
+                  'aria-label': 'Edit due date',
+                }, dueDateLabel),
+              }),
+              DeliverableIndicatorBox({
+                label: 'Health',
+                revealText: healthRolloverLine,
+                valueNode: React.createElement('div', {
+                  className: `${healthBarHeight} w-full rounded-full border border-slate-200/70 dark:border-white/10 bg-slate-100 dark:bg-white/10 shadow-inner overflow-hidden`,
                 }, [
-                  React.createElement('span', { className: 'truncate' }, confidenceLabel),
-                  React.createElement('svg', { className: 'h-3 w-3 text-slate-400', viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
-                    React.createElement('path', { d: 'M6 8l4 4 4-4', strokeLinecap: 'round', strokeLinejoin: 'round' }),
-                  ]),
+                  React.createElement('div', {
+                    className: `${healthColor} h-full`,
+                    style: { width: `${clamp(healthRatio * 100, 0, 100)}%` },
+                  }),
                 ]),
-                confidenceMenuOpen
-                  ? React.createElement('div', {
-                    className: 'contacts-action-menu',
-                    'data-confidence-menu': groupId,
-                  }, CONFIDENCE_OPTIONS.map((option) => (
-                    React.createElement('button', {
-                      key: option.value,
-                      type: 'button',
-                      onClick: (event) => {
-                        event.stopPropagation();
-                        onConfidenceChange?.(option.value);
-                      },
-                    }, option.label)
-                  )))
-                  : null,
-              ]),
-            }),
+              }),
+              DeliverableIndicatorBox({
+                label: 'Confidence',
+                revealText: confidenceRolloverLine,
+                boxProps: {
+                  onClick: (event) => event.stopPropagation(),
+                  onMouseDown: (event) => event.stopPropagation(),
+                },
+                valueNode: React.createElement('div', { className: 'relative w-full flex items-center' }, [
+                  React.createElement('button', {
+                    type: 'button',
+                    className: 'inline-flex w-full items-center justify-between gap-2 text-[12px] font-semibold text-slate-200 leading-none',
+                    onClick: (event) => {
+                      event.stopPropagation();
+                      onToggleConfidenceMenu?.();
+                    },
+                    onMouseDown: (event) => event.stopPropagation(),
+                    'data-confidence-trigger': groupId,
+                    'aria-haspopup': 'menu',
+                    'aria-expanded': confidenceMenuOpen ? 'true' : 'false',
+                  }, [
+                    React.createElement('span', { className: 'truncate' }, confidenceLabel),
+                    React.createElement('svg', { className: 'h-3 w-3 text-slate-400', viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+                      React.createElement('path', { d: 'M6 8l4 4 4-4', strokeLinecap: 'round', strokeLinejoin: 'round' }),
+                    ]),
+                  ]),
+                  confidenceMenuOpen
+                    ? React.createElement('div', {
+                      className: 'contacts-action-menu',
+                      'data-confidence-menu': groupId,
+                    }, CONFIDENCE_OPTIONS.map((option) => (
+                      React.createElement('button', {
+                        key: option.value,
+                        type: 'button',
+                        onClick: (event) => {
+                          event.stopPropagation();
+                          onConfidenceChange?.(option.value);
+                        },
+                      }, option.label)
+                    )))
+                    : null,
+                ]),
+              }),
+            ]),
             React.createElement('button', {
               type: 'button',
               className: 'inline-flex items-center',
@@ -310,6 +343,21 @@ function formatDueIn(task) {
   if (diffDays < 0) return { label: 'Overdue', tone: 'danger' };
   if (diffDays === 0) return { label: 'Due today', tone: 'warn' };
   return { label: `${diffDays}d`, tone: diffDays <= 5 ? 'warn' : 'neutral' };
+}
+
+function formatShortDate(dateValue) {
+  if (!dateValue) return '—';
+  const date = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function isOverdueDate(dateValue) {
+  if (!dateValue) return false;
+  const today = new Date();
+  const due = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(due.getTime())) return false;
+  return due.setHours(0, 0, 0, 0) < today.setHours(0, 0, 0, 0);
 }
 
 function getStatusLabel(status) {
@@ -467,6 +515,9 @@ export function JobTasksExecutionTable({
   const [expandedGroups, setExpandedGroups] = useState(() => buildExpandedGroups(deliverables, collapsedMap || {}));
   const [confidenceMap, setConfidenceMap] = useState(() => loadConfidenceMap(job?.id));
   const [openConfidenceMenuId, setOpenConfidenceMenuId] = useState(null);
+  const [openDeliverableStatusMenuId, setOpenDeliverableStatusMenuId] = useState(null);
+  const [statusPrompt, setStatusPrompt] = useState(null);
+  const [statusPromptDate, setStatusPromptDate] = useState(() => formatDateInput(new Date().toISOString().slice(0, 10)));
   const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set());
   const [editingCell, setEditingCell] = useState(null);
   const [editingValue, setEditingValue] = useState('');
@@ -540,6 +591,25 @@ export function JobTasksExecutionTable({
   }, [openConfidenceMenuId]);
 
   useEffect(() => {
+    if (!openDeliverableStatusMenuId) return undefined;
+    const handleClick = (event) => {
+      const target = event.target;
+      if (target.closest?.('[data-deliverable-status-menu]')) return;
+      if (target.closest?.('[data-deliverable-status-trigger]')) return;
+      setOpenDeliverableStatusMenuId(null);
+    };
+    const handleKey = (event) => {
+      if (event.key === 'Escape') setOpenDeliverableStatusMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [openDeliverableStatusMenuId]);
+
+  useEffect(() => {
     const handleOutside = (event) => {
       const openKeys = Object.keys(openDraftRows || {}).filter((key) => openDraftRows[key]);
       if (!openKeys.length) return;
@@ -587,6 +657,68 @@ export function JobTasksExecutionTable({
       return next;
     });
     setOpenConfidenceMenuId(null);
+  };
+
+  const updateDeliverable = (deliverableId, patch) => {
+    if (typeof onJobUpdate !== 'function' || readOnly) return;
+    const nextDeliverables = (job.deliverables || []).map((deliverable) => {
+      if (deliverable.id !== deliverableId) return deliverable;
+      return { ...deliverable, ...(patch || {}) };
+    });
+    onJobUpdate({ deliverables: nextDeliverables });
+  };
+
+  const openStatusPrompt = (deliverableId, nextStatus, promptType) => {
+    const today = new Date().toISOString().slice(0, 10);
+    setStatusPrompt({ deliverableId, nextStatus, promptType });
+    setStatusPromptDate(today);
+  };
+
+  const handleDeliverableStatusSelect = (deliverable, nextStatus) => {
+    if (!deliverable || !nextStatus) return;
+    const currentStatus = deliverable.status || 'backlog';
+    if (currentStatus === nextStatus) {
+      setOpenDeliverableStatusMenuId(null);
+      return;
+    }
+    if (currentStatus === 'backlog' && nextStatus === 'in_progress') {
+      setOpenDeliverableStatusMenuId(null);
+      openStatusPrompt(deliverable.id, nextStatus, 'start');
+      return;
+    }
+    if (currentStatus === 'in_progress' && nextStatus === 'completed') {
+      setOpenDeliverableStatusMenuId(null);
+      openStatusPrompt(deliverable.id, nextStatus, 'complete');
+      return;
+    }
+    setOpenDeliverableStatusMenuId(null);
+    updateDeliverable(deliverable.id, {
+      status: nextStatus,
+      startedAt: nextStatus === 'backlog' ? null : deliverable.startedAt || null,
+      completedAt: nextStatus === 'completed' ? (deliverable.completedAt || null) : null,
+    });
+  };
+
+  const confirmStatusPrompt = () => {
+    if (!statusPrompt) return;
+    const deliverable = (job.deliverables || []).find((item) => item.id === statusPrompt.deliverableId);
+    if (!deliverable) {
+      setStatusPrompt(null);
+      return;
+    }
+    if (statusPrompt.promptType === 'start') {
+      updateDeliverable(deliverable.id, {
+        status: 'in_progress',
+        startedAt: statusPromptDate || new Date().toISOString().slice(0, 10),
+      });
+    }
+    if (statusPrompt.promptType === 'complete') {
+      updateDeliverable(deliverable.id, {
+        status: 'completed',
+        completedAt: statusPromptDate || new Date().toISOString().slice(0, 10),
+      });
+    }
+    setStatusPrompt(null);
   };
 
   const toggleGroup = (groupId) => {
@@ -668,6 +800,20 @@ export function JobTasksExecutionTable({
       value,
       onSelect: (next) => onSelect?.(next),
       onClear: () => onSelect?.(''),
+      onClose: () => {
+        duePickerCleanupRef.current = null;
+      },
+    });
+  };
+
+  const openDeliverableDatePicker = (anchorEl, deliverableId, value) => {
+    if (!anchorEl || readOnly) return;
+    if (duePickerCleanupRef.current) duePickerCleanupRef.current();
+    duePickerCleanupRef.current = openSingleDatePickerPopover({
+      anchorEl,
+      value,
+      onSelect: (next) => updateDeliverable(deliverableId, { dueDate: next || null }),
+      onClear: () => updateDeliverable(deliverableId, { dueDate: null }),
       onClose: () => {
         duePickerCleanupRef.current = null;
       },
@@ -950,7 +1096,8 @@ export function JobTasksExecutionTable({
   });
   const unassignedGroup = {
     id: 'unassigned',
-    name: 'Unassigned Tasks',
+    name: 'General Job Tasks',
+    status: 'in_progress',
     tasks: sortTasks(unassignedTasks || []),
   };
 
@@ -1498,6 +1645,8 @@ export function JobTasksExecutionTable({
       : {};
     const demoIndicator = !isExpanded ? DEMO_CHAT_STATES[group.name] : null;
     const deliverableChatIndicator = demoIndicator || baseIndicator;
+    const deliverableStatus = group.status || 'backlog';
+    const deliverableOverdue = isOverdueDate(group.dueDate) && deliverableStatus !== 'completed';
     const health = (() => {
       const pools = group.effectivePools || [];
       const estimated = sumEstimated(pools);
@@ -1513,11 +1662,15 @@ export function JobTasksExecutionTable({
     const hasNewChats = !!deliverableChatIndicator.hasUnreadMessages && mentionCount === 0;
     const confidenceValue = confidenceMap?.[String(group.id)] || 'not_set';
     const confidenceMenuOpen = openConfidenceMenuId === group.id;
+    const statusMenuOpen = openDeliverableStatusMenuId === group.id;
     return h(DeliverableHeaderRow, {
       groupId: group.id,
       groupName: group.name || 'Deliverable',
       isExpanded,
       isMuted,
+      deliverableStatus,
+      deliverableDueDate: group.dueDate || null,
+      deliverableOverdue,
       healthStatus: health.status,
       healthRatio: health.ratio,
       healthTimelineRatio: getTimelineRatio(group.dueDate),
@@ -1533,6 +1686,12 @@ export function JobTasksExecutionTable({
       onToggleConfidenceMenu: () => {
         setOpenConfidenceMenuId((prev) => (prev === group.id ? null : group.id));
       },
+      statusMenuOpen,
+      onToggleStatusMenu: () => {
+        setOpenDeliverableStatusMenuId((prev) => (prev === group.id ? null : group.id));
+      },
+      onStatusChange: (nextStatus) => handleDeliverableStatusSelect(group, nextStatus),
+      onOpenDuePicker: (anchorEl, deliverableId, value) => openDeliverableDatePicker(anchorEl, deliverableId, value),
       onToggle: () => toggleGroup(group.id),
       onOpenChat,
     });
@@ -1686,6 +1845,13 @@ export function JobTasksExecutionTable({
     ]),
   ]);
 
+  const statusPromptTitle = statusPrompt?.promptType === 'complete'
+    ? 'Complete deliverable?'
+    : 'Start deliverable?';
+  const statusPromptLabel = statusPrompt?.promptType === 'complete'
+    ? 'Completion date'
+    : 'Start date';
+
   return h('div', { className: 'overflow-x-auto' }, [
     h('table', { className: 'w-full text-left border-collapse', ref: tableRef }, [
       ...groups.map((group) => {
@@ -1726,5 +1892,35 @@ export function JobTasksExecutionTable({
         renderSectionSpacer('unassigned'),
       ]),
     ]),
+    statusPrompt
+      ? h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4' }, [
+        h('div', { className: 'w-full max-w-sm rounded-xl border border-slate-200/10 bg-slate-900 text-slate-100 shadow-xl' }, [
+          h('div', { className: 'px-5 py-4 border-b border-slate-800' }, [
+            h('div', { className: 'text-base font-semibold' }, statusPromptTitle),
+          ]),
+          h('div', { className: 'px-5 py-4 space-y-3' }, [
+            h('label', { className: 'block text-xs font-semibold text-slate-300' }, statusPromptLabel),
+            h('input', {
+              type: 'date',
+              value: statusPromptDate || '',
+              onChange: (event) => setStatusPromptDate(event.target.value),
+              className: 'h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-2 text-sm text-slate-100',
+            }),
+          ]),
+          h('div', { className: 'px-5 py-4 flex items-center justify-end gap-2 border-t border-slate-800' }, [
+            h('button', {
+              type: 'button',
+              className: 'px-3 py-1.5 text-sm text-slate-300 hover:text-white',
+              onClick: () => setStatusPrompt(null),
+            }, 'Cancel'),
+            h('button', {
+              type: 'button',
+              className: 'px-3 py-1.5 rounded-md bg-slate-100 text-slate-900 text-sm font-semibold hover:bg-white',
+              onClick: confirmStatusPrompt,
+            }, 'Confirm'),
+          ]),
+        ]),
+      ])
+      : null,
   ]);
 }

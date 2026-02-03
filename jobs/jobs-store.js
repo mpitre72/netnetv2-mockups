@@ -5,6 +5,7 @@ import { getContactsData, getIndividualsData } from '../contacts/contacts-data.j
 const VALID_KINDS = new Set(['project', 'retainer']);
 const VALID_STATUSES = new Set(['pending', 'active', 'completed', 'archived']);
 const VALID_TASK_STATUSES = new Set(['backlog', 'in_progress', 'completed']);
+const VALID_DELIVERABLE_STATUSES = new Set(['backlog', 'in_progress', 'completed']);
 const VALID_LIFECYCLE_STATUSES = new Set(['pending', 'active', 'completed']);
 const DEFAULT_USER_ID = 'currentUser';
 
@@ -175,10 +176,16 @@ function normalizeDeliverables(deliverables = [], jobId) {
       const name = String(deliverable?.name || '').trim();
       if (!name) return null;
       const deliverableId = deliverable.id || createId('del');
+      const status = VALID_DELIVERABLE_STATUSES.has(deliverable.status)
+        ? deliverable.status
+        : 'backlog';
       return {
         id: deliverableId,
         name,
+        status,
         dueDate: deliverable.dueDate || null,
+        startedAt: deliverable.startedAt || null,
+        completedAt: status === 'completed' ? (deliverable.completedAt || null) : null,
         originalDueDate: deliverable.originalDueDate || null,
         dueDateHistory: normalizeDueDateHistory(deliverable.dueDateHistory || []),
         dependencyDeliverableIds: Array.isArray(deliverable.dependencyDeliverableIds)
@@ -319,6 +326,7 @@ function ensureJobsSeed(wsId) {
         {
           id: designDeliverableId,
           name: 'UX + Visual Design',
+          status: 'completed',
           dueDate: nextWeek,
           dependencyDeliverableIds: [],
           pools: [
@@ -373,6 +381,7 @@ function ensureJobsSeed(wsId) {
         {
           id: buildDeliverableId,
           name: 'Frontend Build',
+          status: 'in_progress',
           dueDate: nextMonth,
           dependencyDeliverableIds: [designDeliverableId],
           pools: [
@@ -427,6 +436,7 @@ function ensureJobsSeed(wsId) {
         {
           id: contentDeliverableId,
           name: 'E-commerce',
+          status: 'backlog',
           dueDate: nextMonth,
           dependencyDeliverableIds: [buildDeliverableId],
           pools: [
@@ -776,6 +786,18 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
   store.jobs = list;
   persistJobsStore(wsId, store);
   return next;
+}
+
+export function updateDeliverable(jobId, deliverableId, patch = {}, wsId = workspaceId()) {
+  if (!jobId || !deliverableId) return null;
+  const current = getJobById(jobId, wsId);
+  if (!current) return null;
+  const nextDeliverables = (current.deliverables || []).map((deliverable) => (
+    String(deliverable.id) === String(deliverableId)
+      ? { ...deliverable, ...(patch || {}) }
+      : deliverable
+  ));
+  return updateJob(jobId, { deliverables: nextDeliverables }, wsId);
 }
 
 export function loadJobChatMessages(jobId, wsId = workspaceId()) {
