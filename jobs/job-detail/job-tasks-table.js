@@ -1,5 +1,6 @@
 import { DeliverableLOEMeters } from '../deliverable-loe-meters.js';
 import { openSingleDatePickerPopover } from '../../quick-tasks/quick-task-detail.js';
+import { renderMiniMeters } from '../../quick-tasks/quick-tasks-helpers.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
@@ -332,6 +333,25 @@ function formatHours(value) {
   return `${hours % 1 ? hours.toFixed(1) : hours}h`;
 }
 
+function getActualHours(task) {
+  if (!task) return 0;
+  if (Number.isFinite(task.actualHours)) return Number(task.actualHours) || 0;
+  if (Array.isArray(task.timeEntries)) {
+    return task.timeEntries.reduce((sum, entry) => sum + (Number(entry?.hours) || 0), 0);
+  }
+  if (Array.isArray(task.allocations)) {
+    return task.allocations.reduce((sum, alloc) => sum + (Number(alloc?.actualHours) || 0), 0);
+  }
+  return 0;
+}
+
+function renderQuickTaskMeter(taskLike, actualHours) {
+  return h('div', {
+    className: 'min-w-[160px]',
+    dangerouslySetInnerHTML: { __html: renderMiniMeters(taskLike, actualHours) },
+  });
+}
+
 function formatDueIn(task) {
   if (!task?.dueDate) return { label: '—', tone: 'muted' };
   if (task.status === 'completed') return { label: 'Done', tone: 'muted' };
@@ -407,34 +427,6 @@ function getRatioStatus(ratio) {
   if (ratio >= 0.85) return 'tight';
   if (ratio > 0) return 'ok';
   return 'muted';
-}
-
-function MiniMeter({ effortRatio = 0, timelineRatio = 0 }) {
-  const effortStatus = getRatioStatus(effortRatio);
-  const timelineStatus = getRatioStatus(timelineRatio);
-  const effortColor = effortStatus === 'over'
-    ? 'bg-rose-500'
-    : effortStatus === 'tight'
-      ? 'bg-amber-500'
-      : effortStatus === 'ok'
-        ? 'bg-emerald-500'
-        : 'bg-slate-200 dark:bg-slate-700';
-  const timelineColor = timelineStatus === 'over'
-    ? 'bg-rose-400'
-    : timelineStatus === 'tight'
-      ? 'bg-amber-400'
-      : timelineStatus === 'ok'
-        ? 'bg-emerald-400'
-        : 'bg-slate-200 dark:bg-slate-700';
-
-  return h('div', { className: 'flex flex-col gap-1 min-w-[80px]' }, [
-    h('div', { className: 'h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden' }, [
-      h('div', { className: `${effortColor} h-full`, style: { width: `${clamp(effortRatio * 100, 0, 120)}%` } }),
-    ]),
-    h('div', { className: 'h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden' }, [
-      h('div', { className: `${timelineColor} h-full`, style: { width: `${clamp(timelineRatio * 100, 0, 120)}%` } }),
-    ]),
-  ]);
 }
 
 function getTimelineRatio(dueDate) {
@@ -906,10 +898,19 @@ export function JobTasksExecutionTable({
   const startEdit = (task, deliverableId, field, valueOverride) => {
     if (readOnly) return;
     if (field === 'description') {
+      if (descriptionEditor?.taskId === task.id) {
+        setDescriptionEditor(null);
+        return;
+      }
       setEditingCell(null);
       setEditingValue('');
       setDescriptionEditor(null);
       setDescriptionEditor({ taskId: task.id, deliverableId, value: task.description || '' });
+      return;
+    }
+    if (field !== 'dueDate' && editingCell?.taskId === task.id && editingCell.field === field) {
+      setEditingCell(null);
+      setEditingValue('');
       return;
     }
     if (field === 'dueDate') {
@@ -1139,8 +1140,11 @@ export function JobTasksExecutionTable({
     if (allocations.length) {
       allocations.forEach((alloc) => {
         const pool = (deliverable?.effectivePools || []).find((item) => String(item.serviceTypeId) === String(alloc.serviceTypeId));
-        const poolEstimate = pool ? Number(pool.estimatedHours) || 0 : 0;
-        const allocRatio = poolEstimate ? (Number(alloc.loeHours) || 0) / poolEstimate : 0;
+        const allocationActual = Number(alloc.actualHours) || 0;
+        const allocationMeterTask = {
+          loeHours: Number.isFinite(Number(alloc.loeHours)) ? Number(alloc.loeHours) : null,
+          dueDate: task.dueDate || null,
+        };
         rows.push(h('tr', {
           key: alloc.id,
           'data-alloc-group': task.id,
@@ -1185,7 +1189,7 @@ export function JobTasksExecutionTable({
                 },
                 className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
               }),
-              h('div', null, h(MiniMeter, { effortRatio: allocRatio, timelineRatio: 0 })),
+              h('div', null, renderQuickTaskMeter(allocationMeterTask, allocationActual)),
               h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, task.dueDate || '—'),
             ]),
           ]),
@@ -1606,12 +1610,13 @@ export function JobTasksExecutionTable({
               onKeyDown: (event) => handleEditorKeyDown(event, task, deliverableId, 'loe'),
               className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-700 dark:text-slate-200',
             })
-            : allocTotal
-              ? h('div', { className: 'space-y-1' }, [
-                h(MiniMeter, { effortRatio, timelineRatio }),
-                h('div', { className: 'text-[11px] text-slate-400 dark:text-slate-500' }, formatHours(allocTotal)),
-              ])
-              : h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, 'Add LOE'),
+            : renderQuickTaskMeter(
+              {
+                loeHours: Number.isFinite(Number(allocTotal)) ? Number(allocTotal) : null,
+                dueDate: task.dueDate || null,
+              },
+              getActualHours(task),
+            ),
         ]),
         h('td', {
           className: `px-4 py-3 text-sm text-gray-700 dark:text-gray-200 align-top text-right`,
