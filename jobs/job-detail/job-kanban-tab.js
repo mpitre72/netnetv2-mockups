@@ -2,6 +2,7 @@ import { loadServiceTypes, loadTeamMembers } from '../../quick-tasks/quick-tasks
 import { JobTaskDrawer } from '../job-task-drawer.js';
 import { READY_TASK_MESSAGE, isTaskReady } from '../job-tasks-helpers.js';
 import { getCurrentCycleKey, getPoolsForCycle, getTaskCycleKey } from '../retainer-cycle-utils.js';
+import { renderMiniMeters } from '../../quick-tasks/quick-tasks-helpers.js';
 
 const { createElement: h, useMemo, useRef, useState } = React;
 
@@ -24,6 +25,45 @@ function formatStatus(status) {
   if (status === 'in_progress') return 'In Progress';
   if (status === 'completed') return 'Completed';
   return 'Backlog';
+}
+
+function parseLocalDate(value) {
+  if (!value) return null;
+  const [y, m, d] = String(value).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const parsed = new Date(y, m - 1, d);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDueText(dateStr) {
+  const date = parseLocalDate(dateStr);
+  if (!date) return { text: 'No due date', overdue: false };
+  const today = new Date();
+  const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dueStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const overdue = dueStart.getTime() < dayStart.getTime();
+  const short = dueStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return { text: overdue ? `Overdue ${short}` : `Due ${short}`, overdue };
+}
+
+function taskActualHours(task) {
+  if (Number.isFinite(task?.actualHours)) return Number(task.actualHours) || 0;
+  if (Array.isArray(task?.timeEntries)) {
+    return task.timeEntries.reduce((sum, entry) => sum + (Number(entry?.hours) || 0), 0);
+  }
+  if (Array.isArray(task?.allocations)) {
+    return task.allocations.reduce((sum, alloc) => sum + (Number(alloc?.actualHours) || 0), 0);
+  }
+  return 0;
+}
+
+function renderKanbanMiniMeters(taskLike, actualHours) {
+  const html = renderMiniMeters(taskLike, actualHours)
+    .replace('space-y-2 min-w-[160px]', 'space-y-2 w-full');
+  return h('div', {
+    className: 'w-full',
+    dangerouslySetInnerHTML: { __html: html },
+  });
 }
 
 function statusClasses(status) {
@@ -51,6 +91,8 @@ export function JobKanbanTab({
   chatIndicators,
   onOpenChat,
   taskFilter,
+  showDeliverableLabel,
+  embedded = false,
 }) {
   const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
   const members = useMemo(() => loadTeamMembers(), []);
@@ -90,6 +132,9 @@ export function JobKanbanTab({
         deliverableId: deliverable.id,
       }))
   ));
+  const showDeliverableLine = typeof showDeliverableLabel === 'boolean'
+    ? showDeliverableLabel
+    : new Set(allTasks.map((task) => String(task.deliverableId || ''))).size > 1;
 
   const grouped = {
     backlog: allTasks.filter((task) => task.status === 'backlog'),
@@ -135,13 +180,15 @@ export function JobKanbanTab({
       .filter(Boolean)
       .map((member) => getInitials(member.name || member.email));
     return h('div', { className: 'flex items-center gap-2' }, [
-      h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `${allocations.length} allocations`),
-      h('div', { className: 'flex -space-x-1' }, initials.slice(0, 3).map((label, idx) => (
+      h('div', { className: 'flex -space-x-1 items-center' }, initials.slice(0, 3).map((label, idx) => (
         h('span', {
           key: `${label}-${idx}`,
           className: 'h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-semibold flex items-center justify-center border border-white dark:border-slate-900',
         }, label)
       ))),
+      assigneeIds.length > 3
+        ? h('span', { className: 'text-[11px] text-slate-500 dark:text-slate-400' }, `+${assigneeIds.length - 3}`)
+        : null,
     ]);
   };
 
@@ -241,86 +288,101 @@ export function JobKanbanTab({
       ]),
       h('div', { className: bodyClass, onDragOver: readOnly ? undefined : onDragOver(status), onDragLeave: readOnly ? undefined : onDragLeave(status), onDrop: readOnly ? undefined : onDrop(status) }, [
         tasks.length ? tasks.map((task) => (
-          h('div', {
-            key: task.id,
-            className: [
-              'group rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3 shadow-sm transition-shadow hover:shadow-md',
-              draggingId === task.id ? 'opacity-60' : '',
-            ].join(' '),
-          }, [
-            h('div', { className: 'flex items-start gap-2' }, [
-              h('button', {
-                type: 'button',
-                className: 'mt-0.5 flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5',
-                draggable: !readOnly,
-                onDragStart: readOnly ? undefined : onDragStart(task),
-                onDragEnd: readOnly ? undefined : onDragEnd,
-                disabled: readOnly,
-                'aria-disabled': readOnly,
-                'aria-label': 'Drag task',
-              }, [
-                h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-                  h('circle', { cx: '8', cy: '8', r: '1' }),
-                  h('circle', { cx: '16', cy: '8', r: '1' }),
-                  h('circle', { cx: '8', cy: '16', r: '1' }),
-                  h('circle', { cx: '16', cy: '16', r: '1' }),
-                ]),
-              ]),
-              h('div', { className: 'min-w-0 flex-1 space-y-2' }, [
+          (() => {
+            const dueMeta = formatDueText(task.dueDate);
+            const meterTask = {
+              loeHours: (task.allocations || []).reduce((sum, alloc) => sum + (Number(alloc?.loeHours) || 0), 0),
+              dueDate: task.dueDate || null,
+            };
+            const indicator = taskChatIndicators.get(String(task.id)) || {};
+            const mentionCount = indicator.mentionCount || 0;
+            const badgeValue = mentionCount > 9 ? '9+' : mentionCount || '';
+            return h('div', {
+              key: task.id,
+              className: [
+                'group rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3 shadow-sm transition-shadow hover:shadow-md',
+                draggingId === task.id ? 'opacity-60' : '',
+              ].join(' '),
+            }, [
+              h('div', { className: 'flex items-start gap-2' }, [
                 h('button', {
                   type: 'button',
-                  className: 'w-full text-left',
-                  onClick: () => openDrawer(task.deliverableId, task.id),
+                  className: 'mt-0.5 flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5',
+                  draggable: !readOnly,
+                  onDragStart: readOnly ? undefined : onDragStart(task),
+                  onDragEnd: readOnly ? undefined : onDragEnd,
+                  disabled: readOnly,
+                  'aria-disabled': readOnly,
+                  'aria-label': 'Drag task',
                 }, [
-                  h('div', { className: 'flex items-center gap-2 flex-wrap' }, [
-                    h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white truncate' }, task.title || 'Untitled'),
-                    task.isDraft
-                      ? h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-900' }, 'Draft')
-                      : null,
-                    h('span', { className: `rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClasses(task.status)}` }, formatStatus(task.status)),
-                  ].filter(Boolean)),
-                  h('div', { className: 'text-[11px] text-slate-500 dark:text-slate-400 truncate' }, task.deliverableName || 'Deliverable'),
-                  task.dueDate
-                    ? h('div', { className: 'text-[11px] text-slate-500 dark:text-slate-400' }, `Due ${task.dueDate}`)
-                    : null,
+                  h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
+                    h('circle', { cx: '8', cy: '8', r: '1' }),
+                    h('circle', { cx: '16', cy: '8', r: '1' }),
+                    h('circle', { cx: '8', cy: '16', r: '1' }),
+                    h('circle', { cx: '16', cy: '16', r: '1' }),
+                  ]),
                 ]),
-                h('div', { className: 'pt-1 flex items-center justify-between gap-2' }, [
-                  renderAllocationsSummary(task),
-                  h('button', {
-                    type: 'button',
-                    className: `relative inline-flex items-center gap-1 text-xs font-semibold ${taskChatIndicators.get(String(task.id))?.totalMessages ? 'text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`,
-                    onClick: (event) => {
-                      event.stopPropagation();
-                      openChat({ type: 'task', deliverableId: task.deliverableId, taskId: task.id });
-                    },
-                    'aria-label': 'Open task chat',
-                  }, [
-                    h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
-                      h('path', { d: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z' }),
+                h('div', { className: 'min-w-0 flex-1 flex flex-col gap-2' }, [
+                  h('div', { className: 'flex items-start justify-between gap-2' }, [
+                    h('button', {
+                      type: 'button',
+                      className: 'min-w-0 flex-1 text-left',
+                      onClick: () => openDrawer(task.deliverableId, task.id),
+                    }, [
+                      h('div', { className: 'flex items-center gap-2 flex-wrap' }, [
+                        h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white truncate' }, task.title || 'Untitled'),
+                        task.isDraft
+                          ? h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-900' }, 'Draft')
+                          : null,
+                        h('span', { className: `rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClasses(task.status)}` }, formatStatus(task.status)),
+                      ].filter(Boolean)),
+                      showDeliverableLine
+                        ? h('div', { className: 'text-[11px] text-violet-300/80 dark:text-violet-300/70 truncate mt-0.5' }, `↳ ${task.deliverableName || 'Deliverable'}`)
+                        : null,
                     ]),
-                    (() => {
-                      const indicator = taskChatIndicators.get(String(task.id)) || {};
-                      const mentionCount = indicator.mentionCount || 0;
-                      const badgeValue = mentionCount > 9 ? '9+' : mentionCount || '';
-                      if (mentionCount > 0) {
-                        return h('span', { className: 'absolute -top-1 -right-2 min-w-[16px] h-4 rounded-full bg-white text-[10px] font-semibold text-slate-900 px-1 flex items-center justify-center shadow' }, badgeValue);
-                      }
-                      if (indicator.hasUnreadMessages) {
-                        return h('span', { className: 'absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-white shadow' });
-                      }
-                      return null;
-                    })(),
-                  ].filter(Boolean)),
+                    h('button', {
+                      type: 'button',
+                      className: `relative inline-flex items-center text-xs font-semibold ${indicator.totalMessages ? 'text-slate-500 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`,
+                      onClick: (event) => {
+                        event.stopPropagation();
+                        openChat({ type: 'task', deliverableId: task.deliverableId, taskId: task.id });
+                      },
+                      'aria-label': 'Open task chat',
+                    }, [
+                      h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+                        h('path', { d: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z' }),
+                      ]),
+                      mentionCount > 0
+                        ? h('span', { className: 'absolute -top-1 -right-2 min-w-[16px] h-4 rounded-full bg-white text-[10px] font-semibold text-slate-900 px-1 flex items-center justify-center shadow' }, badgeValue)
+                        : indicator.hasUnreadMessages
+                          ? h('span', { className: 'absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-white shadow' })
+                          : null,
+                    ]),
+                  ]),
+                  h('div', {
+                    className: `text-[11px] ${dueMeta.overdue ? 'text-rose-500 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}`,
+                  }, dueMeta.text),
+                  h('div', { className: 'pt-1' }, [
+                    renderAllocationsSummary(task),
+                  ]),
+                  h('div', { className: 'mt-auto pt-2 w-full' }, [
+                    renderKanbanMiniMeters(meterTask, taskActualHours(task)),
+                  ]),
                 ]),
               ]),
-            ]),
-          ])
+            ]);
+          })()
         )) : emptyMarkup,
       ]),
     ]);
   };
 
-  return h('div', { className: 'space-y-5 pb-12' }, [
+  return h('div', {
+    className: embedded ? 'space-y-4 py-1' : 'space-y-5 pb-12',
+    'data-job-kanban-scope': embedded ? 'deliverable' : 'job',
+    'data-show-deliverable-label': showDeliverableLine ? 'true' : 'false',
+    'data-kanban-task-count': String(allTasks.length),
+  }, [
     blockedNotice
       ? h('div', { className: 'rounded-lg border border-amber-200 dark:border-amber-400/40 bg-amber-50 dark:bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-200 flex items-center justify-between' }, [
         h('div', null, READY_TASK_MESSAGE),

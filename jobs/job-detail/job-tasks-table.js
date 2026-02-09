@@ -1,6 +1,7 @@
 import { DeliverableLOEMeters } from '../deliverable-loe-meters.js';
 import { openSingleDatePickerPopover } from '../../quick-tasks/quick-task-detail.js';
 import { renderMiniMeters } from '../../quick-tasks/quick-tasks-helpers.js';
+import { JobKanbanTab } from './job-kanban-tab.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
@@ -519,6 +520,7 @@ export function JobTasksExecutionTable({
   const [openDraftRows, setOpenDraftRows] = useState({});
   const [draftFocusKey, setDraftFocusKey] = useState(null);
   const [dragState, setDragState] = useState(null);
+  const [deliverableTaskViewMode, setDeliverableTaskViewMode] = useState({});
   const duePickerCleanupRef = useRef(null);
   const draftRowRefs = useRef({});
 
@@ -1717,6 +1719,95 @@ export function JobTasksExecutionTable({
     h('th', { className: 'px-4 py-2 text-right w-14' }, '⋯'),
   ]);
 
+  const renderTasksSubToolbarRow = (groupId) => {
+    const key = String(groupId || 'unassigned');
+    const mode = deliverableTaskViewMode[key] || 'list';
+    const setMode = (nextMode) => {
+      setDeliverableTaskViewMode((prev) => ({ ...prev, [key]: nextMode }));
+    };
+    const buttonBase = 'h-7 w-7 rounded-md border flex items-center justify-center transition-colors';
+    const active = 'border-netnet-purple/60 bg-netnet-purple/15 text-netnet-purple';
+    const inactive = 'border-slate-200 dark:border-white/10 text-slate-400 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60';
+    return h('tr', { key: `tasks-toolbar-${key}`, className: 'border-b border-gray-200 dark:border-gray-700 bg-transparent' }, [
+      h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2' }, [
+        h('div', { className: 'flex items-center justify-end gap-1' }, [
+          h('button', {
+            type: 'button',
+            className: `${buttonBase} ${mode === 'list' ? active : inactive}`,
+            onClick: (event) => {
+              event.stopPropagation();
+              setMode('list');
+            },
+            title: 'List view',
+            'aria-label': 'List view',
+            'aria-pressed': mode === 'list' ? 'true' : 'false',
+          }, [
+            h('svg', { viewBox: '0 0 20 20', className: 'h-3.5 w-3.5', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+              h('line', { x1: '4', y1: '5', x2: '16', y2: '5' }),
+              h('line', { x1: '4', y1: '10', x2: '16', y2: '10' }),
+              h('line', { x1: '4', y1: '15', x2: '16', y2: '15' }),
+            ]),
+          ]),
+          h('button', {
+            type: 'button',
+            className: `${buttonBase} ${mode === 'kanban' ? active : inactive}`,
+            onClick: (event) => {
+              event.stopPropagation();
+              setMode('kanban');
+            },
+            title: 'Kanban view',
+            'aria-label': 'Kanban view',
+            'aria-pressed': mode === 'kanban' ? 'true' : 'false',
+          }, [
+            h('svg', { viewBox: '0 0 20 20', className: 'h-3.5 w-3.5', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+              h('rect', { x: '3.5', y: '4', width: '4', height: '12', rx: '0.8' }),
+              h('rect', { x: '8', y: '4', width: '4', height: '12', rx: '0.8' }),
+              h('rect', { x: '12.5', y: '4', width: '4', height: '12', rx: '0.8' }),
+            ]),
+          ]),
+        ]),
+      ]),
+    ]);
+  };
+
+  const renderDeliverableKanbanRow = (group) => {
+    const deliverableId = group?.id === 'unassigned' ? null : group?.id;
+    const scopedDeliverable = {
+      id: group?.id || 'unassigned',
+      name: group?.name || 'Deliverable',
+      effectivePools: group?.effectivePools || [],
+      pools: group?.effectivePools || group?.pools || [],
+      tasks: group?.tasks || [],
+    };
+    const scopedJob = {
+      ...job,
+      deliverables: [scopedDeliverable],
+    };
+    return h('tr', { key: `kanban-${group?.id || 'unassigned'}`, className: 'border-b border-gray-200 dark:border-gray-800' }, [
+      h('td', {
+        colSpan: COLUMN_ORDER.length,
+        className: 'px-6 py-3',
+        'data-deliverable-kanban': 'true',
+        'data-deliverable-id': group?.id || 'unassigned',
+        'data-scoped-task-count': String((group?.tasks || []).length),
+        'data-show-deliverable-label': 'false',
+      }, [
+        h(JobKanbanTab, {
+          job: scopedJob,
+          onJobUpdate: (patch) => {
+            const nextTasks = patch?.deliverables?.[0]?.tasks || [];
+            updateTaskList(deliverableId, () => nextTasks);
+          },
+          readOnly,
+          chatIndicators,
+          onOpenChat,
+          showDeliverableLabel: false,
+          embedded: true,
+        }),
+      ]),
+    ]);
+  };
+
   const renderDraftRow = (deliverable, autoFocus = false) => {
     const deliverableId = deliverable?.id || null;
     const draft = getDraftRow(deliverableId);
@@ -1862,19 +1953,25 @@ export function JobTasksExecutionTable({
       ...groups.map((group) => {
         const rows = [];
         const draftKeyId = draftKey(group.id);
+        const mode = deliverableTaskViewMode[String(group.id)] || 'list';
         rows.push(renderGroupHeader(group));
         if (expandedGroups.has(group.id)) {
-          rows.push(renderTaskHeaderRow(group.id));
-          (group.tasks || []).forEach((task) => {
-            rows.push(...renderTaskRow(task, group.id, group));
-          });
-          if (isDraftRowOpen(group.id)) {
-            rows.push(renderDraftRow(group, draftFocusKey === draftKeyId));
-            if (draftDescriptionEditor?.key === draftKeyId) {
-              rows.push(renderDraftDescriptionEditor(group.id));
-            }
+          rows.push(renderTasksSubToolbarRow(group.id));
+          if (mode === 'kanban') {
+            rows.push(renderDeliverableKanbanRow(group));
           } else {
-            rows.push(renderAddTaskTrigger(group));
+            rows.push(renderTaskHeaderRow(group.id));
+            (group.tasks || []).forEach((task) => {
+              rows.push(...renderTaskRow(task, group.id, group));
+            });
+            if (isDraftRowOpen(group.id)) {
+              rows.push(renderDraftRow(group, draftFocusKey === draftKeyId));
+              if (draftDescriptionEditor?.key === draftKeyId) {
+                rows.push(renderDraftDescriptionEditor(group.id));
+              }
+            } else {
+              rows.push(renderAddTaskTrigger(group));
+            }
           }
         }
         rows.push(renderSectionSpacer(group.id));
@@ -1884,14 +1981,19 @@ export function JobTasksExecutionTable({
         renderGroupHeader(unassignedGroup, true),
         ...(expandedGroups.has('unassigned')
           ? [
-            renderTaskHeaderRow('unassigned'),
-            ...(unassignedGroup.tasks || []).flatMap((task) => renderTaskRow(task, null, null)),
-            ...(isDraftRowOpen(null)
-              ? [
-                renderDraftRow(null, draftFocusKey === draftKey(null)),
-                ...(draftDescriptionEditor?.key === draftKey(null) ? [renderDraftDescriptionEditor(null)] : []),
-              ]
-              : [renderAddTaskTrigger(null)]),
+            renderTasksSubToolbarRow('unassigned'),
+            ...((deliverableTaskViewMode.unassigned || 'list') === 'kanban'
+              ? [renderDeliverableKanbanRow(unassignedGroup)]
+              : [
+                renderTaskHeaderRow('unassigned'),
+                ...(unassignedGroup.tasks || []).flatMap((task) => renderTaskRow(task, null, null)),
+                ...(isDraftRowOpen(null)
+                  ? [
+                    renderDraftRow(null, draftFocusKey === draftKey(null)),
+                    ...(draftDescriptionEditor?.key === draftKey(null) ? [renderDraftDescriptionEditor(null)] : []),
+                  ]
+                  : [renderAddTaskTrigger(null)]),
+              ]),
           ]
           : []),
         renderSectionSpacer('unassigned'),

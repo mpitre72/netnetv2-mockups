@@ -221,7 +221,6 @@ export function JobTasksTab({
     h('div', { className: 'flex flex-wrap items-center justify-between gap-3' }, [
       h('div', { className: 'space-y-1' }, [
         h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Tasks'),
-        h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Execution table grouped by deliverable. Inline edit and expand allocations as needed.'),
       ]),
       h('div', { className: 'flex flex-wrap items-center gap-3' }, [
         viewToggle,
