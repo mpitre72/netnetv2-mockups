@@ -24,6 +24,7 @@ const defaultState = () => ({
   jobTasksView: {},
   jobCycleKeys: {},
   jobNumberOverrides: {},
+  jobPlanServiceTypeNames: {},
   deliverableCollapsed: {},
 });
 
@@ -72,6 +73,23 @@ function ensureShape(raw) {
     next.jobNumberOverrides = normalized;
   } else {
     next.jobNumberOverrides = {};
+  }
+  const jobPlanServiceTypeNames = raw?.jobPlanServiceTypeNames;
+  if (jobPlanServiceTypeNames && typeof jobPlanServiceTypeNames === 'object') {
+    const normalized = {};
+    Object.keys(jobPlanServiceTypeNames).forEach((jobId) => {
+      const group = jobPlanServiceTypeNames[jobId];
+      if (!group || typeof group !== 'object') return;
+      const nextGroup = {};
+      Object.keys(group).forEach((serviceTypeId) => {
+        const value = String(group[serviceTypeId] || '').trim();
+        if (value) nextGroup[serviceTypeId] = value;
+      });
+      normalized[jobId] = nextGroup;
+    });
+    next.jobPlanServiceTypeNames = normalized;
+  } else {
+    next.jobPlanServiceTypeNames = {};
   }
   const deliverableCollapsed = raw?.deliverableCollapsed;
   if (deliverableCollapsed && typeof deliverableCollapsed === 'object') {
@@ -201,6 +219,28 @@ export function setJobNumberOverride(jobId, jobNumber) {
 
 export function getJobNumberOverrides() {
   return { ...(loadState().jobNumberOverrides || {}) };
+}
+
+export function getJobPlanServiceTypeNames(jobId) {
+  const state = loadState();
+  const key = String(jobId || '');
+  const names = state.jobPlanServiceTypeNames?.[key];
+  return names && typeof names === 'object' ? { ...names } : {};
+}
+
+export function setJobPlanServiceTypeNames(jobId, names = {}) {
+  const state = loadState();
+  const key = String(jobId || '');
+  if (!key) return {};
+  const nextMap = { ...(state.jobPlanServiceTypeNames || {}) };
+  const nextNames = {};
+  Object.keys(names || {}).forEach((serviceTypeId) => {
+    const value = String(names[serviceTypeId] || '').trim();
+    if (value) nextNames[serviceTypeId] = value;
+  });
+  nextMap[key] = nextNames;
+  state.jobPlanServiceTypeNames = nextMap;
+  return persist(state).jobPlanServiceTypeNames[key] || {};
 }
 
 export function getDeliverableCollapsedMap(jobId) {

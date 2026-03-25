@@ -180,11 +180,22 @@ export function JobsListScreen() {
     },
   });
 
+  const baseMiniBtnClass = 'nn-btn nn-btn--mini inline-flex items-center justify-center text-slate-700 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
   const newJobButton = h('button', {
     type: 'button',
-    className: 'inline-flex items-center justify-center h-10 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110',
+    className: baseMiniBtnClass,
+    'aria-label': 'Add Job',
+    title: 'Add Job',
     onClick: () => navigate('#/app/jobs/new'),
-  }, '+ New Job');
+  }, h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.6', strokeLinecap: 'round', strokeLinejoin: 'round' }, [
+    h('rect', { x: '6', y: '4', width: '12', height: '16', rx: '2' }),
+    h('path', { d: 'M9 4.75h6' }),
+    h('path', { d: 'M9 9h6' }),
+    h('path', { d: 'M9 12.5h4' }),
+    h('circle', { cx: '18', cy: '18', r: '4.5', fill: 'currentColor', stroke: 'none' }),
+    h('path', { d: 'M18 16v4', stroke: '#fff' }),
+    h('path', { d: 'M16 18h4', stroke: '#fff' }),
+  ]));
 
   return h('div', { className: 'space-y-4 px-4 pt-4 pb-12' }, [
     h(SectionHeader, {

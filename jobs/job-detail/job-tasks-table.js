@@ -2,6 +2,7 @@ import { DeliverableLOEMeters } from '../deliverable-loe-meters.js';
 import { openSingleDatePickerPopover } from '../../quick-tasks/quick-task-detail.js';
 import { renderMiniMeters } from '../../quick-tasks/quick-tasks-helpers.js';
 import { JobKanbanTab } from './job-kanban-tab.js';
+import { TaskStyleRichTextField } from '../task-style-rich-text-field.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
@@ -1238,45 +1239,32 @@ export function JobTasksExecutionTable({
     const draftOutlineClass = isDraft ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
     return h('tr', { key: `${task.id}-description`, className: `bg-white dark:bg-slate-900/60 ${draftOutlineClass}` }, [
       h('td', { colSpan: COLUMN_ORDER.length, className: 'px-4 py-3' }, [
-        h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3' }, [
-          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2' }, 'Description'),
-          h('div', { className: 'flex flex-wrap items-center gap-1 border border-slate-200 dark:border-white/10 rounded-md bg-white dark:bg-slate-950/40 px-2 py-1 mb-2' }, [
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500' }, 'B'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] italic text-slate-400 dark:text-slate-500' }, 'I'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] underline text-slate-400 dark:text-slate-500' }, 'U'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, '•'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Link'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'H1'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Quote'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Code'),
-          ]),
-          h('textarea', {
-            value,
-            rows: 3,
-            autoFocus: true,
-            disabled: readOnly,
-            onChange: (event) => setDescriptionEditor((prev) => ({ ...prev, value: event.target.value })),
-            onBlur: save,
-            onKeyDown: (event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                cancel();
-              }
-              if (event.key === 'Tab') {
-                event.preventDefault();
-                save();
-                startEdit(task, deliverableId, 'status');
-              }
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                save();
-                startEdit(task, deliverableId, 'status');
-              }
-            },
-            className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200',
-          }),
-          h('div', { className: 'mt-2 text-[11px] text-slate-400 dark:text-slate-500' }, 'Enter to save · Esc to cancel'),
-        ]),
+        h(TaskStyleRichTextField, {
+          label: 'Description',
+          value,
+          rows: 3,
+          autoFocus: true,
+          disabled: readOnly,
+          onChange: (nextValue) => setDescriptionEditor((prev) => ({ ...prev, value: nextValue })),
+          onBlur: save,
+          onKeyDown: (event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              cancel();
+            }
+            if (event.key === 'Tab') {
+              event.preventDefault();
+              save();
+              startEdit(task, deliverableId, 'status');
+            }
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              save();
+              startEdit(task, deliverableId, 'status');
+            }
+          },
+          footerText: 'Enter to save · Esc to cancel',
+        }),
       ]),
     ]);
   };
@@ -1286,39 +1274,26 @@ export function JobTasksExecutionTable({
     const close = () => setDraftDescriptionEditor(null);
     return h('tr', { key: `draft-${deliverableId || 'unassigned'}-description`, className: 'bg-white dark:bg-slate-900/60' }, [
       h('td', { colSpan: COLUMN_ORDER.length, className: 'px-4 py-3' }, [
-        h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3' }, [
-          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2' }, 'Description'),
-          h('div', { className: 'flex flex-wrap items-center gap-1 border border-slate-200 dark:border-white/10 rounded-md bg-white dark:bg-slate-950/40 px-2 py-1 mb-2' }, [
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500' }, 'B'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] italic text-slate-400 dark:text-slate-500' }, 'I'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] underline text-slate-400 dark:text-slate-500' }, 'U'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, '•'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Link'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'H1'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Quote'),
-            h('button', { type: 'button', disabled: true, className: 'px-2 py-1 text-[11px] text-slate-400 dark:text-slate-500' }, 'Code'),
-          ]),
-          h('textarea', {
-            value: draft.description || '',
-            rows: 3,
-            autoFocus: true,
-            disabled: readOnly,
-            onChange: (event) => updateDraftRow(deliverableId, { description: event.target.value }),
-            onBlur: close,
-            onKeyDown: (event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                close();
-              }
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                close();
-              }
-            },
-            className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200',
-          }),
-          h('div', { className: 'mt-2 text-[11px] text-slate-400 dark:text-slate-500' }, 'Enter to save · Esc to cancel'),
-        ]),
+        h(TaskStyleRichTextField, {
+          label: 'Description',
+          value: draft.description || '',
+          rows: 3,
+          autoFocus: true,
+          disabled: readOnly,
+          onChange: (nextValue) => updateDraftRow(deliverableId, { description: nextValue }),
+          onBlur: close,
+          onKeyDown: (event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              close();
+            }
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              close();
+            }
+          },
+          footerText: 'Enter to save · Esc to cancel',
+        }),
       ]),
     ]);
   };
