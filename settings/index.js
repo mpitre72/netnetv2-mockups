@@ -1,4 +1,5 @@
 import { SectionHeader } from '../components/layout/SectionHeader.js';
+import { TextInput } from '../components/forms/text-input.js';
 import { navigate } from '../router.js';
 import { getActiveWorkspace, getCurrentRole } from '../app-shell/app-helpers.js';
 
@@ -63,6 +64,7 @@ const SERVICE_TYPES_UI_STATE = {
   status: 'active',
   group: 'all',
   groupSearch: '',
+  recordsByWorkspace: {},
 };
 
 const WORKSPACE_UI_STATE = {
@@ -134,6 +136,8 @@ const FALLBACK_SERVICE_TYPES = [
 
 let openMenuRef = null;
 let teamMenuRef = null;
+let serviceTypeDrawerRoot = null;
+let serviceTypeDrawerCloseTimer = null;
 
 function getActiveTab(tabKey) {
   return SETTINGS_TABS.find(tab => tab.key === tabKey) || SETTINGS_TABS[0];
@@ -720,15 +724,24 @@ function saveJoinRequests(wsId, requests) {
 }
 
 function loadServiceTypes(wsId) {
-  const list = ensureServiceTypesSeed(wsId);
-  return list.map(item => {
+  const cached = SERVICE_TYPES_UI_STATE.recordsByWorkspace?.[wsId];
+  const list = Array.isArray(cached) ? cached : ensureServiceTypesSeed(wsId);
+  const normalized = list.map(item => {
     const active = item.active !== false && item.status !== 'inactive';
     return { ...item, active };
   });
+  SERVICE_TYPES_UI_STATE.recordsByWorkspace[wsId] = normalized.map(item => ({ ...item }));
+  return normalized;
 }
 
 function saveServiceTypes(wsId, types) {
-  writeJson(serviceTypesKey(wsId), types);
+  const normalized = types.map(normalizeServiceType);
+  SERVICE_TYPES_UI_STATE.recordsByWorkspace[wsId] = normalized.map(item => ({
+    ...item,
+    active: item.status !== 'inactive',
+  }));
+  writeJson(serviceTypesKey(wsId), normalized);
+  return SERVICE_TYPES_UI_STATE.recordsByWorkspace[wsId].map(item => ({ ...item }));
 }
 
 function loadServiceGroups(wsId) {
@@ -932,12 +945,31 @@ function openTeamMenu(anchorEl, items) {
 function openMenu(buttonEl, items) {
   closeMenu();
   const menu = document.createElement('div');
-  menu.className = 'absolute right-0 mt-2 w-44 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl text-sm overflow-hidden z-40';
+  menu.dataset.kebabMenu = 'true';
+  menu.className = 'rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-xl text-sm overflow-hidden';
   menu.innerHTML = items.map(item => `
     <button type="button" data-key="${item.key}" ${item.disabled ? 'disabled' : ''} class="w-full text-left px-3 py-2 ${item.disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-white/10'} ${item.danger ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}" title="${item.title || ''}">
       ${item.label}
     </button>
   `).join('');
+  menu.style.position = 'fixed';
+  menu.style.zIndex = '1200';
+  menu.style.minWidth = '176px';
+  menu.style.visibility = 'hidden';
+  document.body.appendChild(menu);
+
+  const rect = buttonEl.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const gap = 8;
+  const fitsBelow = rect.bottom + gap + menuRect.height <= window.innerHeight - gap;
+  const top = fitsBelow
+    ? rect.bottom + gap
+    : Math.max(gap, rect.top - menuRect.height - gap);
+  const left = Math.min(window.innerWidth - menuRect.width - gap, Math.max(gap, rect.right - menuRect.width));
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+  menu.style.visibility = 'visible';
+
   const cleanup = () => {
     document.removeEventListener('click', onClickAway, true);
     document.removeEventListener('keydown', onKey, true);
@@ -957,8 +989,6 @@ function openMenu(buttonEl, items) {
       if (found && typeof found.onClick === 'function') found.onClick();
     };
   });
-  buttonEl.parentElement.style.position = 'relative';
-  buttonEl.parentElement.appendChild(menu);
   openMenuRef = { menu, cleanup };
   setTimeout(() => {
     document.addEventListener('click', onClickAway, true);
@@ -1364,7 +1394,7 @@ function normalizeServiceType(type) {
     name: type.name || '',
     description: type.description || '',
     billable,
-    baseRate: billable ? baseRate : null,
+    baseRate,
     status,
     serviceGroupId: type.serviceGroupId || null,
   };
@@ -1378,10 +1408,217 @@ function normalizeServiceGroup(group) {
   };
 }
 
-function renderServiceTypesTab(container) {
+function clearServiceTypeDrawerRoot(drawer = document.getElementById('drawer-container')) {
+  if (serviceTypeDrawerCloseTimer) {
+    clearTimeout(serviceTypeDrawerCloseTimer);
+    serviceTypeDrawerCloseTimer = null;
+  }
+  if (serviceTypeDrawerRoot) {
+    serviceTypeDrawerRoot.unmount();
+    serviceTypeDrawerRoot = null;
+  }
+  if (drawer) {
+    drawer.innerHTML = '';
+  }
+}
+
+function createServiceTypeDraft(existingType = null) {
+  const type = existingType
+    ? normalizeServiceType(existingType)
+    : {
+      id: createId('service_type'),
+      name: '',
+      description: '',
+      billable: true,
+      baseRate: null,
+      status: 'active',
+      serviceGroupId: null,
+    };
+
+  return {
+    ...type,
+    baseRateInput: Number.isFinite(type.baseRate) ? String(type.baseRate) : '',
+  };
+}
+
+function ServiceTypeDrawer({
+  wsId,
+  types,
+  groups,
+  isNew,
+  initialDraft,
+  onClose,
+}) {
+  const [draft, setDraft] = React.useState(initialDraft);
+  const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('service-type-name')?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  const updateDraft = (patch) => {
+    setError('');
+    setDraft(prev => ({ ...prev, ...patch }));
+  };
+
+  const handleSave = () => {
+    const name = draft.name.trim();
+    const description = draft.description.trim();
+    const serviceGroupId = draft.serviceGroupId || null;
+    const billable = Boolean(draft.billable);
+    const baseRateText = String(draft.baseRateInput || '').trim();
+    const hasBaseRate = baseRateText !== '';
+    const baseRate = hasBaseRate ? Number(baseRateText) : null;
+    const normalized = normalizeName(name);
+    const nameTaken = types.some(type => normalizeName(type.name) === normalized && type.id !== draft.id);
+
+    if (!name) {
+      setError('Name is required.');
+      return;
+    }
+    if (nameTaken) {
+      setError('Name must be unique.');
+      return;
+    }
+    if (billable && !hasBaseRate) {
+      setError('Base rate must be a number >= 0.');
+      return;
+    }
+    if (hasBaseRate && (!Number.isFinite(baseRate) || baseRate < 0)) {
+      setError('Base rate must be a number >= 0.');
+      return;
+    }
+
+    const nextType = {
+      ...draft,
+      name,
+      description,
+      billable,
+      baseRate,
+      serviceGroupId,
+    };
+    delete nextType.baseRateInput;
+
+    const nextTypes = isNew
+      ? [...types, nextType]
+      : types.map(type => (type.id === draft.id ? nextType : type));
+
+    const savedTypes = saveServiceTypes(wsId, nextTypes);
+    showToast(isNew ? 'Service type created' : 'Service type updated');
+    const container = document.getElementById('settingsServiceTypesRoot');
+    if (container) {
+      renderServiceTypesTab(container, { serviceTypes: savedTypes, serviceGroups: groups });
+    } else {
+      const appMain = document.getElementById('app-main');
+      if (appMain) renderSettingsPage({ name: 'settings', tab: 'service-types' }, appMain);
+    }
+    onClose();
+  };
+
+  const subtitle = isNew
+    ? 'Create a service type.'
+    : (draft.name.trim() || initialDraft.name || 'Update this service type.');
+  const baseRateHint = draft.billable
+    ? 'Base rate is required when billable.'
+    : 'Base rate is retained even when billable is turned off.';
+
+  return h(React.Fragment, null,
+    h('div', { id: 'app-drawer-backdrop', onClick: onClose }),
+    h('aside', {
+      id: 'app-drawer',
+      className: 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md',
+    },
+    h('div', { className: 'flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-white/10' },
+      h('div', null,
+        h('h2', { className: 'text-lg font-semibold' }, isNew ? 'New service type' : 'Edit service type'),
+        h('p', { className: 'text-xs text-slate-500 dark:text-white/60' }, subtitle),
+      ),
+      h('button', {
+        type: 'button',
+        id: 'drawerCloseBtn',
+        className: 'text-slate-500 hover:text-slate-800 dark:text-white/70 dark:hover:text-white',
+        onClick: onClose,
+      }, h('svg', { width: '20', height: '20', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+        h('line', { key: 'l1', x1: '18', y1: '6', x2: '6', y2: '18' }),
+        h('line', { key: 'l2', x1: '6', y1: '6', x2: '18', y2: '18' }),
+      ])),
+    ),
+    h('div', { className: 'flex-1 overflow-y-auto px-5 py-4 space-y-4' }, [
+      h(TextInput, {
+        key: 'name',
+        id: 'service-type-name',
+        label: 'Name',
+        value: draft.name,
+        onChange: (e) => updateDraft({ name: e.target.value }),
+      }),
+      h(TextInput, {
+        key: 'description',
+        id: 'service-type-description',
+        label: 'Description',
+        multiline: true,
+        rows: 3,
+        value: draft.description,
+        onChange: (e) => updateDraft({ description: e.target.value }),
+      }),
+      h('div', { key: 'group' }, [
+        h('label', { className: 'lookup-modal__label', htmlFor: 'service-type-group' }, 'Service Group'),
+        h('select', {
+          id: 'service-type-group',
+          className: 'lookup-input',
+          value: draft.serviceGroupId || '',
+          onChange: (e) => updateDraft({ serviceGroupId: e.target.value || null }),
+        }, [
+          h('option', { key: 'none', value: '' }, 'No group'),
+          ...groups.map(group => h('option', { key: group.id, value: group.id }, group.name)),
+        ]),
+      ]),
+      h('div', { key: 'billable', className: 'flex items-center gap-2' }, [
+        h('input', {
+          id: 'service-type-billable',
+          type: 'checkbox',
+          checked: draft.billable,
+          onChange: (e) => updateDraft({ billable: Boolean(e.target.checked) }),
+        }),
+        h('label', { htmlFor: 'service-type-billable', className: 'text-sm text-slate-700 dark:text-slate-200' }, 'Billable'),
+      ]),
+      h(TextInput, {
+        key: 'rate',
+        id: 'service-type-rate',
+        label: 'Base Rate',
+        type: 'text',
+        inputMode: 'decimal',
+        placeholder: '0',
+        value: draft.baseRateInput,
+        onChange: (e) => updateDraft({ baseRateInput: e.target.value }),
+        hint: baseRateHint,
+        error,
+      }),
+    ]),
+    h('div', { className: 'px-5 py-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-2' }, [
+      h('button', {
+        key: 'cancel',
+        type: 'button',
+        id: 'drawerCancelBtn',
+        className: 'lookup-btn ghost',
+        onClick: onClose,
+      }, 'Cancel'),
+      h('button', {
+        key: 'save',
+        type: 'button',
+        id: 'drawerSaveBtn',
+        className: 'lookup-btn primary',
+        onClick: handleSave,
+      }, isNew ? 'Create' : 'Save'),
+    ])));
+}
+
+function renderServiceTypesTab(container, { serviceTypes = null, serviceGroups = null } = {}) {
   const wsId = workspaceId();
-  const rawTypes = loadServiceTypes(wsId);
-  const rawGroups = loadServiceGroups(wsId);
+  const rawTypes = Array.isArray(serviceTypes) ? serviceTypes.map(item => ({ ...item })) : loadServiceTypes(wsId);
+  const rawGroups = Array.isArray(serviceGroups) ? serviceGroups.map(item => ({ ...item })) : loadServiceGroups(wsId);
   const types = rawTypes.map(normalizeServiceType);
   const groups = rawGroups.map(normalizeServiceGroup);
   const view = SERVICE_TYPES_UI_STATE.view;
@@ -1675,138 +1912,28 @@ function openServiceTypeDrawer(wsId, existingType = null) {
   const types = loadServiceTypes(wsId).map(normalizeServiceType);
   const groups = loadServiceGroups(wsId).map(normalizeServiceGroup);
   const isNew = !existingType;
-  const draft = existingType
-    ? { ...existingType }
-    : {
-      id: createId('service_type'),
-      name: '',
-      description: '',
-      billable: true,
-      baseRate: null,
-      status: 'active',
-      serviceGroupId: null,
-    };
-
   const drawer = document.getElementById('drawer-container');
   const shell = document.getElementById('app-shell');
   if (!drawer) return;
-  drawer.innerHTML = `
-    <div id="app-drawer-backdrop"></div>
-    <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-white/10">
-        <div>
-          <h2 class="text-lg font-semibold">${isNew ? 'New service type' : 'Edit service type'}</h2>
-          <p class="text-xs text-slate-500 dark:text-white/60">${isNew ? 'Create a service type.' : draft.name}</p>
-        </div>
-        <button type="button" id="drawerCloseBtn" class="text-slate-500 hover:text-slate-800 dark:text-white/70 dark:hover:text-white">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        <div>
-          <label class="lookup-modal__label">Name</label>
-          <input id="service-type-name" type="text" class="lookup-input" value="${draft.name}" />
-        </div>
-        <div>
-          <label class="lookup-modal__label">Description</label>
-          <textarea id="service-type-description" rows="3" class="lookup-input">${draft.description}</textarea>
-        </div>
-        <div>
-          <label class="lookup-modal__label">Service Group</label>
-          <select id="service-type-group" class="lookup-input">
-            <option value="">No group</option>
-            ${groups.map(group => `<option value="${group.id}" ${draft.serviceGroupId === group.id ? 'selected' : ''}>${group.name}</option>`).join('')}
-          </select>
-        </div>
-        <div class="flex items-center gap-2">
-          <input id="service-type-billable" type="checkbox" ${draft.billable ? 'checked' : ''} />
-          <label for="service-type-billable" class="text-sm text-slate-700 dark:text-slate-200">Billable</label>
-        </div>
-        <div>
-          <label class="lookup-modal__label">Base Rate</label>
-          <input id="service-type-rate" type="number" min="0" class="lookup-input" value="${Number.isFinite(draft.baseRate) ? draft.baseRate : ''}" ${draft.billable ? '' : 'disabled'} />
-          <p id="service-type-rate-hint" class="text-xs text-slate-500 dark:text-slate-400 mt-1 ${draft.billable ? '' : 'hidden'}">Base rate is required when billable.</p>
-          <p id="service-type-error" class="text-xs text-red-600 dark:text-red-400 mt-1 hidden"></p>
-        </div>
-      </div>
-      <div class="px-5 py-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-2">
-        <button type="button" id="drawerCancelBtn" class="lookup-btn ghost">Cancel</button>
-        <button type="button" id="drawerSaveBtn" class="lookup-btn primary">${isNew ? 'Create' : 'Save'}</button>
-      </div>
-    </aside>
-  `;
-  if (shell) shell.classList.remove('drawer-closed');
+  clearServiceTypeDrawerRoot(drawer);
 
-  const closeDrawer = () => { shell?.classList.add('drawer-closed'); };
-  drawer.querySelector('#app-drawer-backdrop')?.addEventListener('click', closeDrawer);
-  drawer.querySelector('#drawerCloseBtn')?.addEventListener('click', closeDrawer);
-  drawer.querySelector('#drawerCancelBtn')?.addEventListener('click', closeDrawer);
-
-  const nameInput = drawer.querySelector('#service-type-name');
-  const descriptionInput = drawer.querySelector('#service-type-description');
-  const groupSelect = drawer.querySelector('#service-type-group');
-  const billableInput = drawer.querySelector('#service-type-billable');
-  const rateInput = drawer.querySelector('#service-type-rate');
-  const rateHint = drawer.querySelector('#service-type-rate-hint');
-  const errorEl = drawer.querySelector('#service-type-error');
-
-  const syncBillable = () => {
-    if (!rateInput || !billableInput) return;
-    if (billableInput.checked) {
-      rateInput.removeAttribute('disabled');
-      rateHint?.classList.remove('hidden');
-    } else {
-      rateInput.setAttribute('disabled', 'true');
-      rateInput.value = '';
-      rateHint?.classList.add('hidden');
-    }
+  const closeDrawer = () => {
+    shell?.classList.add('drawer-closed');
+    serviceTypeDrawerCloseTimer = window.setTimeout(() => {
+      clearServiceTypeDrawerRoot(drawer);
+    }, 250);
   };
-  if (billableInput) {
-    billableInput.onchange = syncBillable;
-  }
-  syncBillable();
 
-  drawer.querySelector('#drawerSaveBtn')?.addEventListener('click', () => {
-    const name = nameInput?.value.trim() || '';
-    const description = descriptionInput?.value.trim() || '';
-    const groupId = groupSelect?.value || null;
-    const billable = Boolean(billableInput?.checked);
-    const baseRate = billable ? Number(rateInput?.value) : null;
-    const normalized = normalizeName(name);
-    const nameTaken = types.some(t => normalizeName(t.name) === normalized && t.id !== draft.id);
-    if (!name) {
-      errorEl.textContent = 'Name is required.';
-      errorEl.classList.remove('hidden');
-      return;
-    }
-    if (nameTaken) {
-      errorEl.textContent = 'Name must be unique.';
-      errorEl.classList.remove('hidden');
-      return;
-    }
-    if (billable && (!Number.isFinite(baseRate) || baseRate < 0)) {
-      errorEl.textContent = 'Base rate must be a number ≥ 0.';
-      errorEl.classList.remove('hidden');
-      return;
-    }
-    errorEl.classList.add('hidden');
-    const nextType = {
-      ...draft,
-      name,
-      description,
-      billable,
-      baseRate: billable ? baseRate : null,
-      serviceGroupId: groupId || null,
-    };
-    const nextTypes = isNew
-      ? [...types, nextType]
-      : types.map(t => (t.id === draft.id ? nextType : t));
-    saveServiceTypes(wsId, nextTypes);
-    showToast(isNew ? 'Service type created' : 'Service type updated');
-    closeDrawer();
-    const container = document.getElementById('settingsServiceTypesRoot');
-    if (container) renderServiceTypesTab(container);
-  });
+  serviceTypeDrawerRoot = createRoot(drawer);
+  serviceTypeDrawerRoot.render(h(ServiceTypeDrawer, {
+    wsId,
+    types,
+    groups,
+    isNew,
+    initialDraft: createServiceTypeDraft(existingType),
+    onClose: closeDrawer,
+  }));
+  if (shell) shell.classList.remove('drawer-closed');
 }
 
 function openServiceGroupDrawer(wsId, existingGroup = null) {
@@ -1819,6 +1946,7 @@ function openServiceGroupDrawer(wsId, existingGroup = null) {
   const drawer = document.getElementById('drawer-container');
   const shell = document.getElementById('app-shell');
   if (!drawer) return;
+  clearServiceTypeDrawerRoot(drawer);
   drawer.innerHTML = `
     <div id="app-drawer-backdrop"></div>
     <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md">

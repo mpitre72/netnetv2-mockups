@@ -26,9 +26,9 @@ const TIMELINE_ZOOM_PRESETS = [
 
 const STEP_DEFS = [
   {
+    id: 'summary',
     index: 1,
     label: 'Summary',
-    eyebrow: 'Step 1 of 4',
     title: 'Set up the Job',
     subtitle: 'Define what this job is and who is involved.',
     nextLabel: 'Continue →',
@@ -36,9 +36,9 @@ const STEP_DEFS = [
     accentClass: 'bg-netnet-purple',
   },
   {
+    id: 'work',
     index: 2,
     label: 'Deliverables + LOE',
-    eyebrow: 'Step 2 of 4',
     title: 'Plan the work',
     subtitle: 'Define deliverables and the hours required to complete them.',
     backLabel: '← Back',
@@ -47,9 +47,9 @@ const STEP_DEFS = [
     accentClass: 'bg-cyan-500',
   },
   {
+    id: 'timeline',
     index: 3,
     label: 'Timeline',
-    eyebrow: 'Step 3 of 4',
     title: 'Timeline',
     subtitle: 'Set dates and sequencing.',
     body: 'Step 3 content coming',
@@ -59,9 +59,9 @@ const STEP_DEFS = [
     accentClass: 'bg-emerald-500',
   },
   {
+    id: 'netnet',
     index: 4,
     label: 'Net Net',
-    eyebrow: 'Step 4 of 4',
     title: 'Net Net',
     subtitle: 'Review and approve the plan.',
     body: 'Step 4 content coming',
@@ -71,6 +71,17 @@ const STEP_DEFS = [
     accentClass: 'bg-amber-500',
   },
 ];
+
+function buildVisibleSteps(kind = 'project') {
+  const visible = kind === 'retainer'
+    ? STEP_DEFS.filter((step) => step.id !== 'timeline')
+    : STEP_DEFS;
+  return visible.map((step, idx, list) => ({
+    ...step,
+    displayIndex: idx + 1,
+    eyebrow: `Step ${idx + 1} of ${list.length}`,
+  }));
+}
 
 function workspaceId() {
   return getActiveWorkspace()?.id || 'default';
@@ -273,6 +284,8 @@ function defaultDraft() {
     jobLeadUserId: '',
     teamUserIds: [],
     selectedServiceTypeIds: [],
+    billingStructure: 'month_to_month',
+    billingDurationMonths: null,
     startDate: todayISO(),
     targetEndDate: '',
     plan: normalizePlanState(),
@@ -292,6 +305,11 @@ function normalizeDraft(raw) {
   next.jobLeadUserId = String(next.jobLeadUserId || '');
   next.teamUserIds = Array.isArray(next.teamUserIds) ? next.teamUserIds.filter(Boolean).map((id) => String(id)) : [];
   next.selectedServiceTypeIds = buildSelectedServiceTypeIds(next.selectedServiceTypeIds);
+  next.billingStructure = next.billingStructure === 'fixed_term' ? 'fixed_term' : 'month_to_month';
+  const durationMonths = Number(next.billingDurationMonths);
+  next.billingDurationMonths = next.billingStructure === 'fixed_term' && Number.isFinite(durationMonths) && durationMonths > 0
+    ? Math.round(durationMonths)
+    : null;
   next.startDate = typeof next.startDate === 'string' ? next.startDate : base.startDate;
   next.targetEndDate = next.kind === 'project' && typeof next.targetEndDate === 'string' ? next.targetEndDate : '';
   if (next.kind !== 'project') next.targetEndDate = '';
@@ -356,7 +374,7 @@ function StepPill({ step, currentStep, onSelect }) {
             ? 'bg-emerald-500 text-white'
             : 'bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-300',
       ].join(' '),
-    }, isComplete ? '✓' : `${step.index}`),
+    }, isComplete ? '✓' : `${step.displayIndex || step.index}`),
     h('div', { className: 'min-w-0' }, [
       h('div', {
         className: [
@@ -494,6 +512,13 @@ function SummaryStepBody({ draft, onDraftChange, companies = [], individuals = [
     updateDraft({
       kind: value,
       targetEndDate: value === 'project' ? draft.targetEndDate : '',
+    });
+  };
+
+  const handleBillingStructureChange = (value) => {
+    updateDraft({
+      billingStructure: value,
+      billingDurationMonths: value === 'fixed_term' ? (draft.billingDurationMonths || 12) : null,
     });
   };
 
@@ -697,6 +722,34 @@ function SummaryStepBody({ draft, onDraftChange, companies = [], individuals = [
         ])
       )))
       : h('div', { className: 'rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-400' }, 'No active Service Types are available yet.')),
+    draft.kind === 'retainer'
+      ? h(SectionBlock, {
+        title: 'Billing Structure',
+        description: 'Define how this retainer should be scoped commercially.',
+      }, h('div', { className: 'grid gap-4 md:grid-cols-2' }, [
+        h(FieldShell, { label: 'Structure' }, h(SegmentedToggle, {
+          value: draft.billingStructure,
+          options: [
+            { value: 'month_to_month', label: 'Month-to-month' },
+            { value: 'fixed_term', label: 'Fixed term' },
+          ],
+          onChange: handleBillingStructureChange,
+        })),
+        draft.billingStructure === 'fixed_term'
+          ? h(FieldShell, { label: 'Length (months)' }, h('input', {
+            type: 'number',
+            min: '1',
+            step: '1',
+            value: draft.billingDurationMonths ?? '',
+            onChange: (event) => updateDraft({
+              billingDurationMonths: event.target.value === '' ? null : Math.max(1, Number(event.target.value) || 1),
+            }),
+            className: 'h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 dark:border-white/10 dark:bg-slate-900 dark:text-white',
+            placeholder: '12',
+          }))
+          : h('div'),
+      ]))
+      : null,
     h(SectionBlock, {
       title: 'Dates',
       description: 'Anchor the job with a start date and, for project work, a target end date.',
@@ -1551,14 +1604,14 @@ function JobCreateHeader({ draft, companies = [], individuals = [] }) {
   ]);
 }
 
-function StickyHeaderBlock({ stickyRef, draft, companies, individuals, currentStep, onStepChange }) {
+function StickyHeaderBlock({ stickyRef, draft, companies, individuals, currentStep, onStepChange, steps = STEP_DEFS }) {
   return h('div', {
     ref: stickyRef,
     className: 'sticky top-0 z-40 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/95 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-950/90',
   }, [
     h(JobCreateHeader, { draft, companies, individuals }),
     h('div', { className: 'border-t border-slate-200/70 px-3 py-3 dark:border-white/10 sm:px-4' }, [
-      h('div', { className: 'flex flex-col gap-3 md:flex-row md:items-center' }, STEP_DEFS.map((item) => h(StepPill, {
+      h('div', { className: 'flex flex-col gap-3 md:flex-row md:items-center' }, (steps || []).map((item) => h(StepPill, {
         key: item.index,
         step: item,
         currentStep,
@@ -1655,7 +1708,8 @@ export function JobCreateStepperRoot() {
   const stickyHeaderRef = useRef(null);
   const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
 
-  const activeStep = useMemo(() => STEP_DEFS.find((item) => item.index === step) || STEP_DEFS[0], [step]);
+  const visibleSteps = useMemo(() => buildVisibleSteps(draft.kind), [draft.kind]);
+  const activeStep = useMemo(() => visibleSteps.find((item) => item.index === step) || visibleSteps[0], [step, visibleSteps]);
   const companies = useMemo(() => getContactsData(), []);
   const individuals = useMemo(() => getIndividualsData(), []);
   const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
@@ -1666,6 +1720,12 @@ export function JobCreateStepperRoot() {
       window.scrollTo({ top: 0, behavior: 'auto' });
     }
   }, [step]);
+
+  useEffect(() => {
+    if (!visibleSteps.some((item) => item.index === step)) {
+      setStep(visibleSteps[visibleSteps.length - 1]?.index || 1);
+    }
+  }, [step, visibleSteps]);
 
   useEffect(() => {
     const node = stickyHeaderRef.current;
@@ -1692,8 +1752,9 @@ export function JobCreateStepperRoot() {
   };
 
   const handleNext = () => {
-    if (step < STEP_DEFS.length) {
-      setStep((current) => Math.min(STEP_DEFS.length, current + 1));
+    const currentIdx = visibleSteps.findIndex((item) => item.index === step);
+    if (currentIdx >= 0 && currentIdx < visibleSteps.length - 1) {
+      setStep(visibleSteps[currentIdx + 1].index);
       return;
     }
     const plan = normalizePlanState(draft.plan, draft.selectedServiceTypeIds);
@@ -1716,6 +1777,8 @@ export function JobCreateStepperRoot() {
       companyId: draft.isInternal ? null : (draft.companyId || null),
       personId: draft.isInternal ? null : (draft.personId || null),
       serviceTypeIds: Array.isArray(plan.serviceTypeIds) ? plan.serviceTypeIds : [],
+      billingStructure: draft.billingStructure,
+      billingDurationMonths: draft.billingDurationMonths,
       teamUserIds: Array.isArray(draft.teamUserIds) ? draft.teamUserIds : [],
       jobLeadUserId: draft.jobLeadUserId || null,
       startDate: draft.startDate || null,
@@ -1727,7 +1790,10 @@ export function JobCreateStepperRoot() {
     if (created?.id) navigate(`#/app/jobs/${created.id}`);
   };
 
-  const handleBack = () => setStep((current) => Math.max(1, current - 1));
+  const handleBack = () => {
+    const currentIdx = visibleSteps.findIndex((item) => item.index === step);
+    if (currentIdx > 0) setStep(visibleSteps[currentIdx - 1].index);
+  };
 
   const breadcrumb = h('div', { className: 'flex items-center gap-2' }, [
     h('button', {
@@ -1752,6 +1818,7 @@ export function JobCreateStepperRoot() {
       individuals,
       currentStep: step,
       onStepChange: setStep,
+      steps: visibleSteps,
     }),
     h('div', { className: 'flex w-full' }, [
       h(StepScreen, {
