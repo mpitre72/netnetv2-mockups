@@ -181,6 +181,8 @@ export function JobPlanEditor({
   emptyStateMessage = 'Select Service Types in Step 1',
   title = 'Deliverables + LOE',
   subtitle = 'Only the Service Types selected in Step 1 appear here as planning columns.',
+  rowTotalLabel = 'Total Hours',
+  footerTotalsLabel = 'Totals',
   allowServiceTypeCreate = false,
   serviceTypeActionLabel = '+ Add Service Type',
   onAddServiceType,
@@ -475,7 +477,7 @@ export function JobPlanEditor({
             h('th', {
               className: 'sticky z-30 w-[120px] px-4 py-3 text-right border-l border-slate-200 dark:border-white/10 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 bg-slate-100/95 dark:bg-slate-900/95 backdrop-blur',
               style: { top: `${stickyHeaderOffset}px` },
-            }, 'Total Hours'),
+            }, rowTotalLabel),
             h('th', {
               className: 'sticky z-30 w-[80px] px-4 py-3 border-l border-slate-200 dark:border-white/10 bg-slate-100/95 dark:bg-slate-900/95 backdrop-blur',
               style: { top: `${stickyHeaderOffset}px` },
@@ -683,7 +685,7 @@ export function JobPlanEditor({
         ]),
         h('tfoot', { className: 'bg-slate-100/90 dark:bg-white/5 border-t border-slate-200 dark:border-white/10' }, [
           h('tr', null, [
-            h('td', { className: 'px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Totals'),
+            h('td', { className: 'px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, footerTotalsLabel),
             ...serviceTypeIds.map((serviceTypeId) => h('td', {
               key: `${serviceTypeId}-total`,
               className: 'px-4 py-3 border-l border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-200',

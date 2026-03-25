@@ -40,6 +40,20 @@ function getGlobalModalLayer(id) {
   return layer;
 }
 
+function createDropdownHost() {
+  if (typeof document === 'undefined') return null;
+  const host = document.createElement('div');
+  host.className = 'lookup-dropdown-host';
+  host.style.position = 'fixed';
+  host.style.left = '0';
+  host.style.top = '0';
+  host.style.width = '0';
+  host.style.height = '0';
+  host.style.zIndex = '9999';
+  document.body.appendChild(host);
+  return host;
+}
+
 function normalizeEmail(email) {
   return (email || '').trim().toLowerCase();
 }
@@ -185,22 +199,32 @@ export function mountPersonLookup(root, {
   `;
 
   const input = root.querySelector('input.lookup-input');
-  const menu = root.querySelector('.lookup-menu-card');
+  const inputWrap = root.querySelector('.lookup-input-wrap');
   const modalLayer = getGlobalModalLayer('quick-add-person-layer');
+  const dropdownHost = createDropdownHost();
 
   const emitChange = (person, meta = {}) => {
     onChange(person, meta);
   };
 
+  function getMenuItems() {
+    return Array.from(dropdownHost?.querySelectorAll('.lookup-item') || []);
+  }
+
   function renderMenu() {
     const hasItems = state.matches.length > 0 || state.term.trim();
-    if (!state.open || !hasItems) {
-      menu.style.display = 'none';
+    if (!dropdownHost) return;
+    if (!state.open || !hasItems || !inputWrap) {
+      dropdownHost.innerHTML = '';
       return;
     }
-    menu.innerHTML = `<ul class="lookup-menu">${renderDropdownItems(state.matches, state.term)}</ul>`;
-    menu.style.display = 'block';
-    menu.querySelectorAll('.lookup-item').forEach((item, idx) => {
+    const rect = inputWrap.getBoundingClientRect();
+    dropdownHost.innerHTML = `
+      <div class="lookup-menu-card lookup-menu-card--portal" style="position:fixed; top:${Math.round(rect.bottom + 6)}px; left:${Math.round(rect.left)}px; width:${Math.round(rect.width)}px; z-index:9999; display:block;">
+        <ul class="lookup-menu">${renderDropdownItems(state.matches, state.term)}</ul>
+      </div>
+    `;
+    dropdownHost.querySelectorAll('.lookup-item').forEach((item, idx) => {
       item.classList.toggle('active', idx === state.highlighted);
     });
   }
@@ -320,7 +344,7 @@ export function mountPersonLookup(root, {
   });
 
   input.addEventListener('keydown', (e) => {
-    const items = Array.from(menu.querySelectorAll('.lookup-item'));
+    const items = getMenuItems();
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!items.length) return;
@@ -347,7 +371,7 @@ export function mountPersonLookup(root, {
     }
   });
 
-  menu.addEventListener('mousedown', (e) => {
+  const handleMenuMouseDown = (e) => {
     e.preventDefault();
     const li = e.target.closest('.lookup-item');
     if (!li) return;
@@ -358,13 +382,17 @@ export function mountPersonLookup(root, {
       const match = state.matches.find(m => String(m.id) === id);
       if (match) selectPerson(match);
     }
-  });
+  };
+  dropdownHost?.addEventListener('mousedown', handleMenuMouseDown);
 
-  document.addEventListener('click', (e) => {
-    if (!root.contains(e.target)) {
+  const handleDocumentClick = (e) => {
+    if (!root.contains(e.target) && !dropdownHost?.contains(e.target)) {
       closeMenu();
     }
-  });
+  };
+  document.addEventListener('click', handleDocumentClick);
+  window.addEventListener('resize', renderMenu);
+  window.addEventListener('scroll', renderMenu, true);
 
   updateMatches(state.term);
 
@@ -380,6 +408,13 @@ export function mountPersonLookup(root, {
     setValue(person) {
       state.term = person?.name || '';
       input.value = state.term;
+    },
+    destroy() {
+      dropdownHost?.removeEventListener('mousedown', handleMenuMouseDown);
+      document.removeEventListener('click', handleDocumentClick);
+      window.removeEventListener('resize', renderMenu);
+      window.removeEventListener('scroll', renderMenu, true);
+      if (dropdownHost) dropdownHost.remove();
     },
   };
 }

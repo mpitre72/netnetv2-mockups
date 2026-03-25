@@ -1,6 +1,14 @@
-.lookup-field { width: 100%; }
+.lookup-field {
+  position: relative;
+  width: 100%;
+  z-index: 60;
+}
 .lookup-label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
-.lookup-input-wrap { position: relative; width: 100%; }
+.lookup-input-wrap {
+  position: relative;
+  width: 100%;
+  z-index: 60;
+}
 .lookup-input {
   width: 100%;
   height: 40px;
@@ -30,7 +38,7 @@ html.dark .lookup-input::placeholder { color: #94a3b8; }
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  z-index: var(--z-dropdown, 500);
+  z-index: 9999;
 }
 .lookup-menu {
   list-style: none;

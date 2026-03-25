@@ -71,11 +71,6 @@ export function JobSettingsTab({
     onJobUpdate({ jobLeadUserId: value || null });
   };
 
-  const openTask = (deliverableId, taskId) => {
-    setDrawerState({ deliverableId, taskId });
-    setShowActivation(false);
-  };
-
   const closeDrawer = () => setDrawerState({ deliverableId: null, taskId: null });
 
   const activeDeliverable = job?.deliverables?.find((deliverable) => deliverable.id === drawerState.deliverableId) || null;
@@ -100,9 +95,9 @@ export function JobSettingsTab({
     closeDrawer();
   };
 
-  const handleActivate = () => {
+  const handleActivate = (activationUpdates) => {
     if (typeof onJobUpdate !== 'function' || readOnly) return;
-    onJobUpdate({ status: 'active' });
+    onJobUpdate({ ...(activationUpdates || {}), status: 'active' });
     window?.showToast?.('Job activated');
     setShowActivation(false);
   };
@@ -157,6 +152,7 @@ export function JobSettingsTab({
     const trimmed = String(jobNumberInput || '').trim();
     if (!trimmed) {
       setJobNumberOverride(job.id, null);
+      onJobUpdate?.({ jobNumber: null });
       setJobNumberError('');
       setJobNumberInput(getJobNumber(job));
       onJobNumberChange?.();
@@ -172,6 +168,7 @@ export function JobSettingsTab({
       return;
     }
     setJobNumberOverride(job.id, trimmed);
+    onJobUpdate?.({ jobNumber: trimmed });
     setJobNumberError('');
     onJobNumberChange?.();
     window?.showToast?.('Job number updated');
@@ -336,7 +333,6 @@ export function JobSettingsTab({
       isOpen: showActivation && job?.status === 'pending',
       onClose: () => setShowActivation(false),
       onConfirm: handleActivate,
-      onOpenTask: openTask,
     }),
     h(JobTaskDrawer, {
       isOpen: !!activeTask,

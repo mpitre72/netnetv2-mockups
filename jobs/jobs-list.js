@@ -1,10 +1,13 @@
 import { SectionHeader } from '../components/layout/SectionHeader.js';
+import { getActiveWorkspace } from '../app-shell/app-helpers.js';
 import { navigate } from '../router.js';
 import { getContactsData } from '../contacts/contacts-data.js';
 import { getJobsUIState, updateJobsUIState, setJobsMainView } from './jobs-ui-state.js';
-import { getJobAvailableHours, loadJobs } from './jobs-store.js';
+import { RowActionsMenu } from '../components/performance/primitives.js';
+import { getJobAvailableHours, duplicateJob, loadJobs, saveJob } from './jobs-store.js';
 import { ViewToggleGroup } from './jobs-view-toggle.js';
 import { getJobNumber } from './job-number-utils.js';
+import { JobActivationModal } from './job-detail/job-activation-modal.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 
@@ -38,6 +41,69 @@ function kindLabel(kind) {
   return kind === 'retainer' ? 'Retainer' : 'Project';
 }
 
+function workspaceId() {
+  return getActiveWorkspace()?.id || 'default';
+}
+
+function jobsKey(wsId = workspaceId()) {
+  return `netnet_ws_${wsId}_jobs_v1`;
+}
+
+function readJobsStore(wsId = workspaceId()) {
+  try {
+    const raw = localStorage.getItem(jobsKey(wsId));
+    if (!raw) return { jobs: [], jobsChatMessages: [] };
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { jobs: parsed, jobsChatMessages: [] };
+    return {
+      jobs: Array.isArray(parsed?.jobs) ? parsed.jobs : [],
+      jobsChatMessages: Array.isArray(parsed?.jobsChatMessages) ? parsed.jobsChatMessages : [],
+    };
+  } catch (err) {
+    return { jobs: [], jobsChatMessages: [] };
+  }
+}
+
+function writeJobsStore(store, wsId = workspaceId()) {
+  try {
+    localStorage.setItem(jobsKey(wsId), JSON.stringify({
+      jobs: Array.isArray(store?.jobs) ? store.jobs : [],
+      jobsChatMessages: Array.isArray(store?.jobsChatMessages) ? store.jobsChatMessages : [],
+    }));
+  } catch (err) {
+    // Ignore storage errors in prototype mode.
+  }
+}
+
+function deleteJobFromStore(jobId, wsId = workspaceId()) {
+  const store = readJobsStore(wsId);
+  const next = {
+    jobs: (store.jobs || []).filter((job) => String(job.id) !== String(jobId)),
+    jobsChatMessages: (store.jobsChatMessages || []).filter((message) => String(message.jobId) !== String(jobId)),
+  };
+  writeJobsStore(next, wsId);
+}
+
+function statusTone(status) {
+  if (status === 'active') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200';
+  }
+  if (status === 'completed') {
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200';
+  }
+  if (status === 'archived') {
+    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-200';
+  }
+  return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/10 dark:text-sky-200';
+}
+
+function menuItemsForStatus(status) {
+  if (status === 'active') return ['Settings', 'Complete Job', 'Duplicate Job', 'Archive Job'];
+  if (status === 'completed') return ['Reactivate Job', 'Duplicate Job', 'Archive Job'];
+  if (status === 'archived') return ['Reactivate Job', 'Duplicate Job', 'Delete Job'];
+  return ['Edit Job', 'Activate Job', 'Duplicate Job', 'Delete Job'];
+}
+
 function buildCompanyMap() {
   const companies = getContactsData();
   const map = new Map();
@@ -69,7 +135,7 @@ function filterJobs(jobs, uiState, companyMap) {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 }
 
-function JobCard({ job, companyMap }) {
+function JobCard({ job, companyMap, onAction }) {
   const hours = getJobAvailableHours(job);
   const companyName = job.companyId ? companyMap.get(String(job.companyId)) : '';
   const clientLabel = job.isInternal ? 'Internal' : companyName ? `Client • ${companyName}` : 'Client';
@@ -77,35 +143,44 @@ function JobCard({ job, companyMap }) {
   const kind = kindLabel(job.kind);
   const jobNumber = getJobNumber(job);
 
-  return h('a', {
-    href: `#/app/jobs/${job.id}`,
-    onClick: (e) => {
-      e.preventDefault();
-      navigate(`#/app/jobs/${job.id}`);
-    },
-    className: 'group block rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 p-5 shadow-sm hover:shadow-md transition',
+  return h('div', {
+    className: 'group rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 p-5 shadow-sm hover:shadow-md transition',
   }, [
     h('div', { className: 'flex flex-wrap items-start justify-between gap-4' }, [
-      h('div', { className: 'space-y-2' }, [
+      h('button', {
+        type: 'button',
+        onClick: () => navigate(`#/app/jobs/${job.id}`),
+        className: 'min-w-0 flex-1 text-left space-y-2',
+      }, [
         h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, `Job ${jobNumber}`),
         h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, job.name || 'Untitled Job'),
         h('div', { className: 'flex flex-wrap items-center gap-2 text-xs' }, [
           h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 px-2 py-1 text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-800' }, kind),
-          h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 px-2 py-1 text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-800' }, status),
+          h('span', { className: `inline-flex min-w-[88px] items-center justify-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone(job.status)}` }, status),
           h('span', { className: 'text-slate-500 dark:text-slate-400' }, clientLabel),
         ]),
       ]),
-      h('div', { className: 'text-right space-y-1' }, [
-        h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Available hours'),
-        h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, formatHours(hours)),
+      h('div', { className: 'flex items-start gap-3' }, [
+        h('div', { className: 'text-right space-y-1' }, [
+          h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Available hours'),
+          h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, formatHours(hours)),
+        ]),
+        h(RowActionsMenu, {
+          menuItems: menuItemsForStatus(job.status),
+          onSelect: (item) => onAction?.(job, item),
+        }),
       ]),
     ]),
   ]);
 }
 
 export function JobsListScreen() {
+  const wsId = useMemo(() => workspaceId(), []);
   const [uiState, setUiState] = useState(getJobsUIState());
   const [jobs, setJobs] = useState(loadJobs());
+  const [activationJob, setActivationJob] = useState(null);
+  const [deleteJob, setDeleteJob] = useState(null);
+  const [deleteInput, setDeleteInput] = useState('');
   const companyMap = useMemo(buildCompanyMap, []);
   const filtered = useMemo(() => filterJobs(jobs, uiState, companyMap), [jobs, uiState, companyMap]);
 
@@ -114,9 +189,80 @@ export function JobsListScreen() {
     setJobs(loadJobs());
   }, []);
 
+  const refreshJobs = () => {
+    setJobs(loadJobs(wsId));
+  };
+
   const updateFilters = (partial) => {
     const next = updateJobsUIState(partial);
     setUiState(next);
+  };
+
+  const handleMenuAction = (job, action) => {
+    if (!job || !action) return;
+    if (action === 'Edit Job') {
+      navigate(`#/app/jobs/${job.id}/plan`);
+      return;
+    }
+    if (action === 'Settings') {
+      navigate(`#/app/jobs/${job.id}/settings`);
+      return;
+    }
+    if (action === 'Activate Job') {
+      setActivationJob(job);
+      return;
+    }
+    if (action === 'Complete Job') {
+      saveJob({ id: job.id, status: 'completed' }, wsId);
+      window?.showToast?.('Job completed.');
+      refreshJobs();
+      return;
+    }
+    if (action === 'Archive Job') {
+      saveJob({ id: job.id, status: 'archived', lastNonArchivedStatus: job.status }, wsId);
+      window?.showToast?.('Job archived.');
+      refreshJobs();
+      return;
+    }
+    if (action === 'Reactivate Job') {
+      saveJob({ id: job.id, status: 'active', archivedAt: null, archivedByUserId: null }, wsId);
+      window?.showToast?.('Job reactivated.');
+      refreshJobs();
+      return;
+    }
+    if (action === 'Duplicate Job') {
+      const duplicated = duplicateJob(job.id, wsId);
+      if (duplicated) {
+        window?.showToast?.('Job duplicated.');
+        refreshJobs();
+      }
+      return;
+    }
+    if (action === 'Delete Job') {
+      setDeleteJob(job);
+      setDeleteInput('');
+    }
+  };
+
+  const handleActivationConfirm = (activationUpdates) => {
+    if (!activationJob) return;
+    saveJob({
+      id: activationJob.id,
+      ...(activationUpdates || {}),
+      status: 'active',
+    }, wsId);
+    setActivationJob(null);
+    window?.showToast?.('Job activated.');
+    refreshJobs();
+  };
+
+  const confirmDelete = () => {
+    if (!deleteJob || deleteInput !== 'DELETE') return;
+    deleteJobFromStore(deleteJob.id, wsId);
+    setDeleteJob(null);
+    setDeleteInput('');
+    window?.showToast?.('Job deleted.');
+    refreshJobs();
   };
 
   const statusPills = h('div', { className: 'inline-flex flex-wrap items-center gap-1 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-1 py-1' }, (
@@ -211,7 +357,7 @@ export function JobsListScreen() {
       newJobButton,
     ]),
     filtered.length
-      ? h('div', { className: 'grid gap-4' }, filtered.map((job) => h(JobCard, { key: job.id, job, companyMap })))
+      ? h('div', { className: 'grid gap-4' }, filtered.map((job) => h(JobCard, { key: job.id, job, companyMap, onAction: handleMenuAction })))
       : h('div', { className: 'rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 p-6 text-center' }, [
         h('h3', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'No jobs yet'),
         h('p', { className: 'mt-2 text-sm text-slate-500 dark:text-slate-400' }, 'Create a job to start planning deliverables and available hours.'),
@@ -221,5 +367,61 @@ export function JobsListScreen() {
           onClick: () => navigate('#/app/jobs/new'),
         }, '+ New Job'),
       ]),
+    h(JobActivationModal, {
+      job: activationJob,
+      isOpen: !!activationJob,
+      onClose: () => setActivationJob(null),
+      onConfirm: handleActivationConfirm,
+    }),
+    deleteJob
+      ? h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center px-4' }, [
+        h('div', {
+          className: 'absolute inset-0 bg-black/40',
+          onClick: () => {
+            setDeleteJob(null);
+            setDeleteInput('');
+          },
+        }),
+        h('div', { className: 'relative z-10 w-full max-w-md rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-5 shadow-xl space-y-4' }, [
+          h('div', { className: 'space-y-1' }, [
+            h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Delete Job'),
+            h('p', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Type DELETE to confirm'),
+          ]),
+          h('input', {
+            type: 'text',
+            value: deleteInput,
+            onChange: (event) => setDeleteInput(event.target.value || ''),
+            placeholder: 'DELETE',
+            className: 'w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-white',
+          }),
+          h('div', {
+            className: deleteInput === 'DELETE'
+              ? 'text-xs text-emerald-600 dark:text-emerald-300'
+              : 'text-xs text-slate-500 dark:text-slate-400',
+          }, deleteInput === 'DELETE' ? 'Confirmation unlocked.' : 'Enter DELETE exactly to enable deletion.'),
+          h('div', { className: 'flex items-center justify-end gap-2' }, [
+            h('button', {
+              type: 'button',
+              className: 'px-4 py-2 text-sm rounded-lg border border-slate-300 dark:border-white/20 text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800',
+              onClick: () => {
+                setDeleteJob(null);
+                setDeleteInput('');
+              },
+            }, 'Cancel'),
+            h('button', {
+              type: 'button',
+              disabled: deleteInput !== 'DELETE',
+              className: [
+                'px-4 py-2 text-sm rounded-lg text-white',
+                deleteInput === 'DELETE'
+                  ? 'bg-rose-500 hover:brightness-110'
+                  : 'bg-rose-300 cursor-not-allowed opacity-60',
+              ].join(' '),
+              onClick: confirmDelete,
+            }, 'Delete Job'),
+          ]),
+        ]),
+      ])
+      : null,
   ]);
 }

@@ -1,6 +1,8 @@
 import { getJobNumberOverride } from './jobs-ui-state.js';
 
 function computeJobNumberFromId(job) {
+  const stored = String(job?.jobNumber || '').replace(/\D/g, '');
+  if (stored) return stored;
   const raw = String(job?.id || '');
   const digits = raw.replace(/\D/g, '');
   if (digits) return digits.slice(-4);

@@ -2,12 +2,14 @@ import { getActiveWorkspace } from '../app-shell/app-helpers.js';
 import { SectionHeader } from '../components/layout/SectionHeader.js';
 import { mountCompanyLookup } from '../contacts/company-lookup.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
-import { JobPlanEditor, buildDeliverablesFromPlan, sumRowHours, syncRowsWithServiceTypes } from './jobs-plan-grid.js';
+import { JobPlanEditor, buildDeliverablesFromPlan, createPlanStateFromJob, sumRowHours, syncRowsWithServiceTypes } from './jobs-plan-grid.js';
 import { mountPersonLookup } from '../contacts/person-lookup.js';
 import { openSingleDatePickerPopover } from '../quick-tasks/quick-task-detail.js';
 import { loadServiceTypes, loadTeamMembers } from '../quick-tasks/quick-tasks-store.js';
 import { navigate } from '../router.js';
-import { createJob } from './jobs-store.js';
+import { saveJob } from './jobs-store.js';
+import { JobActivationModal } from './job-detail/job-activation-modal.js';
+import { getJobNumber } from './job-number-utils.js';
 import { TaskStyleRichTextField } from './task-style-rich-text-field.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
@@ -66,7 +68,7 @@ const STEP_DEFS = [
     subtitle: 'Review and approve the plan.',
     body: 'Step 4 content coming',
     backLabel: '← Back',
-    nextLabel: 'Create Job',
+    nextLabel: 'Activate Job',
     theme: 'from-amber-50 via-white to-slate-50 dark:from-slate-950 dark:via-amber-950/25 dark:to-slate-950',
     accentClass: 'bg-amber-500',
   },
@@ -161,6 +163,20 @@ function formatWeeksAndDays(totalDays) {
   if (weeks && days) return `${weeks} wk ${days} d`;
   if (weeks) return `${weeks} wk`;
   return `${days} d`;
+}
+
+function formatStatusLabel(status) {
+  if (status === 'active') return 'Active';
+  if (status === 'completed') return 'Completed';
+  if (status === 'archived') return 'Archived';
+  return 'Pending';
+}
+
+function statusPillTone(status) {
+  if (status === 'active') return 'border-emerald-300/70 bg-emerald-500/15 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200';
+  if (status === 'completed') return 'border-yellow-300/70 bg-yellow-400/15 text-yellow-700 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200';
+  if (status === 'archived') return 'border-red-300/70 bg-red-500/15 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200';
+  return 'border-yellow-300/70 bg-yellow-400/15 text-yellow-700 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200';
 }
 
 function getIntensityLabel(hoursPerWeek) {
@@ -286,8 +302,9 @@ function defaultDraft() {
     selectedServiceTypeIds: [],
     billingStructure: 'month_to_month',
     billingDurationMonths: null,
-    startDate: todayISO(),
-    targetEndDate: '',
+    startDate: null,
+    targetEndDate: null,
+    timelineZoomValue: 62,
     plan: normalizePlanState(),
     deliverableDetailsById: {},
   };
@@ -310,9 +327,15 @@ function normalizeDraft(raw) {
   next.billingDurationMonths = next.billingStructure === 'fixed_term' && Number.isFinite(durationMonths) && durationMonths > 0
     ? Math.round(durationMonths)
     : null;
-  next.startDate = typeof next.startDate === 'string' ? next.startDate : base.startDate;
-  next.targetEndDate = next.kind === 'project' && typeof next.targetEndDate === 'string' ? next.targetEndDate : '';
-  if (next.kind !== 'project') next.targetEndDate = '';
+  next.startDate = typeof next.startDate === 'string' || next.startDate === null ? next.startDate : base.startDate;
+  next.targetEndDate = next.kind === 'project' && (typeof next.targetEndDate === 'string' || next.targetEndDate === null)
+    ? next.targetEndDate
+    : base.targetEndDate;
+  if (next.kind !== 'project') next.targetEndDate = null;
+  const zoomValue = Number(next.timelineZoomValue);
+  next.timelineZoomValue = Number.isFinite(zoomValue)
+    ? Math.max(0, Math.min(100, Math.round(zoomValue)))
+    : base.timelineZoomValue;
   next.plan = normalizePlanState(next.plan, next.selectedServiceTypeIds);
   next.deliverableDetailsById = normalizeDeliverableDetailsMap(next.deliverableDetailsById);
   return next;
@@ -345,6 +368,155 @@ function clearDraft(wsId = workspaceId()) {
   } catch (err) {
     // Ignore storage cleanup failures in prototype mode.
   }
+}
+
+function buildDeliverableDetailsFromJob(job) {
+  return normalizeDeliverableDetailsMap((job?.deliverables || []).reduce((acc, deliverable) => {
+    if (!deliverable?.id) return acc;
+    acc[String(deliverable.id)] = {
+      description: String(deliverable.description || ''),
+      durationValue: String(deliverable.durationValue || ''),
+      durationUnit: deliverable.durationUnit || 'days',
+      dependencyRowId: String((deliverable.dependencyDeliverableIds || [])[0] || ''),
+      internalNotes: String(deliverable.internalNotes || ''),
+    };
+    return acc;
+  }, {}));
+}
+
+function buildDraftFromJob(job, serviceTypes = []) {
+  if (!job) return defaultDraft();
+  const cycleKey = job.kind === 'retainer'
+    ? (job.currentCycleKey || todayISO().slice(0, 7))
+    : null;
+  const fallbackPlan = createPlanStateFromJob(job, job.serviceTypeIds || [], {
+    cycleKey,
+    serviceTypes,
+  });
+  const persistedPlan = normalizePlanState(job.plan, fallbackPlan.serviceTypeIds);
+  const mergedServiceTypeIds = persistedPlan.serviceTypeIds.length
+    ? persistedPlan.serviceTypeIds
+    : fallbackPlan.serviceTypeIds;
+  const mergedPlan = normalizePlanState({
+    serviceTypeIds: mergedServiceTypeIds,
+    serviceTypeNames: {
+      ...(fallbackPlan.serviceTypeNames || {}),
+      ...(persistedPlan.serviceTypeNames || {}),
+    },
+    rows: persistedPlan.rows.length ? persistedPlan.rows : fallbackPlan.rows,
+  }, mergedServiceTypeIds);
+  return normalizeDraft({
+    name: job.name || '',
+    jobNumber: job.jobNumber || getJobNumber(job) || '1138',
+    kind: job.kind || 'project',
+    isInternal: !!job.isInternal,
+    companyId: job.companyId || '',
+    personId: job.personId || '',
+    jobLeadUserId: job.jobLeadUserId || '',
+    teamUserIds: Array.isArray(job.teamUserIds) ? job.teamUserIds : [],
+    selectedServiceTypeIds: Array.isArray(job.serviceTypeIds) ? job.serviceTypeIds : [],
+    billingStructure: job.billingStructure || 'month_to_month',
+    billingDurationMonths: job.billingDurationMonths ?? null,
+    startDate: job.startDate || null,
+    targetEndDate: job.kind === 'project'
+      ? (job.targetEndDate || job.timeline?.endDate || null)
+      : null,
+    timelineZoomValue: job.timeline?.zoomValue ?? job.timelineZoomValue ?? 62,
+    plan: mergedPlan,
+    deliverableDetailsById: Object.keys(job.deliverableDetailsById || {}).length
+      ? job.deliverableDetailsById
+      : buildDeliverableDetailsFromJob(job),
+  });
+}
+
+function buildDraftDeliverables(draft, existingDeliverables = [], options = {}) {
+  const plan = normalizePlanState(draft.plan, draft.selectedServiceTypeIds);
+  const currentCycleKey = options.currentCycleKey || null;
+  const deliverables = buildDeliverablesFromPlan(plan, existingDeliverables, {
+    jobKind: draft.kind,
+    cycleKey: draft.kind === 'retainer' ? currentCycleKey : null,
+  }).map((deliverable) => {
+    const details = ensureDeliverableDetails(draft.deliverableDetailsById, deliverable.id);
+    const dependencyId = String(details.dependencyRowId || '').trim();
+    return {
+      ...deliverable,
+      description: details.description,
+      internalNotes: details.internalNotes,
+      durationValue: String(details.durationValue || ''),
+      durationUnit: details.durationUnit || 'days',
+      dependencyDeliverableIds: dependencyId ? [dependencyId] : [],
+    };
+  });
+
+  if (draft.kind !== 'project') return deliverables;
+  if (!draft.startDate) {
+    return deliverables.map((deliverable) => ({
+      ...deliverable,
+      dueDate: deliverable?.dueDate || null,
+    }));
+  }
+
+  const scheduleMap = new Map();
+  let previousEnd = draft.startDate || todayISO();
+  return deliverables.map((deliverable, index) => {
+    const details = ensureDeliverableDetails(draft.deliverableDetailsById, deliverable.id);
+    const dependency = scheduleMap.get(String(details.dependencyRowId || ''));
+    const startDate = dependency
+      ? addDaysISO(dependency.endDate, 1)
+      : index === 0
+        ? (draft.startDate || todayISO())
+        : addDaysISO(previousEnd, 1);
+    const durationDays = getDurationDays(details);
+    const dueDate = addDaysISO(startDate, durationDays - 1);
+    const next = {
+      ...deliverable,
+      dueDate,
+    };
+    scheduleMap.set(String(deliverable.id), { endDate: dueDate });
+    previousEnd = dueDate;
+    return next;
+  });
+}
+
+function buildDraftJobPayload(draft, existingJob = null) {
+  const plan = normalizePlanState(draft.plan, draft.selectedServiceTypeIds);
+  const currentCycleKey = draft.kind === 'retainer'
+    ? (existingJob?.currentCycleKey || todayISO().slice(0, 7))
+    : null;
+  const deliverables = buildDraftDeliverables(draft, existingJob?.deliverables || [], { currentCycleKey });
+  const derivedTargetEndDate = draft.kind === 'project'
+    ? (draft.targetEndDate || (draft.startDate ? deliverables.reduce((latest, deliverable) => {
+      const dueDate = deliverable?.dueDate || null;
+      return !latest || (dueDate && dueDate > latest) ? dueDate : latest;
+    }, null) : null) || null)
+    : null;
+  return {
+    id: existingJob?.id || null,
+    name: String(draft.name || '').trim() || 'Untitled Job',
+    jobNumber: String(draft.jobNumber || '').replace(/\D/g, '') || '1138',
+    kind: draft.kind,
+    status: existingJob?.status || 'pending',
+    isInternal: !!draft.isInternal,
+    companyId: draft.isInternal ? null : (draft.companyId || null),
+    personId: draft.isInternal ? null : (draft.personId || null),
+    serviceTypeIds: Array.isArray(plan.serviceTypeIds) ? plan.serviceTypeIds : [],
+    plan,
+    deliverableDetailsById: normalizeDeliverableDetailsMap(draft.deliverableDetailsById),
+    timeline: {
+      startDate: draft.startDate || null,
+      endDate: draft.kind === 'project' ? derivedTargetEndDate : null,
+      zoomValue: Number(draft.timelineZoomValue) || 62,
+    },
+    billingStructure: draft.billingStructure,
+    billingDurationMonths: draft.billingDurationMonths,
+    teamUserIds: Array.isArray(draft.teamUserIds) ? draft.teamUserIds : [],
+    jobLeadUserId: draft.jobLeadUserId || null,
+    startDate: draft.startDate || null,
+    targetEndDate: draft.kind === 'project' ? derivedTargetEndDate : null,
+    currentCycleKey,
+    deliverables,
+    unassignedTasks: Array.isArray(existingJob?.unassignedTasks) ? existingJob.unassignedTasks : [],
+  };
 }
 
 function StepPill({ step, currentStep, onSelect }) {
@@ -387,11 +559,11 @@ function StepPill({ step, currentStep, onSelect }) {
   ]);
 }
 
-function StepFooter({ step, onBack, onNext }) {
+function StepFooter({ step, onBack, onNext, actions = null }) {
   return h('footer', {
     className: 'border-t border-slate-200/80 px-6 py-4 dark:border-white/10 md:px-8',
   }, [
-    h('div', { className: 'flex items-center justify-between gap-3' }, [
+    actions || h('div', { className: 'flex items-center justify-between gap-3' }, [
       step.backLabel
         ? h('button', {
           type: 'button',
@@ -493,6 +665,7 @@ function formatDraftClientLabel({ draft, companies = [], individuals = [] }) {
 
 function SummaryStepBody({ draft, onDraftChange, companies = [], individuals = [], members = [], serviceTypes = [] }) {
   const companyLookupSlotRef = useRef(null);
+  const companyLookupApiRef = useRef(null);
   const personLookupSlotRef = useRef(null);
   const personLookupApiRef = useRef(null);
   const datePickerCleanupRef = useRef(null);
@@ -568,7 +741,7 @@ function SummaryStepBody({ draft, onDraftChange, companies = [], individuals = [
 
   useEffect(() => {
     if (draft.isInternal || !companyLookupSlotRef.current) return;
-    mountCompanyLookup(companyLookupSlotRef.current, {
+    companyLookupApiRef.current = mountCompanyLookup(companyLookupSlotRef.current, {
       label: 'Company',
       placeholder: 'Search companies...',
       value: selectedCompany,
@@ -584,6 +757,10 @@ function SummaryStepBody({ draft, onDraftChange, companies = [], individuals = [
         }
       },
     });
+    return () => {
+      companyLookupApiRef.current?.destroy?.();
+      companyLookupApiRef.current = null;
+    };
   }, [draft.isInternal]);
 
   useEffect(() => {
@@ -598,6 +775,7 @@ function SummaryStepBody({ draft, onDraftChange, companies = [], individuals = [
       },
     });
     return () => {
+      personLookupApiRef.current?.destroy?.();
       personLookupApiRef.current = null;
     };
   }, [draft.isInternal, draft.companyId]);
@@ -905,8 +1083,12 @@ function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyH
       onPlanChange: handlePlanChange,
       serviceTypes,
       emptyStateMessage: 'Select Service Types in Step 1 to begin planning.',
-      title: 'Deliverables + LOE',
-      subtitle: 'Set up deliverables, assign hours by service type, and let totals update instantly as you plan.',
+      title: draft.kind === 'retainer' ? 'Monthly Work Plan' : 'Deliverables + LOE',
+      subtitle: draft.kind === 'retainer'
+        ? 'All hours are per month'
+        : 'Set up deliverables, assign hours by service type, and let totals update instantly as you plan.',
+      rowTotalLabel: draft.kind === 'retainer' ? 'Monthly Hours' : 'Total Hours',
+      footerTotalsLabel: draft.kind === 'retainer' ? 'Monthly Total' : 'Totals',
       allowServiceTypeCreate: true,
       serviceTypeActionLabel: '+ Add Service Type',
       onAddServiceType: handleAddServiceType,
@@ -920,6 +1102,7 @@ function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyH
         row,
         details: ensureDeliverableDetails(draft.deliverableDetailsById, row.id),
         deliverables: plan.rows || [],
+        jobKind: draft.kind,
         onChange: (patch) => {
           stageHistory();
           setDetailsRowId(row.id);
@@ -939,7 +1122,8 @@ function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyH
   ]);
 }
 
-function DeliverableExpandedRow({ row, details, deliverables = [], onChange }) {
+function DeliverableExpandedRow({ row, details, deliverables = [], jobKind = 'project', onChange }) {
+  const isRetainer = jobKind === 'retainer';
   return h('div', {
     className: 'grid gap-4 p-4 md:p-5 transition-all duration-200 ease-out',
   }, [
@@ -950,43 +1134,45 @@ function DeliverableExpandedRow({ row, details, deliverables = [], onChange }) {
       rows: 5,
       footerText: 'Auto-saves on change',
     }),
-    h('div', { className: 'grid gap-4 md:grid-cols-2' }, [
-      h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3 space-y-3' }, [
-        h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Duration'),
-        h('div', { className: 'grid gap-3 sm:grid-cols-[0.95fr_1.05fr]' }, [
-          h('input', {
-            type: 'number',
-            min: '0',
-            step: '1',
-            value: details.durationValue || '',
-            onChange: (event) => onChange?.({ durationValue: String(event.target.value || '').replace(/[^\d.]/g, '') }),
-            className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-800 dark:text-white',
-          }),
-          h(SegmentedToggle, {
-            value: details.durationUnit || 'days',
-            options: [
-              { value: 'days', label: 'Days' },
-              { value: 'weeks', label: 'Weeks' },
-              { value: 'months', label: 'Months' },
-            ],
-            onChange: (value) => onChange?.({ durationUnit: value }),
-          }),
+    !isRetainer
+      ? h('div', { className: 'grid gap-4 md:grid-cols-2' }, [
+        h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3 space-y-3' }, [
+          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Duration'),
+          h('div', { className: 'grid gap-3 sm:grid-cols-[0.95fr_1.05fr]' }, [
+            h('input', {
+              type: 'number',
+              min: '0',
+              step: '1',
+              value: details.durationValue || '',
+              onChange: (event) => onChange?.({ durationValue: String(event.target.value || '').replace(/[^\d.]/g, '') }),
+              className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-800 dark:text-white',
+            }),
+            h(SegmentedToggle, {
+              value: details.durationUnit || 'days',
+              options: [
+                { value: 'days', label: 'Days' },
+                { value: 'weeks', label: 'Weeks' },
+                { value: 'months', label: 'Months' },
+              ],
+              onChange: (value) => onChange?.({ durationUnit: value }),
+            }),
+          ]),
         ]),
-      ]),
-      h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3 space-y-3' }, [
-        h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Dependency'),
-        h('select', {
-          value: details.dependencyRowId || '',
-          onChange: (event) => onChange?.({ dependencyRowId: event.target.value || '' }),
-          className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200',
-        }, [
-          h('option', { value: '' }, 'No dependency'),
-          ...(deliverables || [])
-            .filter((item) => item.id !== row.id)
-            .map((item) => h('option', { key: item.id, value: item.id }, item.name || 'Untitled Deliverable')),
+        h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3 space-y-3' }, [
+          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Dependency'),
+          h('select', {
+            value: details.dependencyRowId || '',
+            onChange: (event) => onChange?.({ dependencyRowId: event.target.value || '' }),
+            className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200',
+          }, [
+            h('option', { value: '' }, 'No dependency'),
+            ...(deliverables || [])
+              .filter((item) => item.id !== row.id)
+              .map((item) => h('option', { key: item.id, value: item.id }, item.name || 'Untitled Deliverable')),
+          ]),
         ]),
-      ]),
-    ]),
+      ])
+      : null,
     h(TaskStyleRichTextField, {
       label: 'Internal Notes',
       value: details.internalNotes || '',
@@ -1005,8 +1191,13 @@ function TimelineStepBody({ draft, onDraftChange, stickyHeaderOffset = 0 }) {
   const deliverables = plan.rows || [];
   const [timelineStartDate, setTimelineStartDate] = useState(() => draft.startDate || '');
   const [timelineEndDate, setTimelineEndDate] = useState(() => draft.targetEndDate || '');
-  const [zoomValue, setZoomValue] = useState(62);
+  const [zoomValue, setZoomValue] = useState(() => Number(draft.timelineZoomValue) || 62);
   const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
+  const updateZoomValue = (nextValue) => {
+    const safeValue = Math.max(0, Math.min(100, Math.round(Number(nextValue) || 0)));
+    setZoomValue(safeValue);
+    onDraftChange?.({ timelineZoomValue: safeValue });
+  };
 
   useEffect(() => () => {
     if (datePickerCleanupRef.current) {
@@ -1139,7 +1330,7 @@ function TimelineStepBody({ draft, onDraftChange, stickyHeaderOffset = 0 }) {
             ? 'bg-netnet-purple text-white shadow-sm'
             : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10',
         ].join(' '),
-        onClick: () => setZoomValue(preset.slider),
+        onClick: () => updateZoomValue(preset.slider),
       }, preset.label);
     })
   ));
@@ -1173,7 +1364,7 @@ function TimelineStepBody({ draft, onDraftChange, stickyHeaderOffset = 0 }) {
             max: '100',
             step: '1',
             value: zoomValue,
-            onChange: (event) => setZoomValue(Number(event.target.value || 0)),
+            onChange: (event) => updateZoomValue(Number(event.target.value || 0)),
             className: 'w-full accent-netnet-purple',
           }),
         ]),
@@ -1197,89 +1388,96 @@ function TimelineStepBody({ draft, onDraftChange, stickyHeaderOffset = 0 }) {
         border-radius: 999px;
       }
     `),
-    h('div', { className: 'flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-200/80 bg-white/80 p-5 backdrop-blur dark:border-white/10 dark:bg-slate-950/35' }, [
-      h('div', { className: 'grid gap-3 sm:grid-cols-2 lg:grid-cols-[180px_180px]' }, [
-        h(FieldShell, { label: 'Start Date' }, h('button', {
-          type: 'button',
-          className: 'flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200',
-          onClick: (event) => openDatePicker(event.currentTarget, timelineStartDate, (next) => {
-            setTimelineStartDate(next);
-            onDraftChange?.({ startDate: next });
-          }),
-        }, [
-          h('span', null, formatLongDate(timelineStartDate)),
-          h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
-            h('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
-            h('line', { x1: '16', y1: '2', x2: '16', y2: '6' }),
-            h('line', { x1: '8', y1: '2', x2: '8', y2: '6' }),
+    h('div', {
+      className: 'sticky z-30 -mb-px overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950',
+      style: { top: `${stickyHeaderOffset}px` },
+    }, [
+      h('div', { className: 'flex flex-wrap items-center justify-between gap-3 bg-white p-5 dark:bg-slate-950' }, [
+        h('div', { className: 'grid gap-3 sm:grid-cols-2 lg:grid-cols-[180px_180px]' }, [
+          h(FieldShell, { label: 'Start Date' }, h('button', {
+            type: 'button',
+            className: 'flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200',
+            onClick: (event) => openDatePicker(event.currentTarget, timelineStartDate, (next) => {
+              setTimelineStartDate(next);
+              onDraftChange?.({ startDate: next });
+            }),
+          }, [
+            h('span', null, formatLongDate(timelineStartDate)),
+            h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+              h('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
+              h('line', { x1: '16', y1: '2', x2: '16', y2: '6' }),
+              h('line', { x1: '8', y1: '2', x2: '8', y2: '6' }),
+            ]),
+          ])),
+          h(FieldShell, { label: 'End Date' }, h('button', {
+            type: 'button',
+            className: 'flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200',
+            onClick: (event) => openDatePicker(event.currentTarget, timelineEndDate, (next) => {
+              setTimelineEndDate(next);
+              onDraftChange?.({ targetEndDate: next });
+            }),
+          }, [
+            h('span', null, formatLongDate(timelineEndDate)),
+            h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+              h('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
+              h('line', { x1: '16', y1: '2', x2: '16', y2: '6' }),
+              h('line', { x1: '8', y1: '2', x2: '8', y2: '6' }),
+            ]),
+          ])),
+        ]),
+        h('div', { className: 'flex min-w-[320px] flex-1 flex-col items-stretch gap-3 lg:max-w-[420px]' }, [
+          zoomButtons,
+          h('div', { className: 'flex items-center gap-3' }, [
+            h('span', { className: 'text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500' }, 'Scale'),
+            h('input', {
+              type: 'range',
+              min: '0',
+              max: '100',
+              step: '1',
+              value: zoomValue,
+              onChange: (event) => updateZoomValue(Number(event.target.value || 0)),
+              className: 'w-full accent-netnet-purple',
+            }),
           ]),
-        ])),
-        h(FieldShell, { label: 'End Date' }, h('button', {
-          type: 'button',
-          className: 'flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200',
-          onClick: (event) => openDatePicker(event.currentTarget, timelineEndDate, (next) => {
-            setTimelineEndDate(next);
-            onDraftChange?.({ targetEndDate: next });
-          }),
-        }, [
-          h('span', null, formatLongDate(timelineEndDate)),
-          h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
-            h('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
-            h('line', { x1: '16', y1: '2', x2: '16', y2: '6' }),
-            h('line', { x1: '8', y1: '2', x2: '8', y2: '6' }),
-          ]),
-        ])),
-      ]),
-      h('div', { className: 'flex min-w-[320px] flex-1 flex-col items-stretch gap-3 lg:max-w-[420px]' }, [
-        zoomButtons,
-        h('div', { className: 'flex items-center gap-3' }, [
-          h('span', { className: 'text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500' }, 'Scale'),
-          h('input', {
-            type: 'range',
-            min: '0',
-            max: '100',
-            step: '1',
-            value: zoomValue,
-            onChange: (event) => setZoomValue(Number(event.target.value || 0)),
-            className: 'w-full accent-netnet-purple',
-          }),
         ]),
       ]),
-    ]),
-    h('div', { className: 'max-w-full overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40 md:p-5' }, [
-      h('div', {
-        className: 'relative z-20 flex overflow-hidden border-b border-white/10 bg-slate-900/95',
-        style: { minHeight: `${TIMELINE_HEADER_HEIGHT}px` },
-      }, [
+      h('div', { className: 'max-w-full overflow-hidden border-t border-slate-200/80 bg-slate-950 dark:border-white/10 dark:bg-slate-950' }, [
         h('div', {
-          className: 'flex shrink-0 items-center border-r border-white/10 bg-slate-900/95 px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400',
-          style: { width: `${TIMELINE_LEFT_COL_WIDTH}px`, minHeight: `${TIMELINE_HEADER_HEIGHT}px` },
-        }, 'Deliverables'),
-        h('div', {
-          className: 'relative min-w-0 flex-1 overflow-hidden bg-slate-900/95',
+          className: 'relative z-20 flex overflow-hidden border-b border-white/10 bg-slate-900/95 shadow-sm',
           style: { minHeight: `${TIMELINE_HEADER_HEIGHT}px` },
         }, [
           h('div', {
-            className: 'relative',
-            style: {
-              width: `${timelineWidth}px`,
-              minHeight: `${TIMELINE_HEADER_HEIGHT}px`,
-              transform: `translateX(-${timelineScrollLeft}px)`,
-            },
+            className: 'flex shrink-0 items-center border-r border-white/10 bg-slate-900/95 px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400',
+            style: { width: `${TIMELINE_LEFT_COL_WIDTH}px`, minHeight: `${TIMELINE_HEADER_HEIGHT}px` },
+          }, 'Deliverables'),
+          h('div', {
+            className: 'relative min-w-0 flex-1 overflow-hidden bg-slate-900/95',
+            style: { minHeight: `${TIMELINE_HEADER_HEIGHT}px` },
           }, [
-            ticks.map((tick) => h('div', {
-              key: `${tick.date}-${tick.offset}`,
-              className: 'absolute inset-y-0',
-              style: { left: `${tick.offset}px` },
+            h('div', {
+              className: 'relative',
+              style: {
+                width: `${timelineWidth}px`,
+                minHeight: `${TIMELINE_HEADER_HEIGHT}px`,
+                transform: `translateX(-${timelineScrollLeft}px)`,
+              },
             }, [
-              h('div', { className: 'absolute inset-y-0 w-px bg-white/10' }),
-              h('div', {
-                className: 'absolute left-1 top-3 whitespace-nowrap rounded-md bg-slate-900/95 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300 shadow-sm',
-              }, formatTimelineTick(tick.date, zoomConfig.mode)),
-            ])),
+              ticks.map((tick) => h('div', {
+                key: `${tick.date}-${tick.offset}`,
+                className: 'absolute inset-y-0',
+                style: { left: `${tick.offset}px` },
+              }, [
+                h('div', { className: 'absolute inset-y-0 w-px bg-white/10' }),
+                h('div', {
+                  className: 'absolute left-1 top-3 whitespace-nowrap rounded-md bg-slate-900/95 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300 shadow-sm',
+                }, formatTimelineTick(tick.date, zoomConfig.mode)),
+              ])),
+            ]),
           ]),
         ]),
       ]),
+    ]),
+    h('div', { className: 'max-w-full overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40 md:-mt-px md:p-5' }, [
       h('div', {
         ref: timelineBodyScrollRef,
         className: 'timeline-step-scroll overflow-x-auto overflow-y-hidden',
@@ -1411,6 +1609,7 @@ function TimelineStepBody({ draft, onDraftChange, stickyHeaderOffset = 0 }) {
 }
 
 function NetNetStepBody({ draft, serviceTypes = [] }) {
+  const isRetainer = draft.kind === 'retainer';
   const plan = normalizePlanState(draft.plan, draft.selectedServiceTypeIds);
   const serviceTypeIds = Array.isArray(plan?.serviceTypeIds) ? plan.serviceTypeIds : [];
   const rows = Array.isArray(plan?.rows) ? plan.rows : [];
@@ -1456,7 +1655,7 @@ function NetNetStepBody({ draft, serviceTypes = [] }) {
 
   const derivedEndDate = draft.targetEndDate || timelineSchedule.reduce((latest, item) => (!latest || item.endDate > latest ? item.endDate : latest), draft.startDate || '');
   const durationDays = draft.startDate && derivedEndDate ? Math.max(1, diffDays(draft.startDate, derivedEndDate) + 1) : 0;
-  const weeks = durationDays > 0 ? durationDays / 7 : 0;
+  const weeks = isRetainer ? 4.33 : (durationDays > 0 ? durationDays / 7 : 0);
   const hoursPerWeek = weeks > 0 ? totalHours / weeks : 0;
   const intensityLabel = getIntensityLabel(hoursPerWeek);
   const revenueByDeliverable = timelineSchedule.map((item) => {
@@ -1480,10 +1679,16 @@ function NetNetStepBody({ draft, serviceTypes = [] }) {
 
   return h('div', { className: 'space-y-6' }, [
     h('div', { className: 'grid gap-4 xl:grid-cols-[0.95fr_1.05fr]' }, [
-      h('div', { className: 'grid gap-4 sm:grid-cols-3 xl:grid-cols-1' }, [
-        metricCard('Total Hours', totalHours ? `${formatLargeHours(totalHours)} hrs` : '0 hrs', 'All planned effort from Deliverables + LOE.'),
-        metricCard('Duration', durationDays ? formatWeeksAndDays(durationDays) : 'Not set', draft.startDate && derivedEndDate ? `${formatLongDate(draft.startDate)} to ${formatLongDate(derivedEndDate)}` : 'Set dates in Timeline to calculate duration.'),
-        metricCard('Work Intensity', durationDays ? `${formatLargeHours(hoursPerWeek)} hrs/week` : 'Not set', intensityLabel, intensityLabel === 'Heavy' ? 'text-amber-600 dark:text-amber-300' : intensityLabel === 'Moderate' ? 'text-cyan-600 dark:text-cyan-300' : 'text-emerald-600 dark:text-emerald-300'),
+      h('div', { className: `grid gap-4 ${isRetainer ? 'sm:grid-cols-2 xl:grid-cols-1' : 'sm:grid-cols-3 xl:grid-cols-1'}` }, [
+        metricCard(
+          isRetainer ? 'Total Monthly Hours' : 'Total Hours',
+          totalHours ? `${formatLargeHours(totalHours)} hrs` : '0 hrs',
+          isRetainer ? 'All planned effort shown here is monthly.' : 'All planned effort from Deliverables + LOE.'
+        ),
+        !isRetainer
+          ? metricCard('Duration', durationDays ? formatWeeksAndDays(durationDays) : 'Not set', draft.startDate && derivedEndDate ? `${formatLongDate(draft.startDate)} to ${formatLongDate(derivedEndDate)}` : 'Set dates in Timeline to calculate duration.')
+          : null,
+        metricCard('Work Intensity', totalHours ? `${formatLargeHours(hoursPerWeek)} hrs/week` : 'Not set', intensityLabel, intensityLabel === 'Heavy' ? 'text-amber-600 dark:text-amber-300' : intensityLabel === 'Moderate' ? 'text-cyan-600 dark:text-cyan-300' : 'text-emerald-600 dark:text-emerald-300'),
       ]),
       h('section', {
         className: 'rounded-[28px] border border-slate-200/80 bg-white/80 p-5 backdrop-blur dark:border-white/10 dark:bg-slate-950/35 md:p-6',
@@ -1518,24 +1723,26 @@ function NetNetStepBody({ draft, serviceTypes = [] }) {
       className: 'rounded-[24px] border border-slate-200/80 bg-white/80 px-5 py-4 text-sm leading-6 text-slate-600 backdrop-blur dark:border-white/10 dark:bg-slate-950/35 dark:text-slate-300',
     }, [
       h('span', { className: 'font-semibold text-slate-900 dark:text-white' }, 'Net Net Summary: '),
-      `${intensityLabel}. This plan carries ${formatLargeHours(totalHours)} total hours across ${durationDays ? formatWeeksAndDays(durationDays) : 'an untracked duration'}, landing at ${formatLargeHours(hoursPerWeek)} hours per week.`,
+      isRetainer
+        ? `${intensityLabel}. This retainer carries ${formatLargeHours(totalHours)} monthly hours, landing at ${formatLargeHours(hoursPerWeek)} hours per week.`
+        : `${intensityLabel}. This plan carries ${formatLargeHours(totalHours)} total hours across ${durationDays ? formatWeeksAndDays(durationDays) : 'an untracked duration'}, landing at ${formatLargeHours(hoursPerWeek)} hours per week.`,
     ]),
     h('section', {
       className: 'rounded-[28px] border border-slate-200/80 bg-white/80 p-5 backdrop-blur dark:border-white/10 dark:bg-slate-950/35 md:p-6',
     }, [
       h('div', { className: 'space-y-1' }, [
-        h('h2', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, 'Project Budget (Based on Base Rates)'),
-        h('p', { className: 'text-sm leading-6 text-slate-500 dark:text-slate-400' }, 'Price it however you want. Based on your base rates, this is the expected project budget.'),
+        h('h2', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, isRetainer ? 'Monthly Budget (Based on Base Rates)' : 'Project Budget (Based on Base Rates)'),
+        h('p', { className: 'text-sm leading-6 text-slate-500 dark:text-slate-400' }, isRetainer ? 'This is your expected monthly budget based on base rates.' : 'Price it however you want. Based on your base rates, this is the expected project budget.'),
       ]),
       h('div', { className: 'mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]' }, [
         h('div', { className: 'space-y-4' }, [
           h('div', { className: 'rounded-[24px] border border-slate-200/80 bg-slate-50/90 p-5 dark:border-white/10 dark:bg-slate-900/50' }, [
-            h('div', { className: 'text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Total Project Budget'),
+            h('div', { className: 'text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, isRetainer ? 'Total Monthly Budget' : 'Total Project Budget'),
             h('div', { className: 'mt-3 text-4xl font-semibold text-slate-900 dark:text-white' }, formatMoney(totalBudget)),
             h('div', { className: 'mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400' }, `${intensityLabel} workload based on ${formatLargeHours(hoursPerWeek)} hours per week.`),
           ]),
           h('div', { className: 'rounded-[24px] border border-slate-200/80 bg-slate-50/90 p-5 dark:border-white/10 dark:bg-slate-900/50' }, [
-            h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, 'Revenue by Service Type'),
+            h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, isRetainer ? 'Monthly Revenue by Service Type' : 'Revenue by Service Type'),
             h('div', { className: 'mt-4 space-y-3' }, breakdown.length
               ? breakdown.map((item) => h('div', {
                 key: `${item.id}-revenue`,
@@ -1548,7 +1755,7 @@ function NetNetStepBody({ draft, serviceTypes = [] }) {
           ]),
         ]),
         h('div', { className: 'rounded-[24px] border border-slate-200/80 bg-slate-50/90 p-5 dark:border-white/10 dark:bg-slate-900/50' }, [
-          h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, 'Revenue by Deliverable'),
+          h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, isRetainer ? 'Monthly Revenue by Deliverable' : 'Revenue by Deliverable'),
           h('div', { className: 'mt-4 overflow-hidden rounded-2xl border border-slate-200/80 dark:border-white/10' }, [
             h('table', { className: 'min-w-full text-sm' }, [
               h('thead', { className: 'bg-slate-100/90 dark:bg-slate-900/80' }, [
@@ -1578,7 +1785,34 @@ function NetNetStepBody({ draft, serviceTypes = [] }) {
   ]);
 }
 
-function JobCreateHeader({ draft, companies = [], individuals = [] }) {
+function renderJobChatIcon(indicator = {}) {
+  const total = indicator.totalMessages || 0;
+  const mentionCount = indicator.mentionCount || 0;
+  const hasUnread = indicator.hasUnreadMessages;
+  const badgeValue = mentionCount > 9 ? '9+' : mentionCount || '';
+  const toneClass = total > 0
+    ? 'text-slate-600 dark:text-slate-200'
+    : 'text-slate-400 dark:text-slate-500';
+  return h('span', { className: `relative inline-flex items-center ${toneClass}` }, [
+    h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8' }, [
+      h('path', { d: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z' }),
+    ]),
+    mentionCount > 0
+      ? h('span', { className: 'absolute -top-1 -right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-white px-1 text-[10px] font-semibold text-slate-900 shadow' }, badgeValue)
+      : hasUnread
+        ? h('span', { className: 'absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-white shadow' })
+        : null,
+  ]);
+}
+
+function JobCreateHeader({
+  draft,
+  companies = [],
+  individuals = [],
+  status = 'pending',
+  onOpenChat = null,
+  chatIndicator = null,
+}) {
   const clientLabel = formatDraftClientLabel({ draft, companies, individuals });
   const jobName = String(draft.name || '').trim() || 'Untitled Job';
   const kindLabel = formatDraftKind(draft.kind);
@@ -1589,6 +1823,16 @@ function JobCreateHeader({ draft, companies = [], individuals = [] }) {
   }, [
     h('div', { className: 'flex items-center justify-between gap-3' }, [
       h('div', { className: 'text-xl font-semibold text-slate-900 dark:text-white' }, jobName),
+      onOpenChat
+        ? h('button', {
+          type: 'button',
+          className: 'inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 dark:border-white/10 dark:text-slate-200 dark:hover:text-white',
+          onClick: () => onOpenChat({ type: 'job' }),
+        }, [
+          renderJobChatIcon(chatIndicator || {}),
+          'Chat',
+        ])
+        : null,
     ]),
     h('div', {
       className: 'whitespace-nowrap overflow-hidden text-ellipsis text-xs text-slate-500 dark:text-slate-400',
@@ -1598,18 +1842,40 @@ function JobCreateHeader({ draft, companies = [], individuals = [] }) {
       h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
       h('span', null, kindLabel),
       h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
+      h('span', {
+        className: `inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusPillTone(status)}`,
+      }, formatStatusLabel(status)),
+      h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
       h('span', null, 'Client: '),
       h('span', { className: 'text-slate-700 dark:text-slate-200' }, clientLabel),
     ]),
   ]);
 }
 
-function StickyHeaderBlock({ stickyRef, draft, companies, individuals, currentStep, onStepChange, steps = STEP_DEFS }) {
+function StickyHeaderBlock({
+  stickyRef,
+  draft,
+  companies,
+  individuals,
+  currentStep,
+  onStepChange,
+  steps = STEP_DEFS,
+  status = 'pending',
+  onOpenChat = null,
+  chatIndicator = null,
+}) {
   return h('div', {
     ref: stickyRef,
     className: 'sticky top-0 z-40 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/95 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-950/90',
   }, [
-    h(JobCreateHeader, { draft, companies, individuals }),
+    h(JobCreateHeader, {
+      draft,
+      companies,
+      individuals,
+      status,
+      onOpenChat,
+      chatIndicator,
+    }),
     h('div', { className: 'border-t border-slate-200/70 px-3 py-3 dark:border-white/10 sm:px-4' }, [
       h('div', { className: 'flex flex-col gap-3 md:flex-row md:items-center' }, (steps || []).map((item) => h(StepPill, {
         key: item.index,
@@ -1647,6 +1913,7 @@ function StepScreen({
   stickyHeaderOffset = 0,
   onBack,
   onNext,
+  footerActions = null,
 }) {
   const bodyContent = step.index === 1
     ? h(SummaryStepBody, {
@@ -1696,30 +1963,47 @@ function StepScreen({
           bodyContent,
         ]),
       ]),
-      h(StepFooter, { step, onBack, onNext }),
+      h(StepFooter, { step, onBack, onNext, actions: footerActions }),
     ]),
   ]);
 }
 
-export function JobCreateStepperRoot() {
+export function JobCreateStepperRoot({
+  job = null,
+  onJobUpdate = null,
+  readOnly = false,
+  onOpenChat = null,
+  chatIndicator = null,
+  showSectionHeader = true,
+}) {
   const wsId = useMemo(() => workspaceId(), []);
-  const [step, setStep] = useState(1);
-  const [draft, setDraft] = useState(() => loadDraft(wsId));
-  const stickyHeaderRef = useRef(null);
-  const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
-
-  const visibleSteps = useMemo(() => buildVisibleSteps(draft.kind), [draft.kind]);
-  const activeStep = useMemo(() => visibleSteps.find((item) => item.index === step) || visibleSteps[0], [step, visibleSteps]);
   const companies = useMemo(() => getContactsData(), []);
   const individuals = useMemo(() => getIndividualsData(), []);
   const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
   const members = useMemo(() => loadTeamMembers(), []);
+  const isEditingJob = !!job?.id;
+  const [step, setStep] = useState(1);
+  const [draft, setDraft] = useState(() => (
+    isEditingJob ? buildDraftFromJob(job, serviceTypes) : loadDraft(wsId)
+  ));
+  const [showActivationReview, setShowActivationReview] = useState(false);
+  const stickyHeaderRef = useRef(null);
+  const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0);
+  const lastSyncedPayloadRef = useRef('');
+
+  const visibleSteps = useMemo(() => buildVisibleSteps(draft.kind), [draft.kind]);
+  const activeStep = useMemo(() => visibleSteps.find((item) => item.index === step) || visibleSteps[0], [step, visibleSteps]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
       window.scrollTo({ top: 0, behavior: 'auto' });
     }
   }, [step]);
+
+  useEffect(() => {
+    const nextDraft = isEditingJob ? buildDraftFromJob(job, serviceTypes) : loadDraft(wsId);
+    setDraft(nextDraft);
+  }, [isEditingJob, job?.id, wsId, serviceTypes]);
 
   useEffect(() => {
     if (!visibleSteps.some((item) => item.index === step)) {
@@ -1747,53 +2031,86 @@ export function JobCreateStepperRoot() {
   const updateDraft = (updater) => {
     setDraft((current) => {
       const next = typeof updater === 'function' ? updater(current) : { ...current, ...(updater || {}) };
-      return persistDraft(next, wsId);
+      return isEditingJob ? normalizeDraft(next) : persistDraft(next, wsId);
     });
+  };
+
+  const commitDraft = (overrides = {}) => {
+    const payload = buildDraftJobPayload(draft, job);
+    const finalPayload = {
+      ...payload,
+      ...(overrides || {}),
+    };
+    console.log('COMMIT DRAFT payload:', finalPayload);
+    const savedJob = saveJob(finalPayload, wsId);
+    console.log('COMMIT DRAFT saved:', savedJob);
+    if (!savedJob) return null;
+    lastSyncedPayloadRef.current = JSON.stringify(savedJob);
+    if (isEditingJob) {
+      setDraft(buildDraftFromJob(savedJob, serviceTypes));
+    }
+    if (isEditingJob && typeof onJobUpdate === 'function') {
+      onJobUpdate(savedJob, { persisted: true });
+    }
+    return savedJob;
   };
 
   const handleNext = () => {
     const currentIdx = visibleSteps.findIndex((item) => item.index === step);
     if (currentIdx >= 0 && currentIdx < visibleSteps.length - 1) {
       setStep(visibleSteps[currentIdx + 1].index);
-      return;
     }
-    const plan = normalizePlanState(draft.plan, draft.selectedServiceTypeIds);
-    const deliverables = buildDeliverablesFromPlan(plan, [], {
-      jobKind: draft.kind,
-      cycleKey: null,
-    }).map((deliverable) => {
-      const details = ensureDeliverableDetails(draft.deliverableDetailsById, deliverable.id);
-      const dependencyId = String(details.dependencyRowId || '').trim();
-      return {
-        ...deliverable,
-        dependencyDeliverableIds: dependencyId ? [dependencyId] : [],
-      };
-    });
-    const created = createJob({
-      name: String(draft.name || '').trim() || 'Untitled Job',
-      kind: draft.kind,
-      status: 'pending',
-      isInternal: !!draft.isInternal,
-      companyId: draft.isInternal ? null : (draft.companyId || null),
-      personId: draft.isInternal ? null : (draft.personId || null),
-      serviceTypeIds: Array.isArray(plan.serviceTypeIds) ? plan.serviceTypeIds : [],
-      billingStructure: draft.billingStructure,
-      billingDurationMonths: draft.billingDurationMonths,
-      teamUserIds: Array.isArray(draft.teamUserIds) ? draft.teamUserIds : [],
-      jobLeadUserId: draft.jobLeadUserId || null,
-      startDate: draft.startDate || null,
-      targetEndDate: draft.kind === 'project' ? (draft.targetEndDate || null) : null,
-      deliverables,
-    }, wsId);
-    clearDraft(wsId);
-    window?.showToast?.('Job created.');
-    if (created?.id) navigate(`#/app/jobs/${created.id}`);
   };
 
   const handleBack = () => {
     const currentIdx = visibleSteps.findIndex((item) => item.index === step);
     if (currentIdx > 0) setStep(visibleSteps[currentIdx - 1].index);
   };
+
+  const saveAsPending = () => {
+    const savedJob = commitDraft({ status: 'pending' });
+    if (!savedJob) return;
+    clearDraft(wsId);
+    window?.showToast?.('Job saved as pending.');
+    navigate('#/app/jobs');
+  };
+
+  const activateFromReview = (activationUpdates) => {
+    const savedJob = commitDraft({
+      ...(activationUpdates || {}),
+      status: 'active',
+    });
+    if (!savedJob) return;
+    clearDraft(wsId);
+    setShowActivationReview(false);
+    window?.showToast?.('Job activated.');
+    if (savedJob?.id) navigate(`#/app/jobs/${savedJob.id}`);
+  };
+
+  const activationPreviewJob = useMemo(() => buildDraftJobPayload(draft, job), [draft, job]);
+  const stepFourActions = activeStep?.id === 'netnet'
+    ? h('div', { className: 'flex items-center justify-between gap-3' }, [
+      h('button', {
+        type: 'button',
+        className: 'inline-flex h-11 items-center justify-center rounded-md border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10',
+        onClick: saveAsPending,
+      }, 'Save as Pending'),
+      h('div', { className: 'flex items-center gap-3' }, [
+        activeStep.backLabel
+          ? h('button', {
+            type: 'button',
+            className: 'inline-flex h-11 items-center justify-center rounded-md border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10',
+            onClick: handleBack,
+          }, activeStep.backLabel)
+          : null,
+        h('button', {
+          type: 'button',
+          className: 'inline-flex h-11 items-center justify-center rounded-md bg-netnet-purple px-5 text-sm font-semibold text-white transition hover:brightness-110',
+          onClick: () => setShowActivationReview(true),
+        }, 'Activate Job'),
+      ]),
+    ])
+    : null;
 
   const breadcrumb = h('div', { className: 'flex items-center gap-2' }, [
     h('button', {
@@ -1806,19 +2123,24 @@ export function JobCreateStepperRoot() {
   ]);
 
   return h('div', { className: 'space-y-4 px-4 pt-4 pb-[50px]' }, [
-    h(SectionHeader, {
-      title: breadcrumb,
-      showHelpIcon: true,
-      showSecondaryRow: false,
-    }),
+    showSectionHeader
+      ? h(SectionHeader, {
+        title: breadcrumb,
+        showHelpIcon: true,
+        showSecondaryRow: false,
+      })
+      : null,
     h(StickyHeaderBlock, {
       stickyRef: stickyHeaderRef,
       draft,
       companies,
       individuals,
+      status: job?.status || 'pending',
       currentStep: step,
       onStepChange: setStep,
       steps: visibleSteps,
+      onOpenChat,
+      chatIndicator,
     }),
     h('div', { className: 'flex w-full' }, [
       h(StepScreen, {
@@ -1832,8 +2154,15 @@ export function JobCreateStepperRoot() {
         stickyHeaderOffset: stickyHeaderHeight,
         onBack: handleBack,
         onNext: handleNext,
+        footerActions: stepFourActions,
       }),
     ]),
+    h(JobActivationModal, {
+      job: activationPreviewJob,
+      isOpen: showActivationReview,
+      onClose: () => setShowActivationReview(false),
+      onConfirm: activateFromReview,
+    }),
   ]);
 }
 

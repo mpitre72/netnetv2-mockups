@@ -112,6 +112,78 @@ function normalizePoolsByCycle(poolsByCycle = {}) {
   return next;
 }
 
+function normalizeJobNumber(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits || null;
+}
+
+function normalizeServiceTypeNames(names = {}) {
+  if (!names || typeof names !== 'object') return {};
+  return Object.keys(names).reduce((acc, key) => {
+    const value = String(names[key] || '').trim();
+    if (value) acc[String(key)] = value;
+    return acc;
+  }, {});
+}
+
+function normalizePlanRows(rows = []) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => {
+      if (!row) return null;
+      const id = row.id || createId('del');
+      const name = String(row.name || '').trim();
+      const pools = row.pools && typeof row.pools === 'object'
+        ? Object.keys(row.pools).reduce((acc, key) => {
+          acc[String(key)] = Number(row.pools[key]) || 0;
+          return acc;
+        }, {})
+        : {};
+      return {
+        id,
+        name,
+        dueDate: row.dueDate || null,
+        pools,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizePlan(plan = {}) {
+  const serviceTypeIds = Array.isArray(plan?.serviceTypeIds)
+    ? [...new Set(plan.serviceTypeIds.filter(Boolean).map((id) => String(id)))]
+    : [];
+  return {
+    serviceTypeIds,
+    serviceTypeNames: normalizeServiceTypeNames(plan?.serviceTypeNames || {}),
+    rows: normalizePlanRows(plan?.rows || []),
+  };
+}
+
+function normalizeDeliverableDetailsMap(details = {}) {
+  if (!details || typeof details !== 'object') return {};
+  return Object.keys(details).reduce((acc, key) => {
+    const item = details[key] || {};
+    acc[String(key)] = {
+      description: String(item.description || ''),
+      durationValue: String(item.durationValue || ''),
+      durationUnit: item.durationUnit === 'weeks' || item.durationUnit === 'months' ? item.durationUnit : 'days',
+      dependencyRowId: String(item.dependencyRowId || ''),
+      internalNotes: String(item.internalNotes || ''),
+    };
+    return acc;
+  }, {});
+}
+
+function normalizeTimeline(timeline = {}) {
+  const zoomValue = Number(timeline?.zoomValue);
+  return {
+    startDate: timeline?.startDate || null,
+    endDate: timeline?.endDate || null,
+    zoomValue: Number.isFinite(zoomValue) ? Math.max(0, Math.min(100, Math.round(zoomValue))) : 62,
+  };
+}
+
 function normalizeAllocations(allocations = []) {
   if (!Array.isArray(allocations)) return [];
   return allocations
@@ -183,6 +255,12 @@ function normalizeDeliverables(deliverables = [], jobId) {
         id: deliverableId,
         name,
         status,
+        description: String(deliverable?.description || ''),
+        internalNotes: String(deliverable?.internalNotes || ''),
+        durationValue: String(deliverable?.durationValue || ''),
+        durationUnit: deliverable?.durationUnit === 'weeks' || deliverable?.durationUnit === 'months'
+          ? deliverable.durationUnit
+          : 'days',
         dueDate: deliverable.dueDate || null,
         startedAt: deliverable.startedAt || null,
         completedAt: status === 'completed' ? (deliverable.completedAt || null) : null,
@@ -671,9 +749,11 @@ export function createJob(payload = {}, wsId = workspaceId()) {
   const completedByUserId = payload.completedByUserId || null;
   const archivedAt = payload.archivedAt || null;
   const archivedByUserId = payload.archivedByUserId || null;
+  const normalizedPlan = normalizePlan(payload.plan || {});
   const job = {
     id: jobId,
     name: String(payload.name || '').trim(),
+    jobNumber: normalizeJobNumber(payload.jobNumber),
     kind,
     status,
     isInternal: !!payload.isInternal,
@@ -684,11 +764,24 @@ export function createJob(payload = {}, wsId = workspaceId()) {
       : [],
     teamUserIds: Array.isArray(payload.teamUserIds) ? payload.teamUserIds.filter(Boolean) : [],
     jobLeadUserId: payload.jobLeadUserId || null,
+    billingStructure: kind === 'retainer'
+      ? (payload.billingStructure === 'fixed_term' ? 'fixed_term' : 'month_to_month')
+      : null,
+    billingDurationMonths: kind === 'retainer' && Number(payload.billingDurationMonths) > 0
+      ? Math.round(Number(payload.billingDurationMonths))
+      : null,
     createdAt: payload.createdAt || now,
     updatedAt: now,
-    startDate: kind === 'project' ? (payload.startDate || null) : null,
+    startDate: payload.startDate || null,
     targetEndDate: kind === 'project' ? (payload.targetEndDate || null) : null,
     currentCycleKey: kind === 'retainer' ? (payload.currentCycleKey || defaultCycleKey) : null,
+    plan: normalizedPlan,
+    deliverableDetailsById: normalizeDeliverableDetailsMap(payload.deliverableDetailsById || {}),
+    timeline: normalizeTimeline(payload.timeline || {
+      startDate: payload.startDate || null,
+      endDate: kind === 'project' ? (payload.targetEndDate || null) : null,
+      zoomValue: 62,
+    }),
     lastNonArchivedStatus: normalizeLifecycleStatus(payload.lastNonArchivedStatus),
     archivedAt,
     archivedByUserId,
@@ -701,6 +794,18 @@ export function createJob(payload = {}, wsId = workspaceId()) {
   store.jobs = list;
   persistJobsStore(wsId, store);
   return job;
+}
+
+export function saveJob(jobPayload = {}, wsId = workspaceId()) {
+  console.log('SAVING JOB:', jobPayload);
+  const payload = jobPayload && typeof jobPayload === 'object' ? jobPayload : {};
+  if (payload.id) {
+    const existing = getJobById(payload.id, wsId);
+    if (existing) {
+      return updateJob(payload.id, payload, wsId);
+    }
+  }
+  return createJob(payload, wsId);
 }
 
 export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
@@ -746,11 +851,22 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
   const nextUnassignedTasks = Array.isArray(updates.unassignedTasks)
     ? normalizeTasks(updates.unassignedTasks, { jobId, deliverableId: null })
     : (current.unassignedTasks || []);
+  const nextPlan = updates.plan !== undefined
+    ? normalizePlan(updates.plan || {})
+    : normalizePlan(current.plan || {});
+  const nextTimeline = updates.timeline !== undefined
+    ? normalizeTimeline(updates.timeline || {})
+    : normalizeTimeline(current.timeline || {
+      startDate: current.startDate || null,
+      endDate: current.targetEndDate || null,
+      zoomValue: 62,
+    });
 
   const next = {
     ...current,
     ...updates,
     name: updates.name ? String(updates.name).trim() : current.name,
+    jobNumber: updates.jobNumber !== undefined ? normalizeJobNumber(updates.jobNumber) : (current.jobNumber || null),
     kind: nextKind,
     status: nextStatus,
     isInternal: typeof updates.isInternal === 'boolean' ? updates.isInternal : current.isInternal,
@@ -763,9 +879,24 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
     jobLeadUserId: updates.jobLeadUserId !== undefined
       ? updates.jobLeadUserId
       : (current.jobLeadUserId || null),
+    billingStructure: nextKind === 'retainer'
+      ? (updates.billingStructure !== undefined
+        ? (updates.billingStructure === 'fixed_term' ? 'fixed_term' : 'month_to_month')
+        : (current.billingStructure || 'month_to_month'))
+      : null,
+    billingDurationMonths: nextKind === 'retainer'
+      ? (updates.billingDurationMonths !== undefined
+        ? (Number(updates.billingDurationMonths) > 0 ? Math.round(Number(updates.billingDurationMonths)) : null)
+        : (current.billingDurationMonths ?? null))
+      : null,
     currentCycleKey: updates.currentCycleKey !== undefined
       ? updates.currentCycleKey
       : (current.currentCycleKey || null),
+    plan: nextPlan,
+    deliverableDetailsById: updates.deliverableDetailsById !== undefined
+      ? normalizeDeliverableDetailsMap(updates.deliverableDetailsById || {})
+      : normalizeDeliverableDetailsMap(current.deliverableDetailsById || {}),
+    timeline: nextTimeline,
     lastNonArchivedStatus,
     archivedAt,
     archivedByUserId,
@@ -775,10 +906,10 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
     unassignedTasks: nextUnassignedTasks,
     updatedAt: Date.now(),
   };
-  if (nextKind !== 'project') {
-    next.startDate = null;
-    next.targetEndDate = null;
-  }
+  next.startDate = updates.startDate !== undefined ? (updates.startDate || null) : (current.startDate || null);
+  next.targetEndDate = nextKind === 'project'
+    ? (updates.targetEndDate !== undefined ? (updates.targetEndDate || null) : (current.targetEndDate || null))
+    : null;
   if (nextKind !== 'retainer') {
     next.currentCycleKey = null;
   }
@@ -844,6 +975,92 @@ export function retagJobChatMessage(messageId, nextTarget = {}, wsId = workspace
   store.jobsChatMessages = list;
   persistJobsStore(wsId, store);
   return updated;
+}
+
+function readStoredJobNumber(job) {
+  const direct = normalizeJobNumber(job?.jobNumber);
+  if (direct) return direct;
+  const digits = String(job?.id || '').replace(/\D/g, '');
+  return digits ? digits.slice(-4) : null;
+}
+
+function nextDuplicateJobNumber(sourceJob, jobs = []) {
+  const existing = new Set((jobs || []).map((job) => readStoredJobNumber(job)).filter(Boolean));
+  const base = Number(readStoredJobNumber(sourceJob)) || 1138;
+  let candidate = base + 1;
+  while (existing.has(String(candidate))) candidate += 1;
+  return String(candidate);
+}
+
+function cloneAllocationsForDuplicate(allocations = []) {
+  return (allocations || []).map((allocation) => ({
+    ...allocation,
+    id: createId('alloc'),
+  }));
+}
+
+function cloneTasksForDuplicate(tasks = [], deliverableId = null) {
+  return (tasks || []).map((task) => ({
+    ...task,
+    id: createId('task'),
+    jobId: null,
+    deliverableId,
+    allocations: cloneAllocationsForDuplicate(task.allocations || []),
+  }));
+}
+
+export function duplicateJob(jobId, wsId = workspaceId()) {
+  const current = getJobById(jobId, wsId);
+  if (!current) return null;
+  const jobs = loadJobs(wsId);
+  const deliverableIdMap = new Map();
+  const duplicatedDeliverables = (current.deliverables || []).map((deliverable) => {
+    const nextId = createId('del');
+    deliverableIdMap.set(String(deliverable.id), nextId);
+    return {
+      ...deliverable,
+      id: nextId,
+      tasks: cloneTasksForDuplicate(deliverable.tasks || [], nextId),
+    };
+  }).map((deliverable) => ({
+    ...deliverable,
+    dependencyDeliverableIds: (deliverable.dependencyDeliverableIds || [])
+      .map((id) => deliverableIdMap.get(String(id)) || null)
+      .filter(Boolean),
+  }));
+  const duplicatedPlan = normalizePlan({
+    ...(current.plan || {}),
+    rows: (current.plan?.rows || []).map((row) => ({
+      ...row,
+      id: deliverableIdMap.get(String(row.id)) || createId('del'),
+    })),
+  });
+  const duplicatedDeliverableDetails = normalizeDeliverableDetailsMap(Object.keys(current.deliverableDetailsById || {}).reduce((acc, key) => {
+    const nextKey = deliverableIdMap.get(String(key));
+    if (!nextKey) return acc;
+    const item = current.deliverableDetailsById[key] || {};
+    acc[nextKey] = {
+      ...item,
+      dependencyRowId: item.dependencyRowId ? (deliverableIdMap.get(String(item.dependencyRowId)) || '') : '',
+    };
+    return acc;
+  }, {}));
+  const duplicatedUnassignedTasks = cloneTasksForDuplicate(current.unassignedTasks || [], null);
+  return createJob({
+    ...current,
+    id: createId('job'),
+    jobNumber: nextDuplicateJobNumber(current, jobs),
+    status: 'pending',
+    lastNonArchivedStatus: null,
+    archivedAt: null,
+    archivedByUserId: null,
+    completedAt: null,
+    completedByUserId: null,
+    deliverables: duplicatedDeliverables,
+    plan: duplicatedPlan,
+    deliverableDetailsById: duplicatedDeliverableDetails,
+    unassignedTasks: duplicatedUnassignedTasks,
+  }, wsId);
 }
 
 export function getJobAvailableHours(job) {

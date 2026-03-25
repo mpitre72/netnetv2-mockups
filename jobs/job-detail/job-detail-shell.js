@@ -2,7 +2,7 @@ import { SectionHeader } from '../../components/layout/SectionHeader.js';
 import { navigate } from '../../router.js';
 import { getContactsData, getIndividualsData } from '../../contacts/contacts-data.js';
 import { getCurrentUserId, loadTeamMembers } from '../../quick-tasks/quick-tasks-store.js';
-import { getJobById, loadJobChatMessages, updateJob } from '../jobs-store.js';
+import { getJobById, loadJobChatMessages, saveJob } from '../jobs-store.js';
 import { getJobNumber } from '../job-number-utils.js';
 import { setJobTasksViewMode } from '../jobs-ui-state.js';
 import { JobPlanTab } from '../jobs-plan.js';
@@ -106,8 +106,12 @@ export function JobDetailShell({ jobId, subview }) {
     if (location.hash !== nextHash) navigate(nextHash);
   }, [job, subview]);
 
-  const handleJobUpdate = (updates) => {
-    const next = updateJob(jobId, updates);
+  const handleJobUpdate = (updates, options = {}) => {
+    if (options?.persisted) {
+      if (updates) setJob(updates);
+      return;
+    }
+    const next = saveJob({ id: jobId, ...(updates || {}) });
     if (next) setJob(next);
   };
   const markChatRead = (target) => {
@@ -252,6 +256,7 @@ export function JobDetailShell({ jobId, subview }) {
       : 'plan';
   const activeTab = TAB_CONFIG.find((tab) => tab.key === normalizedSubview) ? normalizedSubview : statusDefaultTab;
   const timelineDisabled = job.kind === 'retainer';
+  const hideTopJobHeader = job.status === 'pending' && activeTab === 'plan';
 
   const companyName = job.companyId ? companyMap.get(String(job.companyId)) : '';
   const personName = job.personId ? peopleMap.get(String(job.personId)) : '';
@@ -315,6 +320,8 @@ export function JobDetailShell({ jobId, subview }) {
         job,
         onJobUpdate: handleJobUpdate,
         readOnly,
+        onOpenChat: openChat,
+        chatIndicator: jobChatIndicator,
       });
     }
     if (activeTab === 'tasks') {
@@ -359,39 +366,41 @@ export function JobDetailShell({ jobId, subview }) {
     job.status === 'archived'
       ? h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-4 py-2 text-xs text-slate-600 dark:text-slate-300' }, 'Archived — view only.')
       : null,
-    h('div', { className: 'rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-900/50 p-5 space-y-2 mb-2', 'data-job-header': 'true' }, [
-      h('div', { className: 'flex items-center justify-between gap-3' }, [
-        h('div', { className: 'text-xl font-semibold text-slate-900 dark:text-white' }, job.name || 'Job'),
-        h('button', {
-          type: 'button',
-          className: 'inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white',
-          onClick: () => openChat({ type: 'job' }),
-        }, [
-          renderChatIcon(jobChatIndicator),
-          'Chat',
-        ].filter(Boolean)),
-      ]),
-      h('div', {
-        className: 'text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis',
-        'data-job-header-meta': 'true',
-      }, [
-        h('span', { className: 'text-slate-700 dark:text-slate-200 font-medium' }, `Job ${jobNumber}`),
-        h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
-        h('span', null, kindLabel(job.kind)),
-        h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
-        h('span', { className: statusToneClass(job.status) }, statusLabel(job.status)),
-        h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
-        h('span', null, 'Client: '),
-        clientHref
-          ? h('button', {
+    hideTopJobHeader
+      ? null
+      : h('div', { className: 'rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-900/50 p-5 space-y-2 mb-2', 'data-job-header': 'true' }, [
+        h('div', { className: 'flex items-center justify-between gap-3' }, [
+          h('div', { className: 'text-xl font-semibold text-slate-900 dark:text-white' }, job.name || 'Job'),
+          h('button', {
             type: 'button',
-            className: 'text-slate-700 dark:text-slate-200 hover:underline',
-            onClick: () => navigate(clientHref),
-            'data-client-href': clientHref,
-          }, clientName)
-          : h('span', { className: 'text-slate-600 dark:text-slate-300', 'data-client-href': '' }, clientName),
+            className: 'inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white',
+            onClick: () => openChat({ type: 'job' }),
+          }, [
+            renderChatIcon(jobChatIndicator),
+            'Chat',
+          ].filter(Boolean)),
+        ]),
+        h('div', {
+          className: 'text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis',
+          'data-job-header-meta': 'true',
+        }, [
+          h('span', { className: 'text-slate-700 dark:text-slate-200 font-medium' }, `Job ${jobNumber}`),
+          h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
+          h('span', null, kindLabel(job.kind)),
+          h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
+          h('span', { className: statusToneClass(job.status) }, statusLabel(job.status)),
+          h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
+          h('span', null, 'Client: '),
+          clientHref
+            ? h('button', {
+              type: 'button',
+              className: 'text-slate-700 dark:text-slate-200 hover:underline',
+              onClick: () => navigate(clientHref),
+              'data-client-href': clientHref,
+            }, clientName)
+            : h('span', { className: 'text-slate-600 dark:text-slate-300', 'data-client-href': '' }, clientName),
+        ]),
       ]),
-    ]),
     h('div', { className: 'flex flex-wrap gap-2' }, TAB_CONFIG.map(renderTab)),
     content,
   ]);
