@@ -140,6 +140,7 @@ function parseRoute(hash) {
     const tabs = {
       team: 'team',
       'service-types': 'service-types',
+      'deliverable-types': 'deliverable-types',
       workspace: 'workspace',
       templates: 'templates',
       subscription: 'subscription',

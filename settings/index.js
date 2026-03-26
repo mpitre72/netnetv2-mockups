@@ -2,6 +2,14 @@ import { SectionHeader } from '../components/layout/SectionHeader.js';
 import { TextInput } from '../components/forms/text-input.js';
 import { navigate } from '../router.js';
 import { getActiveWorkspace, getCurrentRole } from '../app-shell/app-helpers.js';
+import {
+  loadDeliverableTypes,
+  createDeliverableType,
+  updateDeliverableType,
+  deleteDeliverableType,
+  normalizeDeliverableTypeName,
+} from '../jobs/deliverable-type-store.js';
+import { loadJobs } from '../jobs/jobs-store.js';
 
 const { createElement: h } = React;
 const { createRoot } = ReactDOM;
@@ -19,6 +27,13 @@ const SETTINGS_TABS = [
     hash: '#/app/settings/service-types',
     title: 'Service Types',
     blurb: 'Service Types and Service Groups will live here.',
+  },
+  {
+    key: 'deliverable-types',
+    label: 'Deliverable Types',
+    hash: '#/app/settings/deliverable-types',
+    title: 'Deliverable Types',
+    blurb: 'Manage reusable deliverable labels used across Jobs.',
   },
   {
     key: 'workspace',
@@ -77,6 +92,10 @@ const WORKSPACE_UI_STATE = {
   currencySearch: '',
   timezones: null,
   currencies: null,
+};
+
+const DELIVERABLE_TYPES_UI_STATE = {
+  search: '',
 };
 
 const SUBSCRIPTION_UI_STATE = {
@@ -1002,6 +1021,194 @@ function renderEmptyState(message) {
       ${message}
     </div>
   `;
+}
+
+function getDeliverableTypeUsageCounts(wsId = workspaceId()) {
+  const counts = new Map();
+  loadJobs(wsId).forEach((job) => {
+    (job?.deliverables || []).forEach((deliverable) => {
+      const key = normalizeDeliverableTypeName(deliverable?.deliverableType || '').toLowerCase();
+      if (!key) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+  });
+  return counts;
+}
+
+function renderDeliverableTypesTab(container) {
+  const wsId = workspaceId();
+  const usageCounts = getDeliverableTypeUsageCounts(wsId);
+  const search = DELIVERABLE_TYPES_UI_STATE.search.trim().toLowerCase();
+  const deliverableTypes = loadDeliverableTypes().filter((type) => {
+    if (!search) return true;
+    return String(type.name || '').toLowerCase().includes(search);
+  });
+
+  const rows = deliverableTypes.length
+    ? deliverableTypes.map((type) => {
+      const usageCount = usageCounts.get(String(type.name || '').toLowerCase()) || 0;
+      return `
+        <tr class="border-b border-slate-200 dark:border-white/10">
+          <td class="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">
+            <button type="button" class="text-netnet-purple dark:text-white hover:underline" data-deliverable-type-open="${type.id}">${type.name}</button>
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">${formatDate(type.createdAt)}</td>
+          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">${usageCount}</td>
+          <td class="px-3 py-3 text-right">
+            <button type="button" class="deliverable-type-more-btn h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10" data-deliverable-type-menu="${type.id}" aria-label="Deliverable type actions">
+              &#8942;
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('')
+    : renderEmptyState('No deliverable types match the current search.');
+
+  container.innerHTML = `
+    <div class="space-y-6">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="deliverable-types-search" type="search" placeholder="Search deliverable types…" value="${DELIVERABLE_TYPES_UI_STATE.search}" class="h-10 w-full md:w-64 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-netnet-purple"/>
+        </div>
+        <button id="deliverable-types-primary-btn" type="button" class="inline-flex items-center justify-center h-10 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110">
+          New deliverable type
+        </button>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-800/90 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-50 dark:bg-slate-900/60 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold">
+              <tr>
+                <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Name</th>
+                <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Created</th>
+                <th class="px-4 py-3 border-b border-slate-200 dark:border-white/10">Usage count</th>
+                <th class="px-3 py-3 border-b border-slate-200 dark:border-white/10 text-right"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.querySelector('#deliverable-types-search')?.addEventListener('input', (e) => {
+    DELIVERABLE_TYPES_UI_STATE.search = e.target.value || '';
+    renderDeliverableTypesTab(container);
+  });
+  container.querySelector('#deliverable-types-primary-btn')?.addEventListener('click', () => {
+    openDeliverableTypeDrawer();
+  });
+  container.querySelectorAll('[data-deliverable-type-open]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-deliverable-type-open');
+      const match = loadDeliverableTypes().find((type) => String(type.id) === String(id));
+      if (match) openDeliverableTypeDrawer(match);
+    });
+  });
+  container.querySelectorAll('[data-deliverable-type-menu]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-deliverable-type-menu');
+      const match = loadDeliverableTypes().find((type) => String(type.id) === String(id));
+      if (!match) return;
+      openMenu(btn, [
+        { key: 'edit', label: 'Edit', onClick: () => openDeliverableTypeDrawer(match) },
+        { key: 'delete', label: 'Delete', danger: true, onClick: () => handleDeleteDeliverableType(match) },
+      ]);
+    });
+  });
+}
+
+function openDeliverableTypeDrawer(existingType = null) {
+  const isNew = !existingType;
+  const drawer = document.getElementById('drawer-container');
+  const shell = document.getElementById('app-shell');
+  if (!drawer) return;
+  clearServiceTypeDrawerRoot(drawer);
+  drawer.innerHTML = `
+    <div id="app-drawer-backdrop"></div>
+    <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-white/10">
+        <div>
+          <h2 class="text-lg font-semibold">${isNew ? 'New deliverable type' : 'Edit deliverable type'}</h2>
+          <p class="text-xs text-slate-500 dark:text-white/60">${isNew ? 'Create a reusable deliverable label.' : existingType.name}</p>
+        </div>
+        <button type="button" id="drawerCloseBtn" class="text-slate-500 hover:text-slate-800 dark:text-white/70 dark:hover:text-white">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div>
+          <label class="lookup-modal__label">Name</label>
+          <input id="deliverable-type-name" type="text" class="lookup-input" value="${existingType?.name || ''}" placeholder="e.g. Homepage, Landing Page, SEO Audit" />
+          <p id="deliverable-type-error" class="mt-1 text-xs text-red-600 dark:text-red-400 hidden"></p>
+        </div>
+      </div>
+      <div class="px-5 py-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-2">
+        <button type="button" id="drawerCancelBtn" class="lookup-btn ghost">Cancel</button>
+        <button type="button" id="drawerSaveBtn" class="lookup-btn primary">${isNew ? 'Create' : 'Save'}</button>
+      </div>
+    </aside>
+  `;
+  if (shell) shell.classList.remove('drawer-closed');
+
+  const closeDrawer = () => { shell?.classList.add('drawer-closed'); };
+  drawer.querySelector('#app-drawer-backdrop')?.addEventListener('click', closeDrawer);
+  drawer.querySelector('#drawerCloseBtn')?.addEventListener('click', closeDrawer);
+  drawer.querySelector('#drawerCancelBtn')?.addEventListener('click', closeDrawer);
+
+  const input = drawer.querySelector('#deliverable-type-name');
+  const errorEl = drawer.querySelector('#deliverable-type-error');
+  input?.focus();
+
+  drawer.querySelector('#drawerSaveBtn')?.addEventListener('click', () => {
+    const nextName = normalizeDeliverableTypeName(input?.value || '');
+    const existing = loadDeliverableTypes();
+    const duplicate = existing.some((type) => (
+      String(type.id) !== String(existingType?.id || '')
+      && normalizeDeliverableTypeName(type.name).toLowerCase() === nextName.toLowerCase()
+    ));
+    if (!nextName) {
+      errorEl.textContent = 'Name is required.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    if (duplicate) {
+      errorEl.textContent = 'Name must be unique.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    errorEl.classList.add('hidden');
+    if (isNew) createDeliverableType(nextName);
+    else updateDeliverableType(existingType.id, nextName);
+    showToast(isNew ? 'Deliverable type created' : 'Deliverable type updated');
+    closeDrawer();
+    const container = document.getElementById('settingsDeliverableTypesRoot');
+    if (container) renderDeliverableTypesTab(container);
+  });
+}
+
+function handleDeleteDeliverableType(type) {
+  const usageCount = getDeliverableTypeUsageCounts(workspaceId()).get(normalizeDeliverableTypeName(type?.name || '').toLowerCase()) || 0;
+  const remove = () => {
+    deleteDeliverableType(type.id);
+    showToast('Deliverable type deleted');
+    const container = document.getElementById('settingsDeliverableTypesRoot');
+    if (container) renderDeliverableTypesTab(container);
+  };
+  if (usageCount <= 0) {
+    remove();
+    return;
+  }
+  showConfirmModal({
+    title: 'Delete deliverable type?',
+    message: 'This type is used in existing deliverables. Deleting it will not remove it from those deliverables.',
+    confirmLabel: 'Delete',
+    onConfirm: remove,
+  });
 }
 
 function getMemberDisplayName(member) {
@@ -3753,6 +3960,7 @@ export function renderSettingsPage(route = {}, container = document.getElementBy
   container.classList.remove('flex', 'items-center', 'justify-center', 'h-full');
   const isTeam = activeTab.key === 'team';
   const isServiceTypes = activeTab.key === 'service-types';
+  const isDeliverableTypes = activeTab.key === 'deliverable-types';
   const isWorkspace = activeTab.key === 'workspace';
   const isSubscription = activeTab.key === 'subscription';
   const isTerms = activeTab.key === 'terms';
@@ -3765,11 +3973,12 @@ export function renderSettingsPage(route = {}, container = document.getElementBy
       </div>
       ${isTeam ? '<div id="settingsTeamRoot" class="flex-1 px-4"></div>' : ''}
       ${isServiceTypes ? '<div id="settingsServiceTypesRoot" class="flex-1 px-4"></div>' : ''}
+      ${isDeliverableTypes ? '<div id="settingsDeliverableTypesRoot" class="flex-1 px-4"></div>' : ''}
       ${isWorkspace ? '<div id="settingsWorkspaceRoot" class="flex-1 px-4"></div>' : ''}
       ${isSubscription ? '<div id="settingsSubscriptionRoot" class="flex-1 px-4"></div>' : ''}
       ${isTerms ? '<div id="settingsTermsRoot" class="flex-1 px-4"></div>' : ''}
       ${isTemplates ? '<div id="settingsTemplatesRoot" class="flex-1 px-4"></div>' : ''}
-      ${(!isTeam && !isServiceTypes && !isWorkspace && !isSubscription && !isTerms && !isTemplates)
+      ${(!isTeam && !isServiceTypes && !isDeliverableTypes && !isWorkspace && !isSubscription && !isTerms && !isTemplates)
         ? `
           <div class="flex-1 px-4">
             <section class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-sm px-6 py-6 md:px-8 md:py-8">
@@ -3829,6 +4038,10 @@ export function renderSettingsPage(route = {}, container = document.getElementBy
   if (isServiceTypes) {
     const serviceTypesRoot = document.getElementById('settingsServiceTypesRoot');
     if (serviceTypesRoot) renderServiceTypesTab(serviceTypesRoot);
+  }
+  if (isDeliverableTypes) {
+    const deliverableTypesRoot = document.getElementById('settingsDeliverableTypesRoot');
+    if (deliverableTypesRoot) renderDeliverableTypesTab(deliverableTypesRoot);
   }
   if (isWorkspace) {
     const workspaceRoot = document.getElementById('settingsWorkspaceRoot');

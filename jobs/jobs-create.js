@@ -11,6 +11,7 @@ import { saveJob } from './jobs-store.js';
 import { JobActivationModal } from './job-detail/job-activation-modal.js';
 import { getJobNumber } from './job-number-utils.js';
 import { TaskStyleRichTextField } from './task-style-rich-text-field.js';
+import { loadDeliverableTypeOptions, rememberDeliverableType } from './deliverable-type-store.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
@@ -267,12 +268,22 @@ function normalizeDeliverableDetailsMap(raw = {}) {
   if (!raw || typeof raw !== 'object') return {};
   return Object.keys(raw).reduce((acc, key) => {
     const item = raw[key] || {};
+    const hybridRaw = item.hybridDelivery || {};
+    const hybridHours = hybridRaw.estimatedHours;
     acc[String(key)] = {
       description: String(item.description || ''),
       durationValue: String(item.durationValue || ''),
       durationUnit: item.durationUnit === 'weeks' || item.durationUnit === 'months' ? item.durationUnit : 'days',
       dependencyRowId: String(item.dependencyRowId || ''),
       internalNotes: String(item.internalNotes || ''),
+      deliverableType: String(item.deliverableType || ''),
+      hybridDelivery: {
+        enabled: !!hybridRaw.enabled,
+        estimatedHours: hybridHours === '' || hybridHours === null || hybridHours === undefined || Number.isNaN(Number(hybridHours))
+          ? null
+          : Number(hybridHours),
+        notes: String(hybridRaw.notes || ''),
+      },
     };
     return acc;
   }, {});
@@ -286,6 +297,12 @@ function ensureDeliverableDetails(detailsMap = {}, rowId) {
     durationUnit: 'days',
     dependencyRowId: '',
     internalNotes: '',
+    deliverableType: '',
+    hybridDelivery: {
+      enabled: false,
+      estimatedHours: null,
+      notes: '',
+    },
   };
 }
 
@@ -379,6 +396,12 @@ function buildDeliverableDetailsFromJob(job) {
       durationUnit: deliverable.durationUnit || 'days',
       dependencyRowId: String((deliverable.dependencyDeliverableIds || [])[0] || ''),
       internalNotes: String(deliverable.internalNotes || ''),
+      deliverableType: String(deliverable.deliverableType || ''),
+      hybridDelivery: {
+        enabled: !!deliverable?.hybridDelivery?.enabled,
+        estimatedHours: deliverable?.hybridDelivery?.estimatedHours ?? null,
+        notes: String(deliverable?.hybridDelivery?.notes || ''),
+      },
     };
     return acc;
   }, {}));
@@ -442,6 +465,7 @@ function buildDraftDeliverables(draft, existingDeliverables = [], options = {}) 
       ...deliverable,
       description: details.description,
       internalNotes: details.internalNotes,
+      deliverableType: String(details.deliverableType || '').trim() || null,
       durationValue: String(details.durationValue || ''),
       durationUnit: details.durationUnit || 'days',
       dependencyDeliverableIds: dependencyId ? [dependencyId] : [],
@@ -964,9 +988,10 @@ function SummaryStepBody({ draft, onDraftChange, companies = [], individuals = [
   ]);
 }
 
-function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyHeaderOffset = 0 }) {
+function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyHeaderOffset = 0, jobStatus = 'pending' }) {
   const selectedServiceTypeIds = buildSelectedServiceTypeIds(draft.selectedServiceTypeIds);
   const [detailsRowId, setDetailsRowId] = useState(null);
+  const [deliverableTypeOptions, setDeliverableTypeOptions] = useState(() => loadDeliverableTypeOptions());
   const plan = normalizePlanState(draft.plan, draft.selectedServiceTypeIds);
   const historyRef = useRef({ undo: [], redo: [] });
   const suppressHistoryRef = useRef(false);
@@ -1077,6 +1102,31 @@ function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyH
     ])),
   ]);
 
+  const renderHybridSummary = (row) => {
+    const details = ensureDeliverableDetails(draft.deliverableDetailsById, row.id);
+    const typeLabel = String(details.deliverableType || '').trim();
+    const hybrid = details.hybridDelivery || {};
+    const summaryItems = [];
+    if (typeLabel) {
+      summaryItems.push(h('div', {
+        key: 'type',
+        className: 'truncate text-[11px] font-medium text-slate-500 dark:text-slate-400',
+      }, `→ ${typeLabel}`));
+    }
+    if (jobStatus !== 'active' || !hybrid.enabled) {
+      return summaryItems.length ? h('div', { className: 'mt-1 space-y-0.5' }, summaryItems) : null;
+    }
+    const safeHours = hybrid.estimatedHours;
+    const summaryText = safeHours !== null && safeHours !== undefined && safeHours !== ''
+      ? `Agent-assisted • ~${formatLargeHours(safeHours)} hrs AI contribution`
+      : 'Agent-assisted';
+    summaryItems.push(h('div', {
+      key: 'hybrid',
+      className: 'truncate text-[11px] font-medium text-slate-500 dark:text-slate-400',
+    }, summaryText));
+    return h('div', { className: 'mt-1 space-y-0.5' }, summaryItems);
+  };
+
   return h(React.Fragment, null, [
     h(JobPlanEditor, {
       plan,
@@ -1103,6 +1153,9 @@ function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyH
         details: ensureDeliverableDetails(draft.deliverableDetailsById, row.id),
         deliverables: plan.rows || [],
         jobKind: draft.kind,
+        jobStatus,
+        deliverableTypeOptions,
+        onRememberDeliverableType: (value) => setDeliverableTypeOptions((current) => rememberDeliverableType(value, current)),
         onChange: (patch) => {
           stageHistory();
           setDetailsRowId(row.id);
@@ -1118,12 +1171,24 @@ function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyH
           }));
         },
       }),
+      renderRowSummary: renderHybridSummary,
     }),
   ]);
 }
 
-function DeliverableExpandedRow({ row, details, deliverables = [], jobKind = 'project', onChange }) {
+function DeliverableExpandedRow({
+  row,
+  details,
+  deliverables = [],
+  jobKind = 'project',
+  jobStatus = 'pending',
+  deliverableTypeOptions = [],
+  onRememberDeliverableType = null,
+  onChange,
+}) {
   const isRetainer = jobKind === 'retainer';
+  const showHybridDelivery = jobStatus === 'active';
+  const hybridDelivery = details.hybridDelivery || { enabled: false, estimatedHours: null, notes: '' };
   return h('div', {
     className: 'grid gap-4 p-4 md:p-5 transition-all duration-200 ease-out',
   }, [
@@ -1181,6 +1246,103 @@ function DeliverableExpandedRow({ row, details, deliverables = [], jobKind = 'pr
       footerText: 'Auto-saves on change',
       muted: true,
     }),
+    h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-3 space-y-3' }, [
+      h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Deliverable Type'),
+      h('div', { className: 'space-y-2' }, [
+        h('input', {
+          type: 'text',
+          list: `deliverable-type-options-${row.id}`,
+          value: details.deliverableType || '',
+          placeholder: 'e.g. Website Build, SEO Sprint',
+          onChange: (event) => onChange?.({ deliverableType: event.target.value }),
+          onBlur: (event) => onRememberDeliverableType?.(event.target.value),
+          onKeyDown: (event) => {
+            if (event.key === 'Enter') {
+              onRememberDeliverableType?.(event.currentTarget.value);
+            }
+          },
+          className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-800 dark:text-white',
+        }),
+        h('datalist', { id: `deliverable-type-options-${row.id}` },
+          (deliverableTypeOptions || []).map((option) => h('option', { key: option, value: option }))
+        ),
+        h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Group similar deliverables across jobs'),
+      ]),
+    ]),
+    showHybridDelivery
+      ? h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 p-4 space-y-4' }, [
+        h('div', { className: 'space-y-1' }, [
+          h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, 'Hybrid Delivery'),
+        ]),
+        h('div', { className: 'flex items-start justify-between gap-4 rounded-lg border border-slate-200/80 bg-white/70 px-3 py-3 dark:border-white/10 dark:bg-slate-950/40' }, [
+          h('div', { className: 'space-y-1' }, [
+            h('div', { className: 'text-sm font-medium text-slate-900 dark:text-white' }, 'Agent-assisted'),
+            !hybridDelivery.enabled
+              ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'No AI-assisted work recorded')
+              : h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Track lightweight AI contribution without affecting LOE planning.'),
+          ]),
+          h('label', { className: 'relative inline-flex cursor-pointer items-center' }, [
+            h('input', {
+              type: 'checkbox',
+              className: 'peer sr-only',
+              checked: !!hybridDelivery.enabled,
+              onChange: (event) => onChange?.({
+                hybridDelivery: {
+                  ...hybridDelivery,
+                  enabled: !!event.target.checked,
+                },
+              }),
+            }),
+            h('span', {
+              className: 'h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-netnet-purple dark:bg-slate-700',
+            }),
+            h('span', {
+              className: 'pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5',
+            }),
+          ]),
+        ]),
+        hybridDelivery.enabled
+          ? h('div', { className: 'grid gap-4 md:grid-cols-2' }, [
+            h('div', { className: 'space-y-2' }, [
+              h('label', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Estimated AI contribution (hours)'),
+              h('input', {
+                type: 'number',
+                min: '0',
+                step: '0.25',
+                value: hybridDelivery.estimatedHours ?? '',
+                placeholder: 'Optional',
+                onChange: (event) => {
+                  const raw = String(event.target.value || '').trim();
+                  onChange?.({
+                    hybridDelivery: {
+                      ...hybridDelivery,
+                      estimatedHours: raw === '' ? null : Number(raw),
+                    },
+                  });
+                },
+                className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-800 dark:text-white',
+              }),
+              h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Rough estimate of work completed with AI assistance'),
+            ]),
+            h('div', { className: 'space-y-2' }, [
+              h('label', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Notes'),
+              h('textarea', {
+                value: hybridDelivery.notes || '',
+                placeholder: 'What did the AI help with?',
+                rows: 4,
+                onChange: (event) => onChange?.({
+                  hybridDelivery: {
+                    ...hybridDelivery,
+                    notes: event.target.value,
+                  },
+                }),
+                className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-white',
+              }),
+            ]),
+          ])
+          : null,
+      ])
+      : null,
   ]);
 }
 
@@ -1911,6 +2073,7 @@ function StepScreen({
   members,
   serviceTypes,
   stickyHeaderOffset = 0,
+  jobStatus = 'pending',
   onBack,
   onNext,
   footerActions = null,
@@ -2152,6 +2315,7 @@ export function JobCreateStepperRoot({
         members,
         serviceTypes,
         stickyHeaderOffset: stickyHeaderHeight,
+        jobStatus: job?.status || 'pending',
         onBack: handleBack,
         onNext: handleNext,
         footerActions: stepFourActions,

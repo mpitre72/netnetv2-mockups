@@ -10,6 +10,7 @@ import { JobSettingsTab } from './job-settings-tab.js';
 import { JobTimelineTab } from './job-timeline-tab.js';
 import { JobPerformanceTab } from './job-performance-tab.js';
 import { JobTasksTab } from './job-tasks-tab.js';
+import { JobChangeOrdersTab } from './job-change-orders-tab.js';
 import { closeJobChatDrawer, openJobChatDrawer } from '../job-chat-drawer.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
@@ -18,6 +19,7 @@ const TAB_CONFIG = [
   { key: 'plan', label: 'Plan', path: 'plan' },
   { key: 'tasks', label: 'Tasks', path: 'tasks' },
   { key: 'timeline', label: 'Timeline', path: 'timeline' },
+  { key: 'change-orders', label: 'Change Orders', path: 'change-orders' },
   { key: 'performance', label: 'Performance', path: 'performance' },
   { key: 'settings', label: 'Settings', path: 'settings' },
 ];
@@ -68,7 +70,7 @@ function TabPlaceholder({ title, description, bullets = [] }) {
   ]);
 }
 
-export function JobDetailShell({ jobId, subview }) {
+export function JobDetailShell({ jobId, subview, detailSegments = [] }) {
   const [job, setJob] = useState(() => getJobById(jobId));
   const [chatMessages, setChatMessages] = useState(() => loadJobChatMessages(jobId));
   const [chatState, setChatState] = useState({ isOpen: false, target: { type: 'job' } });
@@ -254,7 +256,10 @@ export function JobDetailShell({ jobId, subview }) {
     : job.status === 'completed' || job.status === 'archived'
       ? 'performance'
       : 'plan';
-  const activeTab = TAB_CONFIG.find((tab) => tab.key === normalizedSubview) ? normalizedSubview : statusDefaultTab;
+  const visibleTabs = job.status === 'pending'
+    ? TAB_CONFIG.filter((tab) => tab.key !== 'change-orders')
+    : TAB_CONFIG;
+  const activeTab = visibleTabs.find((tab) => tab.key === normalizedSubview) ? normalizedSubview : statusDefaultTab;
   const timelineDisabled = job.kind === 'retainer';
   const hideTopJobHeader = job.status === 'pending' && activeTab === 'plan';
 
@@ -267,6 +272,7 @@ export function JobDetailShell({ jobId, subview }) {
       ? `#/app/contacts/person/${job.personId}`
       : null;
   const jobChatIndicator = chatIndicators?.job || { totalMessages: 0, hasUnreadMessages: false, mentionCount: 0 };
+  const appliedChangeOrderCount = (job.changeOrders || []).filter((changeOrder) => changeOrder?.status === 'applied').length;
 
   const renderChatIcon = (indicator = {}) => {
     const total = indicator.totalMessages || 0;
@@ -342,6 +348,14 @@ export function JobDetailShell({ jobId, subview }) {
       }
       return h(JobTimelineTab, { job, onJobUpdate: handleJobUpdate, readOnly });
     }
+    if (activeTab === 'change-orders') {
+      return h(JobChangeOrdersTab, {
+        job,
+        onJobUpdate: handleJobUpdate,
+        readOnly,
+        changeOrderId: detailSegments?.[0] || null,
+      });
+    }
     if (activeTab === 'performance') {
       return h(JobPerformanceTab, { job });
     }
@@ -399,9 +413,19 @@ export function JobDetailShell({ jobId, subview }) {
               'data-client-href': clientHref,
             }, clientName)
             : h('span', { className: 'text-slate-600 dark:text-slate-300', 'data-client-href': '' }, clientName),
+          appliedChangeOrderCount
+            ? [
+              h('span', { className: 'mx-2 text-slate-400 dark:text-slate-500' }, '\u2022'),
+              h('button', {
+                type: 'button',
+                className: 'text-slate-700 dark:text-slate-200 hover:underline',
+                onClick: () => navigate(`#/app/jobs/${job.id}/change-orders`),
+              }, `${appliedChangeOrderCount} Change Order${appliedChangeOrderCount === 1 ? '' : 's'} Applied`),
+            ]
+            : null,
         ]),
       ]),
-    h('div', { className: 'flex flex-wrap gap-2' }, TAB_CONFIG.map(renderTab)),
+    h('div', { className: 'flex flex-wrap gap-2' }, visibleTabs.map(renderTab)),
     content,
   ]);
 }

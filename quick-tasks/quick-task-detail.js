@@ -1,17 +1,20 @@
 import { navigate } from '../router.js';
 import { mountCompanyLookup } from '../contacts/company-lookup.js';
 import { mountPersonLookup } from '../contacts/person-lookup.js';
+import { QuickTaskDrawerPanel, buildQuickTaskDrawerInitialDraft } from './quick-task-drawer.js';
 import {
   addTimeEntry,
   archiveTask,
   canDeleteTask,
   createQuickTask,
-  getCurrentUser,
   getCurrentUserId,
   getLocalDateISO,
   getMemberById,
   getTaskById,
   getTaskActualHours,
+  getTaskContext,
+  getTaskPrimaryAllocation,
+  getTaskTotalLoe,
   loadServiceTypes,
   loadTeamMembers,
   promoteToJobTask,
@@ -21,6 +24,9 @@ import {
 } from './quick-tasks-store.js';
 import { escapeHtml, formatDateLabel, formatHours, renderAvatar } from './quick-tasks-helpers.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
+
+const { createElement: h } = React;
+const { createRoot } = ReactDOM;
 
 const MOCK_JOBS = [
   {
@@ -40,6 +46,9 @@ const MOCK_JOBS = [
     ],
   },
 ];
+
+let quickTaskDrawerRoot = null;
+let quickTaskDrawerCloseTimer = null;
 
 function ensureModalLayer(id) {
   let layer = document.getElementById(id);
@@ -322,7 +331,18 @@ function findPersonById(id) {
 function buildInitialTask({ mode, taskId, sourceItem, serviceTypes, members }) {
   if (mode === 'edit' && taskId) {
     const task = getTaskById(taskId);
-    return task ? { ...task } : null;
+    if (!task) return null;
+    const primaryAllocation = getTaskPrimaryAllocation(task);
+    const context = getTaskContext(task);
+    return {
+      ...task,
+      serviceTypeId: primaryAllocation?.serviceTypeId || '',
+      loeHours: getTaskTotalLoe(task) || '',
+      assigneeUserId: primaryAllocation?.assigneeUserId || '',
+      isInternal: context.type === 'internal',
+      companyId: context.companyId || null,
+      personId: context.personId || null,
+    };
   }
   const currentUserId = getCurrentUserId(members);
   const defaultServiceType = serviceTypes.find((type) => type.active)?.id || null;
@@ -336,7 +356,6 @@ function buildInitialTask({ mode, taskId, sourceItem, serviceTypes, members }) {
     serviceTypeId: defaultServiceType,
     loeHours: '',
     assigneeUserId: currentUserId,
-    assignorUserId: currentUserId,
     isInternal: false,
     companyId: null,
     personId: null,
@@ -361,7 +380,30 @@ function closeDrawer() {
   shell?.classList.add('drawer-closed');
 }
 
-function serializeFormState({ title, description, serviceTypeId, loeHours, dueDate, assigneeUserId, assignorUserId, isInternal, companyId, personId, status, completedAt, deleteSourceItem }) {
+function clearQuickTaskDrawerRoot(drawer = document.getElementById('drawer-container')) {
+  if (quickTaskDrawerCloseTimer) {
+    clearTimeout(quickTaskDrawerCloseTimer);
+    quickTaskDrawerCloseTimer = null;
+  }
+  if (quickTaskDrawerRoot) {
+    quickTaskDrawerRoot.unmount();
+    quickTaskDrawerRoot = null;
+  }
+  if (drawer) drawer.innerHTML = '';
+}
+
+function closeQuickTaskDrawer({ drawer, shell }) {
+  if (quickTaskDrawerCloseTimer) {
+    clearTimeout(quickTaskDrawerCloseTimer);
+    quickTaskDrawerCloseTimer = null;
+  }
+  shell?.classList.add('drawer-closed');
+  quickTaskDrawerCloseTimer = window.setTimeout(() => {
+    clearQuickTaskDrawerRoot(drawer);
+  }, 260);
+}
+
+function serializeFormState({ title, description, serviceTypeId, loeHours, dueDate, assigneeUserId, isInternal, companyId, personId, status, completedAt, deleteSourceItem }) {
   return JSON.stringify({
     title: title || '',
     description: description || '',
@@ -369,7 +411,6 @@ function serializeFormState({ title, description, serviceTypeId, loeHours, dueDa
     loeHours: Number(loeHours) || 0,
     dueDate: dueDate || '',
     assigneeUserId: assigneeUserId || '',
-    assignorUserId: assignorUserId || '',
     isInternal: !!isInternal,
     companyId: companyId || '',
     personId: personId || '',
@@ -600,660 +641,62 @@ export function openQuickTaskDrawer({
 
   const members = loadTeamMembers();
   const serviceTypes = loadServiceTypes().filter((type) => type.active);
-  const hasServiceTypes = serviceTypes.length > 0;
-  const task = buildInitialTask({ mode, taskId, sourceItem, serviceTypes, members });
-  if (!task) return;
-
-  const showTaskTypeToggle = mode === 'create' && !!sourceItem;
-  let taskType = 'quick';
-
-  let selectedCompany = task.companyId ? findCompanyById(task.companyId) : null;
-  let selectedPerson = task.personId ? findPersonById(task.personId) : null;
-  let deleteSourceItem = true;
-
-  const currentUser = getCurrentUser(members);
-
-  const serviceTypeOptions = serviceTypes.map((type) => `
-    <option value="${escapeHtml(type.id)}" ${type.id === task.serviceTypeId ? 'selected' : ''}>${escapeHtml(type.name)}</option>
-  `).join('');
-
-  const memberOptions = members.map((member) => `
-    <option value="${escapeHtml(member.id)}">${escapeHtml(member.name || member.email || 'Member')}</option>
-  `).join('');
-
-  drawer.innerHTML = `
-    <div id="app-drawer-backdrop"></div>
-    <aside id="app-drawer" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md h-full">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-white/10">
-        <div>
-          <p class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-white/60">${mode === 'edit' ? 'Edit Task' : 'Create Task'}</p>
-          <h2 class="text-lg font-semibold">${mode === 'edit' ? 'Quick Task' : 'New Quick Task'}</h2>
-        </div>
-        <button type="button" id="drawerCloseBtn" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close quick task">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="p-4 pb-20 space-y-5 text-sm flex-1 overflow-y-auto" data-scrollable="true">
-        ${showTaskTypeToggle ? `
-          <div class="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1" id="qtTaskTypeToggle">
-            <button type="button" data-qt-task-type="quick" class="px-3 py-1 rounded-full text-sm font-semibold bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10">Quick Task</button>
-            <button type="button" data-qt-task-type="job" class="px-3 py-1 rounded-full text-sm font-semibold text-slate-600 dark:text-white/70">Job Task</button>
-          </div>
-        ` : ''}
-        <div data-qt-panel="quick" class="space-y-6">
-          <div class="space-y-3">
-            <div class="flex items-center justify-between">
-              <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Basics</div>
-            </div>
-            <p id="qtCompletedAt" class="text-xs text-slate-500 dark:text-slate-400 ${task.completedAt ? '' : 'hidden'}">Completed on ${task.completedAt ? formatDateLabel(task.completedAt) : ''}</p>
-
-            <label class="flex flex-col gap-1">
-              <div class="flex items-center justify-between">
-                <span>Title</span>
-                <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-              </div>
-              <input id="qtTitle" name="title" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm" value="${escapeHtml(task.title || '')}" />
-              <span class="text-xs text-red-500 hidden" data-qt-error></span>
-            </label>
-
-            <label class="flex flex-col gap-1">
-              Description
-              <textarea id="qtDescription" rows="4" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm">${escapeHtml(task.description || '')}</textarea>
-            </label>
-          </div>
-
-          <div class="border-t border-slate-200 dark:border-white/10 pt-4 space-y-3">
-            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Planning</div>
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col gap-1">
-                <div class="flex items-center justify-between">
-                  <span>Service Type</span>
-                  <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-                </div>
-                <select id="qtServiceType" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm" ${hasServiceTypes ? '' : 'disabled'}>
-                  <option value="">Select service type</option>
-                  ${serviceTypeOptions}
-                </select>
-                <span class="text-xs text-red-500 hidden" data-qt-error></span>
-              </label>
-              <label class="flex flex-col gap-1">
-                <div class="flex items-center justify-between">
-                  <span>LOE (hours)</span>
-                  <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-                </div>
-                <input id="qtLoe" type="number" min="0" step="0.25" class="rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm" value="${escapeHtml(task.loeHours || '')}" />
-                <span class="text-xs text-red-500 hidden" data-qt-error></span>
-              </label>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col gap-1">
-                <div class="flex items-center justify-between">
-                  <span>Due date</span>
-                  <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-                </div>
-                <input id="qtDueDate" type="hidden" value="${escapeHtml(task.dueDate || '')}" />
-                <div class="relative">
-                  <input id="qtDueDateDisplay" type="text" readonly class="h-10 w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm pr-10" placeholder="Select date" />
-                  <button type="button" id="qtDuePickerBtn" class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200" aria-label="Open calendar">
-                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2"></rect>
-                      <line x1="16" y1="2" x2="16" y2="6"></line>
-                      <line x1="8" y1="2" x2="8" y2="6"></line>
-                      <line x1="3" y1="10" x2="21" y2="10"></line>
-                    </svg>
-                  </button>
-                </div>
-                <span class="text-xs text-red-500 hidden" data-qt-error></span>
-              </label>
-              <label class="flex flex-col gap-1">
-                <div class="flex items-center justify-between">
-                  <span>Status</span>
-                </div>
-                <select id="qtStatusSelect" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm">
-                  <option value="backlog" ${task.status === 'backlog' ? 'selected' : ''}>Backlog</option>
-                  <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
-                  <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>Completed</option>
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div class="border-t border-slate-200 dark:border-white/10 pt-4 space-y-3">
-            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Ownership</div>
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col gap-1">
-                <div class="flex items-center justify-between">
-                  <span>Assignee</span>
-                  <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-                </div>
-                <select id="qtAssignee" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm">
-                  <option value="">Select assignee</option>
-                  ${memberOptions}
-                </select>
-                <span class="text-xs text-red-500 hidden" data-qt-error></span>
-                <div id="qtAssigneePreview" class="pt-1"></div>
-              </label>
-              <label class="flex flex-col gap-1">
-                Assignor
-                <select id="qtAssignor" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm">
-                  <option value="">Select assignor</option>
-                  ${memberOptions}
-                </select>
-                <div id="qtAssignorPreview" class="pt-1"></div>
-              </label>
-            </div>
-          </div>
-
-          <div class="border-t border-slate-200 dark:border-white/10 pt-4 space-y-3">
-            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Who is this for?</div>
-            <div class="flex flex-col gap-1">
-              <div class="flex items-center justify-between">
-                <span>Client or Internal</span>
-                <span class="text-[11px] uppercase tracking-wide text-slate-400">Required</span>
-              </div>
-            <div class="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1 self-start">
-              <button type="button" data-qt-anchor="client" class="px-3 py-1 rounded-full text-sm font-semibold ${!task.isInternal ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}">Client</button>
-              <button type="button" data-qt-anchor="internal" class="px-3 py-1 rounded-full text-sm font-semibold ${task.isInternal ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}">Internal</button>
-            </div>
-            <span class="text-xs text-red-500 hidden" id="qtAnchorError"></span>
-          </div>
-
-            <div id="qtClientBlock" class="space-y-3 ${task.isInternal ? 'hidden' : ''}">
-              <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Client</div>
-              <div id="qtCompanyLookup"></div>
-              <div id="qtPersonLookup"></div>
-              <p class="text-xs text-red-500 hidden" id="qtCompanyError"></p>
-            </div>
-          </div>
-
-        ${!hasServiceTypes ? `
-          <div class="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 p-3 text-xs">
-            No active service types. Add one in <a class="underline" href="#/app/settings/service-types">Settings → Service Types</a>.
-          </div>
-        ` : ''}
-
-        ${mode === 'edit'
-          ? `
-            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4 space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-white/60">Time Entries</div>
-                <div class="text-xs text-slate-600 dark:text-slate-300" id="qtActualHours">Actual ${formatHours(getTaskActualHours(task))}</div>
-              </div>
-              <div id="qtTimeEntries" class="space-y-2">${renderTimeEntries(task)}</div>
-              <div class="grid grid-cols-2 gap-3">
-                <label class="flex flex-col gap-1">
-                  Date
-                  <input id="qtLogDate" type="date" class="h-9 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-sm" value="${escapeHtml(getLocalDateISO(new Date()))}" />
-                </label>
-                <label class="flex flex-col gap-1">
-                  Hours
-                  <input id="qtLogHours" type="number" min="0" step="0.25" class="h-9 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-sm" placeholder="0.5" />
-                </label>
-              </div>
-              <button type="button" id="qtLogTimeBtn" class="inline-flex items-center justify-center rounded-md border border-slate-200 dark:border-white/10 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">Log time</button>
-            </div>
-          `
-          : ''}
-
-        ${mode === 'edit' ? `
-          <button type="button" id="qtPromoteBtn" class="inline-flex items-center justify-center rounded-md border border-slate-200 dark:border-white/10 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">Promote to Job Task</button>
-        ` : ''}
-
-        ${sourceItem ? `
-          <label class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-white/10 px-3 py-2">
-            <span class="text-sm">Delete list item after creating task</span>
-            <input id="qtDeleteSourceToggle" type="checkbox" class="h-4 w-4" checked />
-          </label>
-        ` : ''}
-        </div>
-        ${showTaskTypeToggle ? `
-          <div data-qt-panel="job" class="hidden space-y-4">
-            <div class="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 p-3 text-xs dark:bg-amber-500/10 dark:text-amber-200">
-              Job Tasks will be enabled once Jobs is shipped.
-            </div>
-            <label class="flex flex-col gap-1">
-              Job
-              <input type="text" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm" placeholder="Select job (coming soon)" />
-            </label>
-            <label class="flex flex-col gap-1">
-              Deliverable
-              <input type="text" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm" placeholder="Select deliverable (coming soon)" />
-            </label>
-            <label class="flex flex-col gap-1">
-              Assignee
-              <input type="text" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm" placeholder="Select assignee (coming soon)" />
-            </label>
-            <label class="flex flex-col gap-1">
-              Due date
-              <input type="text" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm" placeholder="Select date (coming soon)" />
-            </label>
-            <label class="flex flex-col gap-1">
-              Estimated hours
-              <input type="number" min="0" step="0.25" class="h-10 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm" placeholder="0" />
-            </label>
-          </div>
-        ` : ''}
-      </div>
-      <div class="p-4 border-t border-slate-200 dark:border-white/10 flex flex-col gap-3">
-        <p id="qtJobHint" class="text-xs text-amber-700 dark:text-amber-300 hidden">Job Tasks will be enabled once Jobs is shipped.</p>
-        <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          ${mode === 'edit' && !task.isArchived ? `
-            <button type="button" id="qtArchiveBtn" class="px-3 py-2 rounded-md border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Archive</button>
-          ` : ''}
-          ${mode === 'edit' && canDeleteTask(task) ? `
-            <button type="button" id="qtDeleteBtn" class="px-3 py-2 rounded-md border border-red-200 text-xs text-red-600 hover:bg-red-50">Delete</button>
-          ` : ''}
-        </div>
-        <div class="flex items-center gap-2">
-          ${mode === 'edit' ? `
-            <button type="button" id="qtCompleteBtn" class="px-3 py-2 rounded-md border border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">${task.status === 'completed' ? 'Reopen' : 'Mark Completed'}</button>
-          ` : ''}
-          <button type="button" id="qtCancelBtn" class="px-3 py-2 rounded-md border border-slate-200 dark:border-white/10 text-xs">Cancel</button>
-          <button type="button" id="qtSaveBtn" class="px-3 py-2 rounded-md bg-netnet-purple text-white text-xs font-semibold hover:bg-[#6020df]" ${hasServiceTypes ? '' : 'disabled'}>${mode === 'edit' ? 'Save' : 'Create'}</button>
-        </div>
-        </div>
-      </div>
-    </aside>
-  `;
-
-  shell.classList.remove('drawer-closed');
-
-  const titleInput = drawer.querySelector('#qtTitle');
-  const descInput = drawer.querySelector('#qtDescription');
-  const serviceTypeInput = drawer.querySelector('#qtServiceType');
-  const loeInput = drawer.querySelector('#qtLoe');
-  const assigneeInput = drawer.querySelector('#qtAssignee');
-  const assignorInput = drawer.querySelector('#qtAssignor');
-  const dueInput = drawer.querySelector('#qtDueDate');
-  const dueDisplayInput = drawer.querySelector('#qtDueDateDisplay');
-  const duePickerBtn = drawer.querySelector('#qtDuePickerBtn');
-  const clientBlock = drawer.querySelector('#qtClientBlock');
-  const companyError = drawer.querySelector('#qtCompanyError');
-  const anchorError = drawer.querySelector('#qtAnchorError');
-  const deleteToggle = drawer.querySelector('#qtDeleteSourceToggle');
-  const assigneePreview = drawer.querySelector('#qtAssigneePreview');
-  const assignorPreview = drawer.querySelector('#qtAssignorPreview');
-  const saveBtn = drawer.querySelector('#qtSaveBtn');
-  const statusSelect = drawer.querySelector('#qtStatusSelect');
-  const jobHint = drawer.querySelector('#qtJobHint');
-  const completedAtLabel = drawer.querySelector('#qtCompletedAt');
-  const completeBtn = drawer.querySelector('#qtCompleteBtn');
-  const taskTypeButtons = drawer.querySelectorAll('[data-qt-task-type]');
-  const quickPanel = drawer.querySelector('[data-qt-panel="quick"]');
-  const jobPanel = drawer.querySelector('[data-qt-panel="job"]');
-
-  if (assigneeInput && task.assigneeUserId) assigneeInput.value = task.assigneeUserId;
-  if (assignorInput && task.assignorUserId) assignorInput.value = task.assignorUserId;
-
-  const snapshotBase = serializeFormState({
-    title: task.title,
-    description: task.description,
-    serviceTypeId: task.serviceTypeId,
-    loeHours: task.loeHours,
-    dueDate: task.dueDate,
-    assigneeUserId: task.assigneeUserId,
-    assignorUserId: task.assignorUserId,
-    isInternal: task.isInternal,
-    companyId: task.companyId,
-    personId: task.personId,
-    status: task.status,
-    completedAt: task.completedAt,
-    deleteSourceItem,
+  const existingTask = mode === 'edit' && taskId ? getTaskById(taskId) : null;
+  const initialDraft = buildQuickTaskDrawerInitialDraft({
+    mode,
+    taskId,
+    sourceItem,
+    serviceTypes,
+    members,
   });
 
-  const updateMemberPreview = (targetEl, memberId) => {
-    if (!targetEl) return;
-    const member = getMemberById(memberId, members);
-    targetEl.innerHTML = renderMemberPreview(member);
-  };
+  if (!initialDraft) return;
 
-  const getRequiredState = () => {
-    const title = titleInput?.value.trim() || '';
-    const serviceTypeId = serviceTypeInput?.value || '';
-    const loeValue = Number(loeInput?.value);
-    const assigneeId = assigneeInput?.value || '';
-    const dueDate = dueInput?.value || '';
-    const companyOk = task.isInternal || !!selectedCompany;
-    const ready = !!title && !!serviceTypeId && Number.isFinite(loeValue) && loeValue > 0 && !!assigneeId && !!dueDate && companyOk;
-    return { ready };
-  };
+  clearQuickTaskDrawerRoot(drawer);
+  quickTaskDrawerRoot = createRoot(drawer);
 
-  const updateSaveState = () => {
-    const isJobMode = showTaskTypeToggle && taskType === 'job';
-    const ready = !isJobMode && getRequiredState().ready && hasServiceTypes;
-    if (saveBtn) {
-      saveBtn.disabled = !ready;
-      saveBtn.classList.toggle('opacity-40', !ready);
-      saveBtn.classList.toggle('cursor-not-allowed', !ready);
-    }
-    if (jobHint) {
-      jobHint.classList.toggle('hidden', !isJobMode);
-    }
-  };
-
-  const setTaskType = (value) => {
-    taskType = value === 'job' ? 'job' : 'quick';
-    taskTypeButtons.forEach((btn) => {
-      const active = btn.getAttribute('data-qt-task-type') === taskType;
-      btn.classList.toggle('bg-white', active);
-      btn.classList.toggle('dark:bg-slate-700', active);
-      btn.classList.toggle('shadow', active);
-      btn.classList.toggle('border', active);
-      btn.classList.toggle('border-slate-200', active);
-      btn.classList.toggle('text-slate-600', !active);
-      btn.classList.toggle('dark:text-white/70', !active);
-    });
-    if (quickPanel) quickPanel.classList.toggle('hidden', taskType !== 'quick');
-    if (jobPanel) jobPanel.classList.toggle('hidden', taskType !== 'job');
-    updateSaveState();
-  };
-
-  const syncStatusUI = () => {
-    if (statusSelect) {
-      statusSelect.value = task.status;
-    }
-    if (completedAtLabel) {
-      completedAtLabel.classList.toggle('hidden', !task.completedAt);
-      completedAtLabel.textContent = task.completedAt ? `Completed on ${formatDateLabel(task.completedAt)}` : '';
-    }
-    if (completeBtn) {
-      completeBtn.textContent = task.status === 'completed' ? 'Reopen' : 'Mark Completed';
-    }
-  };
-
-  const setStatus = (nextStatus, completedAt = null) => {
-    task.status = nextStatus;
-    task.completedAt = completedAt;
-    syncStatusUI();
-    updateSaveState();
-  };
-
-  const setDueDateValue = (iso) => {
-    if (dueInput) dueInput.value = iso || '';
-    if (dueDisplayInput) dueDisplayInput.value = iso ? formatDisplayDate(iso) : '';
-    setFieldError('qtDueDateDisplay', '');
-    updateSaveState();
-  };
-
-  let duePickerCleanup = null;
-  const openDueDatePicker = () => {
-    if (!dueDisplayInput) return;
-    if (duePickerCleanup) duePickerCleanup();
-    duePickerCleanup = openSingleDatePickerPopover({
-      anchorEl: dueDisplayInput,
-      value: dueInput?.value || '',
-      onSelect: (iso) => setDueDateValue(iso),
-      onClear: () => setDueDateValue(''),
-      onClose: () => {
-        duePickerCleanup = null;
-      },
-    });
-  };
-
-  const renderContactResolver = () => {
-    const companySlot = drawer.querySelector('#qtCompanyLookup');
-    const personSlot = drawer.querySelector('#qtPersonLookup');
-    if (!companySlot || !personSlot) return;
-    companySlot.innerHTML = '';
-    personSlot.innerHTML = '';
-    let personLookupApi = null;
-
-    const setCompany = (company) => {
-      selectedCompany = company ? findCompanyById(company.id) || company : null;
-      if (!company) selectedPerson = null;
-      personLookupApi?.setCompany(selectedCompany);
-      personLookupApi?.setValue(null);
-      updateSaveState();
-    };
-
-    const setPerson = (person, meta) => {
-      selectedPerson = person ? findPersonById(person.id) || person : null;
-      if (meta?.companyCreated && !selectedCompany) {
-        selectedCompany = meta.companyCreated;
-        renderCompanyLookup(selectedCompany);
-        personLookupApi?.setCompany(selectedCompany);
-      }
-      updateSaveState();
-    };
-
-    const renderCompanyLookup = (value) => {
-      mountCompanyLookup(companySlot, {
-        label: 'Company (required)',
-        placeholder: 'Search companies...',
-        value,
-        onChange: (company) => setCompany(company),
-      });
-    };
-
-    renderCompanyLookup(selectedCompany);
-    personLookupApi = mountPersonLookup(personSlot, {
-      label: 'Person (optional)',
-      placeholder: 'Search people...',
-      value: selectedPerson,
-      company: selectedCompany,
-      onChange: (person, meta) => setPerson(person, meta),
-    });
-  };
-
-  renderContactResolver();
-
-  const setAnchor = (value) => {
-    const isInternal = value === 'internal';
-    task.isInternal = isInternal;
-    drawer.querySelectorAll('[data-qt-anchor]').forEach((btn) => {
-      const active = btn.getAttribute('data-qt-anchor') === value;
-      btn.classList.toggle('bg-white', active);
-      btn.classList.toggle('dark:bg-slate-700', active);
-      btn.classList.toggle('shadow', active);
-      btn.classList.toggle('border', active);
-      btn.classList.toggle('border-slate-200', active);
-      btn.classList.toggle('text-slate-600', !active);
-      btn.classList.toggle('dark:text-white/70', !active);
-    });
-    if (clientBlock) clientBlock.classList.toggle('hidden', isInternal);
-    if (isInternal) {
-      selectedCompany = null;
-      selectedPerson = null;
-      renderContactResolver();
-    }
-    updateSaveState();
-  };
-
-  drawer.querySelectorAll('[data-qt-anchor]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      setAnchor(btn.getAttribute('data-qt-anchor'));
-    });
-  });
-
-  assigneeInput?.addEventListener('change', () => {
-    if (assignorInput && currentUser?.id) {
-      assignorInput.value = currentUser.id;
-      updateMemberPreview(assignorPreview, currentUser.id);
-    }
-    updateMemberPreview(assigneePreview, assigneeInput.value);
-    updateSaveState();
-  });
-
-  assignorInput?.addEventListener('change', () => {
-    updateMemberPreview(assignorPreview, assignorInput.value);
-    updateSaveState();
-  });
-
-  titleInput?.addEventListener('input', updateSaveState);
-  serviceTypeInput?.addEventListener('change', updateSaveState);
-  loeInput?.addEventListener('input', updateSaveState);
-  dueDisplayInput?.addEventListener('click', openDueDatePicker);
-  duePickerBtn?.addEventListener('click', openDueDatePicker);
-
-  taskTypeButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      setTaskType(btn.getAttribute('data-qt-task-type'));
-    });
-  });
-
-  statusSelect?.addEventListener('change', () => {
-    const nextStatus = statusSelect.value || 'backlog';
-    if (nextStatus === task.status) return;
-    if (nextStatus === 'completed') {
-      const previousStatus = task.status;
-      openCompletionDateModal({
-        onConfirm: (date) => {
-          setStatus('completed', date);
-        },
-        onCancel: () => {
-          task.status = previousStatus;
-          syncStatusUI();
-        },
-      });
+  const finishClose = () => closeQuickTaskDrawer({ drawer, shell });
+  const requestClose = ({ dirty } = {}) => {
+    if (dirty) {
+      showDiscardChangesModal(() => finishClose());
       return;
     }
-    setStatus(nextStatus, null);
-  });
-
-  const validate = () => {
-    let valid = true;
-    const title = titleInput?.value.trim() || '';
-    if (!title) {
-      setFieldError('qtTitle', 'Title is required.');
-      valid = false;
-    } else {
-      setFieldError('qtTitle', '');
-    }
-
-    if (!serviceTypeInput?.value) {
-      setFieldError('qtServiceType', 'Service Type is required.');
-      valid = false;
-    } else {
-      setFieldError('qtServiceType', '');
-    }
-
-    const loeValue = Number(loeInput?.value);
-    if (!Number.isFinite(loeValue) || loeValue <= 0) {
-      setFieldError('qtLoe', 'LOE must be greater than 0.');
-      valid = false;
-    } else {
-      setFieldError('qtLoe', '');
-    }
-
-    if (!assigneeInput?.value) {
-      setFieldError('qtAssignee', 'Assignee is required.');
-      valid = false;
-    } else {
-      setFieldError('qtAssignee', '');
-    }
-
-    if (!dueInput?.value) {
-      setFieldError('qtDueDateDisplay', 'Due date is required.');
-      valid = false;
-    } else {
-      setFieldError('qtDueDateDisplay', '');
-    }
-
-    if (!task.isInternal && !selectedCompany) {
-      if (companyError) {
-        companyError.textContent = 'Company is required for Client anchor.';
-        companyError.classList.remove('hidden');
-      }
-      valid = false;
-    } else if (companyError) {
-      companyError.textContent = '';
-      companyError.classList.add('hidden');
-    }
-
-    if (!task.isInternal && !selectedCompany) {
-      anchorError?.classList.remove('hidden');
-      if (anchorError) anchorError.textContent = 'Client anchor requires a company.';
-    } else {
-      anchorError?.classList.add('hidden');
-      if (anchorError) anchorError.textContent = '';
-    }
-
-    return valid;
+    finishClose();
   };
 
-  const collectForm = () => ({
-    title: titleInput?.value.trim() || '',
-    description: descInput?.value.trim() || '',
-    serviceTypeId: serviceTypeInput?.value || '',
-    loeHours: Number(loeInput?.value) || 0,
-    assigneeUserId: assigneeInput?.value || '',
-    assignorUserId: assignorInput?.value || '',
-    dueDate: dueInput?.value || '',
-    status: task.status,
-    completedAt: task.completedAt || null,
-    isInternal: task.isInternal,
-    companyId: task.isInternal ? null : selectedCompany?.id || null,
-    personId: task.isInternal ? null : selectedPerson?.id || null,
-  });
-
-  const isDirty = () => {
-    const form = collectForm();
-    deleteSourceItem = deleteToggle ? deleteToggle.checked : deleteSourceItem;
-    const currentSnapshot = serializeFormState({ ...form, deleteSourceItem });
-    return currentSnapshot !== snapshotBase;
-  };
-
-  const tryClose = () => {
-    if (isDirty()) {
-      showDiscardChangesModal(() => closeDrawer());
+  const handleSubmit = ({ payload, deleteSourceItem: shouldDeleteSourceItem }) => {
+    if (mode === 'edit' && initialDraft.id) {
+      const updated = updateTask(initialDraft.id, payload);
+      if (!updated) return;
+      showToast('Quick Task updated');
+      onUpdated?.(updated);
+      finishClose();
       return;
     }
-    closeDrawer();
-  };
 
-  drawer.querySelector('#drawerCloseBtn')?.addEventListener('click', tryClose);
-  drawer.querySelector('#qtCancelBtn')?.addEventListener('click', tryClose);
-  drawer.querySelector('#app-drawer-backdrop')?.addEventListener('click', tryClose);
-
-  updateMemberPreview(assigneePreview, assigneeInput?.value);
-  updateMemberPreview(assignorPreview, assignorInput?.value);
-  setDueDateValue(dueInput?.value || '');
-  syncStatusUI();
-  if (showTaskTypeToggle) setTaskType('quick');
-
-  drawer.querySelector('#qtSaveBtn')?.addEventListener('click', () => {
-    if (showTaskTypeToggle && taskType === 'job') {
-      showToast('Job Tasks are coming soon.');
-      return;
-    }
-    if (!validate()) return;
-    const form = collectForm();
-    if (mode === 'edit') {
-      const updated = updateTask(task.id, {
-        ...form,
-        assignorUserId: form.assignorUserId || form.assigneeUserId,
-      });
-      if (updated) {
-        showToast('Quick Task updated');
-        onUpdated?.(updated);
-        closeDrawer();
-      }
-      return;
-    }
     const created = createQuickTask({
-      ...form,
-      assignorUserId: form.assignorUserId || form.assigneeUserId,
-      status: form.status,
-      completedAt: form.completedAt || null,
+      ...payload,
       sourceListItemId: sourceItem?.id || null,
       sourceListId: sourceItem?.folderId || null,
     });
     showToast('Quick Task created');
-    const shouldDelete = deleteToggle ? deleteToggle.checked : true;
-    onCreated?.({ task: created, deleteSourceItem: shouldDelete });
-    closeDrawer();
-  });
+    onCreated?.({
+      task: created,
+      deleteSourceItem: shouldDeleteSourceItem !== false,
+    });
+    finishClose();
+  };
 
-  drawer.querySelector('#qtArchiveBtn')?.addEventListener('click', () => {
-    archiveTask(task.id);
+  const handleArchive = () => {
+    if (!initialDraft.id) return;
+    const updated = archiveTask(initialDraft.id);
     showToast('Quick Task archived');
-    onUpdated?.(getTaskById(task.id));
-    closeDrawer();
-  });
+    onUpdated?.(updated || getTaskById(initialDraft.id));
+    finishClose();
+  };
 
-  drawer.querySelector('#qtDeleteBtn')?.addEventListener('click', () => {
+  const handleDelete = () => {
+    if (!existingTask?.id) return;
     showQuickTasksModal({
       title: 'Delete Quick Task?',
       body: '<p>This will permanently delete the task.</p>',
@@ -1261,64 +704,52 @@ export function openQuickTaskDrawer({
       cancelLabel: 'Cancel',
       onConfirm: (cleanup) => {
         cleanup();
-        const result = deleteTask(task.id);
+        const result = deleteTask(existingTask.id);
         if (!result.ok) {
           showToast(result.reason);
           return;
         }
         showToast('Quick Task deleted');
-        onDeleted?.(task);
-        closeDrawer();
+        onDeleted?.(existingTask);
+        finishClose();
       },
     });
-  });
+  };
 
-  drawer.querySelector('#qtCompleteBtn')?.addEventListener('click', () => {
-    if (task.status === 'completed') {
-      const updated = setTaskStatus(task.id, 'backlog');
+  const handleToggleComplete = () => {
+    if (!existingTask?.id) return;
+    if (existingTask.status === 'completed') {
+      const updated = setTaskStatus(existingTask.id, 'backlog');
       showToast('Quick Task reopened');
       onUpdated?.(updated);
-      closeDrawer();
+      finishClose();
       return;
     }
+
     openCompletionDateModal({
       initialDate: getLocalDateISO(new Date()),
       onConfirm: (date) => {
-        const updated = setTaskStatus(task.id, 'completed', { completedAt: date });
+        const updated = setTaskStatus(existingTask.id, 'completed', { completedAt: date });
         showToast('Quick Task completed');
         onUpdated?.(updated);
-        closeDrawer();
+        finishClose();
       },
     });
-  });
+  };
 
-  drawer.querySelector('#qtPromoteBtn')?.addEventListener('click', () => {
-    const currentServiceTypeId = serviceTypeInput?.value || task.serviceTypeId;
-    openPromoteToJobTaskModal({
-      task: { ...task, serviceTypeId: currentServiceTypeId },
-      serviceTypes,
-      onConfirm: ({ jobId, deliverableId, serviceTypeId }) => {
-        const updated = promoteToJobTask(task.id, { jobId, deliverableId, serviceTypeId });
-        onUpdated?.(updated);
-        showMovedToJobModal();
-        closeDrawer();
-      },
-    });
-  });
+  quickTaskDrawerRoot.render(h(QuickTaskDrawerPanel, {
+    mode,
+    initialDraft,
+    members,
+    serviceTypes,
+    canDelete: canDeleteTask(existingTask),
+    showDeleteSourceToggle: !!sourceItem,
+    onClose: requestClose,
+    onSubmit: handleSubmit,
+    onDelete: handleDelete,
+    onArchive: handleArchive,
+    onToggleComplete: handleToggleComplete,
+  }));
 
-  drawer.querySelector('#qtLogTimeBtn')?.addEventListener('click', () => {
-    const hours = Number(drawer.querySelector('#qtLogHours')?.value);
-    const date = drawer.querySelector('#qtLogDate')?.value || getLocalDateISO(new Date());
-    if (!Number.isFinite(hours) || hours <= 0) {
-      showToast('Enter hours greater than 0.');
-      return;
-    }
-    const updated = addTimeEntry(task.id || null, { date, hours });
-    if (!updated) return;
-    const timeList = drawer.querySelector('#qtTimeEntries');
-    if (timeList) timeList.innerHTML = renderTimeEntries(updated);
-    const actualNode = drawer.querySelector('#qtActualHours');
-    if (actualNode) actualNode.textContent = `Actual ${formatHours(getTaskActualHours(updated))}`;
-    drawer.querySelector('#qtLogHours').value = '';
-  });
+  shell.classList.remove('drawer-closed');
 }

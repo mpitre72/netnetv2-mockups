@@ -8,20 +8,14 @@ const FALLBACK_SERVICE_TYPES = [
   { id: 'seo', name: 'SEO', billable: true, baseRate: 0, status: 'active', serviceGroupId: null },
 ];
 
-const LEGACY_SERVICE_TYPE_IDS = new Set([
-  'branding',
-  'web',
-  'dev',
-  'video',
-  'print',
-]);
-
+const LEGACY_SERVICE_TYPE_IDS = new Set(['branding', 'web', 'dev', 'video', 'print']);
 const LEGACY_TEAM_EMAILS = new Set([
   'marc@netnet.com',
   'jade@netnet.com',
   'sam@netnet.com',
   'avery@netnet.com',
 ]);
+const VALID_TASK_STATUSES = new Set(['backlog', 'in_progress', 'completed']);
 
 function workspaceId() {
   return getActiveWorkspace()?.id || 'default';
@@ -212,6 +206,103 @@ function getSeedContact() {
   return { companyId: null, personId: null };
 }
 
+function normalizeStatus(status) {
+  return VALID_TASK_STATUSES.has(status) ? status : 'in_progress';
+}
+
+function normalizeAllocation(allocation = {}) {
+  if (!allocation) return null;
+  const loeHours = Number(allocation.loeHours);
+  return {
+    id: allocation.id || createId('alloc'),
+    assigneeUserId: allocation.assigneeUserId || null,
+    serviceTypeId: allocation.serviceTypeId || null,
+    loeHours: Number.isFinite(loeHours) ? loeHours : null,
+  };
+}
+
+function buildLegacyAllocation(task = {}) {
+  if (!task.assigneeUserId && !task.serviceTypeId && task.loeHours === undefined) return [];
+  return [normalizeAllocation({
+    assigneeUserId: task.assigneeUserId || null,
+    serviceTypeId: task.serviceTypeId || null,
+    loeHours: task.loeHours,
+  })].filter(Boolean);
+}
+
+function normalizeAllocations(task = {}) {
+  const source = Array.isArray(task.allocations) && task.allocations.length
+    ? task.allocations
+    : buildLegacyAllocation(task);
+  return source.map((allocation) => normalizeAllocation(allocation)).filter(Boolean);
+}
+
+function normalizeContext(task = {}) {
+  const raw = task.context && typeof task.context === 'object' ? task.context : null;
+  const isInternal = raw?.type === 'internal' || (!!task.isInternal && raw?.type !== 'client');
+  const type = isInternal ? 'internal' : 'client';
+  const companyId = raw?.companyId ?? task.companyId ?? null;
+  const personId = raw?.personId ?? task.personId ?? null;
+  return {
+    type,
+    companyId: type === 'client' ? (companyId || null) : null,
+    personId: type === 'client' ? (personId || null) : null,
+  };
+}
+
+function normalizeTimeEntries(entries = []) {
+  if (!Array.isArray(entries)) return [];
+  return entries.map((entry) => ({
+    id: entry?.id || createId('qt_time'),
+    date: entry?.date || localDateISO(),
+    hours: Number(entry?.hours) || 0,
+    note: entry?.note || '',
+    createdAt: entry?.createdAt || Date.now(),
+    createdByUserId: entry?.createdByUserId || null,
+    createdByName: entry?.createdByName || 'Net Net',
+    createdVia: entry?.createdVia || 'manual',
+  }));
+}
+
+function normalizeQuickTask(task = {}) {
+  if (!task || typeof task !== 'object') return null;
+  const allocations = normalizeAllocations(task);
+  const context = normalizeContext(task);
+  const status = normalizeStatus(task.status);
+  return {
+    id: task.id || createId('qt'),
+    title: String(task.title || ''),
+    description: String(task.description || ''),
+    status,
+    dueDate: task.dueDate || null,
+    completedAt: status === 'completed' ? (task.completedAt || null) : null,
+    context,
+    allocations,
+    isArchived: !!task.isArchived,
+    createdAt: task.createdAt || Date.now(),
+    updatedAt: task.updatedAt || Date.now(),
+    createdByUserId: task.createdByUserId || null,
+    createdVia: task.createdVia || 'manual',
+    jobId: task.jobId ?? null,
+    deliverableId: task.deliverableId ?? null,
+    timeEntries: normalizeTimeEntries(task.timeEntries || []),
+    sourceListItemId: task.sourceListItemId || null,
+    sourceListId: task.sourceListId || null,
+  };
+}
+
+function tasksEqual(a, b) {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch (e) {
+    return false;
+  }
+}
+
+function seedTask(payload = {}) {
+  return normalizeQuickTask(payload);
+}
+
 function ensureQuickTasksSeed(wsId) {
   const existing = readJson(quickTasksKey(wsId), null);
   if (Array.isArray(existing) && existing.length) return existing;
@@ -221,26 +312,21 @@ function ensureQuickTasksSeed(wsId) {
   const serviceTypeId = serviceTypes[0]?.id || null;
   const contact = getSeedContact();
   const assignee = members[0]?.id || null;
-  const assignor = members[1]?.id || assignee;
+  const secondAssignee = members[1]?.id || assignee;
   const today = localDateISO();
   const nextWeek = localDateISO(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const nextTwoWeeks = localDateISO(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000));
 
   const seed = [
-    {
-      id: createId('qt'),
+    seedTask({
       title: 'Prepare kickoff recap',
       description: 'Send recap with action items and docs.',
       status: 'backlog',
       dueDate: nextWeek,
-      completedAt: null,
-      serviceTypeId,
-      loeHours: 2,
-      assigneeUserId: assignee,
-      assignorUserId: assignor,
-      isInternal: true,
-      companyId: null,
-      personId: null,
+      context: { type: 'internal', companyId: null, personId: null },
+      allocations: [
+        { assigneeUserId: assignee, serviceTypeId, loeHours: 2 },
+      ],
       isArchived: false,
       createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3,
       updatedAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
@@ -249,21 +335,21 @@ function ensureQuickTasksSeed(wsId) {
       timeEntries: [
         { id: createId('qt_time'), date: today, hours: 0.5 },
       ],
-    },
-    {
-      id: createId('qt'),
+    }),
+    seedTask({
       title: 'Homepage hero tweaks',
       description: 'Refine headline and primary CTA.',
       status: 'in_progress',
       dueDate: nextTwoWeeks,
-      completedAt: null,
-      serviceTypeId,
-      loeHours: 4,
-      assigneeUserId: assignee,
-      assignorUserId: assignor,
-      isInternal: !contact.companyId,
-      companyId: contact.companyId,
-      personId: contact.personId,
+      context: {
+        type: contact.companyId ? 'client' : 'internal',
+        companyId: contact.companyId,
+        personId: contact.personId,
+      },
+      allocations: [
+        { assigneeUserId: assignee, serviceTypeId, loeHours: 2 },
+        { assigneeUserId: secondAssignee, serviceTypeId, loeHours: 2 },
+      ],
       isArchived: false,
       createdAt: Date.now() - 1000 * 60 * 60 * 24 * 6,
       updatedAt: Date.now() - 1000 * 60 * 60 * 5,
@@ -272,21 +358,17 @@ function ensureQuickTasksSeed(wsId) {
       timeEntries: [
         { id: createId('qt_time'), date: today, hours: 1.25 },
       ],
-    },
-    {
-      id: createId('qt'),
+    }),
+    seedTask({
       title: 'Finalize invoice notes',
       description: 'Review final adjustments before sending.',
       status: 'completed',
       dueDate: today,
       completedAt: today,
-      serviceTypeId,
-      loeHours: 1,
-      assigneeUserId: assignee,
-      assignorUserId: assignor,
-      isInternal: true,
-      companyId: null,
-      personId: null,
+      context: { type: 'internal', companyId: null, personId: null },
+      allocations: [
+        { assigneeUserId: assignee, serviceTypeId, loeHours: 1 },
+      ],
       isArchived: false,
       createdAt: Date.now() - 1000 * 60 * 60 * 24 * 10,
       updatedAt: Date.now() - 1000 * 60 * 60 * 24 * 9,
@@ -295,14 +377,28 @@ function ensureQuickTasksSeed(wsId) {
       timeEntries: [
         { id: createId('qt_time'), date: today, hours: 0.75 },
       ],
-    },
-  ];
+    }),
+  ].filter(Boolean);
+
   writeJson(quickTasksKey(wsId), seed);
   return seed;
 }
 
+function persistTasks(wsId, tasks) {
+  const normalized = (Array.isArray(tasks) ? tasks : [])
+    .map((task) => normalizeQuickTask(task))
+    .filter(Boolean);
+  writeJson(quickTasksKey(wsId), normalized);
+  return normalized;
+}
+
 export function loadAllTasks(wsId = workspaceId()) {
-  return ensureQuickTasksSeed(wsId);
+  const seeded = ensureQuickTasksSeed(wsId);
+  const normalized = (Array.isArray(seeded) ? seeded : []).map((task) => normalizeQuickTask(task)).filter(Boolean);
+  if (!tasksEqual(seeded, normalized)) {
+    persistTasks(wsId, normalized);
+  }
+  return normalized;
 }
 
 export function loadQuickTasks(wsId = workspaceId()) {
@@ -310,44 +406,48 @@ export function loadQuickTasks(wsId = workspaceId()) {
   return list.filter((task) => !task.jobId && !task.deliverableId);
 }
 
-function persistTasks(wsId, tasks) {
-  writeJson(quickTasksKey(wsId), tasks);
-  return tasks;
-}
-
 export function getTaskById(taskId, wsId = workspaceId()) {
   const list = loadAllTasks(wsId);
   return list.find((task) => String(task.id) === String(taskId)) || null;
 }
 
+export function getTaskAllocations(task) {
+  return Array.isArray(task?.allocations) ? task.allocations : [];
+}
+
+export function getTaskPrimaryAllocation(task) {
+  return getTaskAllocations(task)[0] || null;
+}
+
+export function getTaskAssigneeIds(task) {
+  return [...new Set(getTaskAllocations(task).map((allocation) => String(allocation.assigneeUserId || '')).filter(Boolean))];
+}
+
+export function getTaskServiceTypeIds(task) {
+  return [...new Set(getTaskAllocations(task).map((allocation) => String(allocation.serviceTypeId || '')).filter(Boolean))];
+}
+
+export function getTaskTotalLoe(task) {
+  return getTaskAllocations(task).reduce((sum, allocation) => sum + (Number(allocation?.loeHours) || 0), 0);
+}
+
+export function getTaskContext(task) {
+  return normalizeContext(task || {});
+}
+
 export function createQuickTask(payload, wsId = workspaceId()) {
   const list = loadAllTasks(wsId);
   const now = Date.now();
-  const task = {
+  const task = normalizeQuickTask({
+    ...payload,
     id: payload.id || createId('qt'),
-    title: payload.title || '',
-    description: payload.description || '',
     status: payload.status || 'in_progress',
-    dueDate: payload.dueDate || null,
-    completedAt: payload.completedAt || null,
-    serviceTypeId: payload.serviceTypeId || null,
-    loeHours: Number(payload.loeHours) || 0,
-    assigneeUserId: payload.assigneeUserId || null,
-    assignorUserId: payload.assignorUserId || payload.assigneeUserId || null,
-    isInternal: !!payload.isInternal,
-    companyId: payload.companyId || null,
-    personId: payload.personId || null,
-    isArchived: !!payload.isArchived,
     createdAt: payload.createdAt || now,
-    createdByUserId: payload.createdByUserId || null,
-    createdVia: payload.createdVia || 'manual',
     updatedAt: now,
+    createdByUserId: payload.createdByUserId || getCurrentUserId(),
     jobId: payload.jobId ?? null,
     deliverableId: payload.deliverableId ?? null,
-    timeEntries: Array.isArray(payload.timeEntries) ? payload.timeEntries : [],
-    sourceListItemId: payload.sourceListItemId || null,
-    sourceListId: payload.sourceListId || null,
-  };
+  });
   list.unshift(task);
   persistTasks(wsId, list);
   return task;
@@ -357,11 +457,11 @@ export function updateTask(taskId, updates = {}, wsId = workspaceId()) {
   const list = loadAllTasks(wsId);
   const idx = list.findIndex((task) => String(task.id) === String(taskId));
   if (idx < 0) return null;
-  const next = {
+  const next = normalizeQuickTask({
     ...list[idx],
     ...updates,
     updatedAt: Date.now(),
-  };
+  });
   list[idx] = next;
   persistTasks(wsId, list);
   return next;
@@ -422,12 +522,13 @@ export function addTimeEntry(taskId, entry, wsId = workspaceId()) {
 
 export function promoteToJobTask(taskId, { jobId, deliverableId, serviceTypeId } = {}, wsId = workspaceId()) {
   if (!jobId || !deliverableId) return null;
-  const updates = {
-    jobId,
-    deliverableId,
-  };
-  if (serviceTypeId) updates.serviceTypeId = serviceTypeId;
-  return updateTask(taskId, updates, wsId);
+  const task = getTaskById(taskId, wsId);
+  if (!task) return null;
+  const allocations = getTaskAllocations(task).map((allocation) => ({
+    ...allocation,
+    serviceTypeId: serviceTypeId || allocation.serviceTypeId || null,
+  }));
+  return updateTask(taskId, { jobId, deliverableId, allocations }, wsId);
 }
 
 export function getTaskActualHours(task) {

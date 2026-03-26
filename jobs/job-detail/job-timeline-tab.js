@@ -3,6 +3,9 @@ import { getCurrentUserId, loadTeamMembers } from '../../quick-tasks/quick-tasks
 const { createElement: h, useEffect, useMemo, useState } = React;
 
 const MS_DAY = 24 * 60 * 60 * 1000;
+const TIMELINE_LEFT_COL_WIDTH = 280;
+const ACTIVE_TIMELINE_ROW_HEIGHT = 72;
+const ACTIVE_TIMELINE_HEADER_HEIGHT = 56;
 
 const ZOOMS = [
   { value: 'day', label: 'Day', pxPerDay: 28, tickStep: 1 },
@@ -154,7 +157,9 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
   const paddedStart = addDays(rangeStart, -3);
   const paddedEnd = addDays(rangeEnd, 3);
   const rangeDays = Math.max(1, diffDays(paddedStart, paddedEnd) + 1);
-  const timelineWidth = rangeDays * zoomConfig.pxPerDay;
+  const timelineWidth = Math.max(860, rangeDays * zoomConfig.pxPerDay);
+  const timelineBodyHeight = schedule.length * ACTIVE_TIMELINE_ROW_HEIGHT;
+  const startLineOffset = jobStart ? diffDays(paddedStart, jobStart) * zoomConfig.pxPerDay : null;
   const finishLineOffset = targetEnd ? diffDays(paddedStart, targetEnd) * zoomConfig.pxPerDay : null;
 
   const ticks = [];
@@ -164,6 +169,26 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
       offset: offset * zoomConfig.pxPerDay,
     });
   }
+
+  const connectors = useMemo(() => {
+    const byId = new Map(schedule.map((item, index) => [String(item.deliverable.id), { ...item, index }]));
+    return schedule.flatMap((item, index) => {
+      const deps = Array.isArray(item.deliverable?.dependencyDeliverableIds)
+        ? item.deliverable.dependencyDeliverableIds.map((id) => String(id)).filter(Boolean)
+        : [];
+      return deps.flatMap((dependencyId) => {
+        const dependency = byId.get(dependencyId);
+        if (!dependency || !dependency.endDate) return [];
+        const sourceX = (diffDays(paddedStart, dependency.endDate) + 1) * zoomConfig.pxPerDay;
+        const targetX = diffDays(paddedStart, item.startDate) * zoomConfig.pxPerDay;
+        const sourceY = (dependency.index * ACTIVE_TIMELINE_ROW_HEIGHT) + (ACTIVE_TIMELINE_ROW_HEIGHT / 2);
+        const targetY = (index * ACTIVE_TIMELINE_ROW_HEIGHT) + (ACTIVE_TIMELINE_ROW_HEIGHT / 2);
+        const controlOffset = Math.max(28, Math.abs(targetX - sourceX) * 0.4);
+        const d = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
+        return [{ key: `${dependency.deliverable.id}-${item.deliverable.id}`, d }];
+      });
+    });
+  }, [schedule, paddedStart, zoomConfig.pxPerDay]);
 
   const openEdit = (deliverable) => {
     if (readOnly) return;
@@ -272,6 +297,18 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
   ));
 
   return h('div', { className: 'space-y-5 pb-12' }, [
+    h('style', null, `
+      .job-timeline-scroll::-webkit-scrollbar {
+        height: 4px;
+      }
+      .job-timeline-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .job-timeline-scroll::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.35);
+        border-radius: 999px;
+      }
+    `),
     h('div', { className: 'flex flex-wrap items-center justify-between gap-3' }, [
       h('div', { className: 'space-y-1' }, [
         h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, 'Timeline'),
@@ -297,27 +334,90 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
         h('span', null, `Job deadline · ${formatDateLabel(targetEnd)}`),
       ])
       : null,
-    h('div', { className: 'rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60' }, [
-      h('div', { className: 'overflow-x-auto' }, [
+    h('div', { className: 'overflow-hidden rounded-[28px] border border-slate-200/80 dark:border-white/10 bg-white shadow-sm dark:bg-slate-950' }, [
+      h('div', { className: 'job-timeline-scroll overflow-x-auto overflow-y-hidden', style: { scrollbarWidth: 'thin', scrollbarColor: 'rgba(148,163,184,0.35) transparent' } }, [
         h('div', { className: 'min-w-[720px]' }, [
           h('div', {
-            className: 'grid border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/60 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400',
-            style: { gridTemplateColumns: `280px ${timelineWidth}px` },
+            className: 'grid border-b border-white/10 bg-slate-900/95 text-xs uppercase tracking-wide text-slate-400 shadow-sm',
+            style: { gridTemplateColumns: `${TIMELINE_LEFT_COL_WIDTH}px ${timelineWidth}px`, minHeight: `${ACTIVE_TIMELINE_HEADER_HEIGHT}px` },
           }, [
-            h('div', { className: 'px-4 py-3' }, 'Deliverable'),
-            h('div', { className: 'relative h-9' }, [
+            h('div', { className: 'flex items-center border-r border-white/10 bg-slate-900/95 px-4 font-semibold tracking-[0.18em]' }, 'Deliverable'),
+            h('div', { className: 'relative', style: { minHeight: `${ACTIVE_TIMELINE_HEADER_HEIGHT}px` } }, [
               h('div', { className: 'absolute inset-0' }, ticks.map((tick) => (
                 h('div', { key: tick.date, className: 'absolute top-0 bottom-0', style: { left: `${tick.offset}px` } }, [
-                  h('div', { className: 'absolute top-0 bottom-0 w-px bg-slate-200 dark:bg-white/10' }),
-                  h('div', { className: 'absolute -top-1 translate-x-1 text-[10px]' }, formatTick(tick.date, zoom)),
+                  h('div', { className: 'absolute top-0 bottom-0 w-px bg-white/10' }),
+                  h('div', { className: 'absolute left-1 top-3 whitespace-nowrap rounded-md bg-slate-900/95 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300 shadow-sm normal-case tracking-normal' }, formatTick(tick.date, zoom)),
                 ])
               ))),
+              startLineOffset !== null && startLineOffset >= 0 && startLineOffset <= timelineWidth
+                ? h('div', {
+                  className: 'absolute inset-y-0',
+                  style: { left: `${startLineOffset}px` },
+                }, [
+                  h('div', {
+                    className: 'absolute rounded-none',
+                    style: {
+                      backgroundColor: 'rgba(31, 122, 255, 0.55)',
+                      width: '40px',
+                      height: '100%',
+                      position: 'absolute',
+                      top: 0,
+                      bottom: 0,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      borderRadius: '0',
+                    },
+                  }),
+                  h('div', {
+                    className: 'absolute inset-y-0 flex w-[40px] flex-col items-center justify-center gap-[3px] text-[10px] font-medium uppercase tracking-[0.18em] text-white/95',
+                    style: { left: '50%', transform: 'translateX(-50%)' },
+                  }, 'START'.split('').map((letter, idx) => h('span', { key: `start-${idx}` }, letter))),
+                ])
+                : null,
               finishLineOffset !== null && finishLineOffset >= 0 && finishLineOffset <= timelineWidth
-                ? h('div', { className: 'absolute top-0 bottom-0 w-px bg-rose-400/70', style: { left: `${finishLineOffset}px` } })
+                ? h('div', {
+                  className: 'absolute inset-y-0',
+                  style: { left: `${finishLineOffset}px` },
+                }, [
+                  h('div', {
+                    className: 'absolute rounded-none',
+                    style: {
+                      backgroundColor: 'rgba(95, 206, 168, 0.55)',
+                      width: '40px',
+                      height: '100%',
+                      position: 'absolute',
+                      top: 0,
+                      bottom: 0,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      borderRadius: '0',
+                    },
+                  }),
+                  h('div', {
+                    className: 'absolute inset-y-0 flex w-[40px] flex-col items-center justify-center gap-[3px] text-[10px] font-medium uppercase tracking-[0.18em] text-slate-900/85',
+                    style: { left: '50%', transform: 'translateX(-50%)' },
+                  }, 'FINISH'.split('').map((letter, idx) => h('span', { key: `finish-${idx}` }, letter))),
+                ])
                 : null,
             ]),
           ]),
-          schedule.map(({ deliverable, startDate, endDate }) => {
+          h('div', { className: 'relative' }, [
+            h('svg', {
+              className: 'pointer-events-none absolute left-[280px] top-0 z-0 overflow-visible',
+              width: timelineWidth,
+              height: timelineBodyHeight,
+              viewBox: `0 0 ${timelineWidth} ${timelineBodyHeight}`,
+            }, [
+              connectors.map((connector) => h('path', {
+                key: connector.key,
+                d: connector.d,
+                fill: 'none',
+                stroke: 'rgba(113,31,255,0.28)',
+                strokeWidth: '2',
+                strokeLinecap: 'round',
+              })),
+            ]),
+            schedule.map(({ deliverable, startDate, endDate }) => {
             const offset = diffDays(paddedStart, startDate) * zoomConfig.pxPerDay;
             const endForBar = endDate || startDate;
             const duration = Math.max(1, diffDays(startDate, endForBar) + 1);
@@ -328,10 +428,11 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
               : 0;
             return h('div', {
               key: deliverable.id,
-              className: 'grid border-t border-slate-200 dark:border-white/10',
-              style: { gridTemplateColumns: `280px ${timelineWidth}px` },
+              className: 'grid border-b border-slate-200/80 dark:border-white/10',
+              style: { gridTemplateColumns: `${TIMELINE_LEFT_COL_WIDTH}px ${timelineWidth}px`, minHeight: `${ACTIVE_TIMELINE_ROW_HEIGHT}px` },
             }, [
-              h('div', { className: 'px-4 py-3 space-y-1' }, [
+              h('div', { className: 'flex items-center border-r border-slate-200 bg-white/95 px-4 dark:border-white/10 dark:bg-slate-950/90' }, [
+                h('div', { className: 'min-w-0 space-y-1 py-3' }, [
                 h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, deliverable.name || 'Deliverable'),
                 h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400' }, [
                   readOnly
@@ -362,19 +463,72 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
                     ]),
                   ])
                   : null,
+                ]),
               ]),
-              h('div', { className: 'relative py-3' }, [
-                finishLineOffset !== null && finishLineOffset >= 0 && finishLineOffset <= timelineWidth
-                  ? h('div', { className: 'absolute top-0 bottom-0 w-px bg-rose-400/70', style: { left: `${finishLineOffset}px` } })
+              h('div', { className: 'relative z-0', style: { minHeight: `${ACTIVE_TIMELINE_ROW_HEIGHT}px` } }, [
+                ticks.map((tick) => h('div', {
+                  key: `grid-${deliverable.id}-${tick.date}`,
+                  className: 'absolute inset-y-0 w-px bg-slate-200/70 dark:bg-white/10',
+                  style: { left: `${tick.offset}px` },
+                })),
+                startLineOffset !== null && startLineOffset >= 0 && startLineOffset <= timelineWidth
+                  ? h('div', {
+                    className: 'absolute inset-y-0 z-[1]',
+                    style: { left: `${startLineOffset}px` },
+                  }, [
+                    h('div', {
+                      className: 'absolute rounded-none',
+                      style: {
+                        backgroundColor: 'rgba(31, 122, 255, 0.55)',
+                        width: '40px',
+                        height: '100%',
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        borderRadius: '0',
+                      },
+                    }),
+                  ])
                   : null,
-                h('div', { className: 'absolute top-1/2 h-3 -translate-y-1/2', style: { left: `${offset}px`, width: `${width}px` } }, [
+                finishLineOffset !== null && finishLineOffset >= 0 && finishLineOffset <= timelineWidth
+                  ? h('div', {
+                    className: 'absolute inset-y-0 z-[1]',
+                    style: { left: `${finishLineOffset}px` },
+                  }, [
+                    h('div', {
+                      className: 'absolute rounded-none',
+                      style: {
+                        backgroundColor: 'rgba(95, 206, 168, 0.55)',
+                        width: '40px',
+                        height: '100%',
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        borderRadius: '0',
+                      },
+                    }),
+                  ])
+                  : null,
+                h('div', {
+                  className: 'absolute top-1/2 z-10 -translate-y-1/2 rounded-[8px] bg-netnet-purple shadow-[0_10px_24px_rgba(113,31,255,0.18)]',
+                  style: {
+                    left: `${offset}px`,
+                    width: `${width}px`,
+                    height: `${Math.round(ACTIVE_TIMELINE_ROW_HEIGHT * 0.65)}px`,
+                  },
+                }, [
                   endDate
-                    ? h('div', { className: 'h-3 rounded-full bg-netnet-purple/80 dark:bg-netnet-purple/70 shadow-sm' })
-                    : h('div', { className: 'h-3 w-3 rounded-full border border-dashed border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-900' }),
+                    ? null
+                    : h('div', { className: 'h-full w-full rounded-[8px] border border-dashed border-slate-400/80 bg-white/60 dark:border-slate-500 dark:bg-slate-900' }),
                 ]),
               ]),
             ]);
           }),
+          ]),
         ]),
       ]),
     ]),

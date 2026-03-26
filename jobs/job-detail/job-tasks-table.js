@@ -3,6 +3,8 @@ import { openSingleDatePickerPopover } from '../../quick-tasks/quick-task-detail
 import { renderMiniMeters } from '../../quick-tasks/quick-tasks-helpers.js';
 import { JobKanbanTab } from './job-kanban-tab.js';
 import { TaskStyleRichTextField } from '../task-style-rich-text-field.js';
+import { loadDeliverableTypeOptions, rememberDeliverableType } from '../deliverable-type-store.js';
+import { TaskSystemRow } from '../../components/tasks/task-system-row.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
@@ -47,7 +49,6 @@ const DEMO_CHAT_STATES = {
   'E-commerce': { totalMessages: 4, hasUnreadMessages: true, mentionCount: 0 },
   'General Job Tasks': { totalMessages: 3, hasUnreadMessages: true, mentionCount: 2 },
 };
-
 function renderHeaderChatIndicator({ hasChats, hasNewChats, mentionCount }) {
   const badgeValue = mentionCount > 9 ? '9+' : mentionCount || '';
   const toneClass = hasChats ? 'text-white' : 'text-slate-500';
@@ -107,6 +108,8 @@ function DeliverableHeaderRow({
   onOpenDuePicker,
   onToggle,
   onOpenChat,
+  collapsedMeta,
+  expandedDetail,
 }) {
   const chevronRotation = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
   const healthColor = healthStatus === 'over'
@@ -142,7 +145,12 @@ function DeliverableHeaderRow({
             }, React.createElement('svg', { className: 'h-4 w-4 transition-transform', style: { transform: chevronRotation }, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
               React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M19 9l-7 7-7-7' }),
             ])),
-            React.createElement('div', { className: `text-sm font-semibold ${isMuted ? 'text-slate-300' : 'text-white'}` }, groupName),
+            React.createElement('div', { className: 'min-w-0' }, [
+              React.createElement('div', { className: `truncate text-sm font-semibold ${isMuted ? 'text-slate-300' : 'text-white'}` }, groupName),
+              !isExpanded && collapsedMeta
+                ? React.createElement('div', { className: 'mt-1 truncate text-[11px] font-medium text-slate-400' }, collapsedMeta)
+                : null,
+            ]),
           ]),
           React.createElement('div', { className: 'justify-self-end flex items-stretch gap-3 pb-2' }, [
             React.createElement('div', { className: 'flex items-stretch gap-3 group/kpi' }, [
@@ -280,6 +288,7 @@ function DeliverableHeaderRow({
             }),
           ])
           : null,
+        isExpanded && expandedDetail ? expandedDetail : null,
       ]),
     ]),
   ]);
@@ -303,6 +312,98 @@ function createEmptyDraftRow() {
 
 function confidenceStorageKey(jobId) {
   return `netnet_job_confidence_${jobId || 'unknown'}`;
+}
+
+function hybridDeliveryStorageKey(jobId) {
+  return `netnet_job_hybrid_delivery_${jobId || 'unknown'}`;
+}
+
+function normalizeHybridDeliveryEntry(entry = {}) {
+  const serviceTypeEntriesRaw = entry?.serviceTypeEntries && typeof entry.serviceTypeEntries === 'object'
+    ? entry.serviceTypeEntries
+    : null;
+  const legacyServiceTypeHoursRaw = !serviceTypeEntriesRaw && entry?.serviceTypeHours && typeof entry.serviceTypeHours === 'object'
+    ? entry.serviceTypeHours
+    : {};
+  return {
+    enabled: !!entry?.enabled,
+    serviceTypeEntries: Object.keys(serviceTypeEntriesRaw || legacyServiceTypeHoursRaw).reduce((acc, key) => {
+      const rawEntry = serviceTypeEntriesRaw ? (serviceTypeEntriesRaw[key] || {}) : { hours: legacyServiceTypeHoursRaw[key], notes: '' };
+      const rawHours = rawEntry?.hours;
+      const nextHours = rawHours === '' || rawHours === null || rawHours === undefined || Number.isNaN(Number(rawHours))
+        ? null
+        : Number(rawHours);
+      const nextNotes = String(rawEntry?.notes || '');
+      if (nextHours !== null || nextNotes) {
+        acc[String(key)] = {
+          hours: nextHours,
+          notes: nextNotes,
+        };
+      }
+      return acc;
+    }, {}),
+  };
+}
+
+function getHybridServiceEntry(entry = {}, serviceTypeId) {
+  const key = String(serviceTypeId || '');
+  const item = entry?.serviceTypeEntries?.[key] || {};
+  return {
+    hours: item?.hours === '' || item?.hours === null || item?.hours === undefined || Number.isNaN(Number(item?.hours))
+      ? null
+      : Number(item.hours),
+    notes: String(item?.notes || ''),
+  };
+}
+
+function setHybridServiceEntry(entry = {}, serviceTypeId, patch = {}) {
+  const key = String(serviceTypeId || '');
+  const nextEntries = {
+    ...(entry?.serviceTypeEntries || {}),
+  };
+  const current = getHybridServiceEntry(entry, key);
+  const next = {
+    hours: patch.hours === undefined
+      ? current.hours
+      : (patch.hours === '' || patch.hours === null || patch.hours === undefined || Number.isNaN(Number(patch.hours))
+        ? null
+        : Number(patch.hours)),
+    notes: patch.notes === undefined ? current.notes : String(patch.notes || ''),
+  };
+  if (next.hours === null && !next.notes) {
+    delete nextEntries[key];
+  } else {
+    nextEntries[key] = next;
+  }
+  return {
+    ...normalizeHybridDeliveryEntry(entry),
+    serviceTypeEntries: nextEntries,
+  };
+}
+
+function loadHybridDeliveryMap(jobId) {
+  if (!jobId) return {};
+  try {
+    const raw = localStorage.getItem(hybridDeliveryStorageKey(jobId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.keys(parsed).reduce((acc, key) => {
+      acc[String(key)] = normalizeHybridDeliveryEntry(parsed[key]);
+      return acc;
+    }, {});
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveHybridDeliveryMap(jobId, map) {
+  if (!jobId) return;
+  try {
+    localStorage.setItem(hybridDeliveryStorageKey(jobId), JSON.stringify(map || {}));
+  } catch (e) {
+    // ignore storage errors
+  }
 }
 
 function loadConfidenceMap(jobId) {
@@ -333,6 +434,24 @@ function formatDateInput(value) {
 function formatHours(value) {
   const hours = Number(value) || 0;
   return `${hours % 1 ? hours.toFixed(1) : hours}h`;
+}
+
+function formatHybridHours(value) {
+  const hours = Number(value);
+  if (!Number.isFinite(hours)) return '';
+  return hours % 1 ? hours.toFixed(1) : String(hours);
+}
+
+function sumHybridServiceTypeHours(serviceTypeEntries = {}) {
+  if (!serviceTypeEntries || typeof serviceTypeEntries !== 'object') return 0;
+  return Object.keys(serviceTypeEntries).reduce((sum, key) => sum + (Number(serviceTypeEntries[key]?.hours) || 0), 0);
+}
+
+function countHybridActiveServices(serviceTypeEntries = {}) {
+  if (!serviceTypeEntries || typeof serviceTypeEntries !== 'object') return 0;
+  return Object.keys(serviceTypeEntries).reduce((count, key) => (
+    (Number(serviceTypeEntries[key]?.hours) || 0) > 0 ? count + 1 : count
+  ), 0);
 }
 
 function getActualHours(task) {
@@ -508,6 +627,8 @@ export function JobTasksExecutionTable({
 
   const [expandedGroups, setExpandedGroups] = useState(() => buildExpandedGroups(deliverables, collapsedMap || {}));
   const [confidenceMap, setConfidenceMap] = useState(() => loadConfidenceMap(job?.id));
+  const [hybridDeliveryMap, setHybridDeliveryMap] = useState(() => loadHybridDeliveryMap(job?.id));
+  const [deliverableTypeOptions, setDeliverableTypeOptions] = useState(() => loadDeliverableTypeOptions());
   const [openConfidenceMenuId, setOpenConfidenceMenuId] = useState(null);
   const [openDeliverableStatusMenuId, setOpenDeliverableStatusMenuId] = useState(null);
   const [statusPrompt, setStatusPrompt] = useState(null);
@@ -520,6 +641,8 @@ export function JobTasksExecutionTable({
   const [draftRows, setDraftRows] = useState({});
   const [openDraftRows, setOpenDraftRows] = useState({});
   const [draftFocusKey, setDraftFocusKey] = useState(null);
+  const [hybridDescriptionEditor, setHybridDescriptionEditor] = useState(null);
+  const [openDetailsRows, setOpenDetailsRows] = useState({});
   const [dragState, setDragState] = useState(null);
   const [deliverableTaskViewMode, setDeliverableTaskViewMode] = useState({});
   const duePickerCleanupRef = useRef(null);
@@ -571,6 +694,14 @@ export function JobTasksExecutionTable({
 
   useEffect(() => {
     setConfidenceMap(loadConfidenceMap(job?.id));
+  }, [job?.id]);
+
+  useEffect(() => {
+    setHybridDeliveryMap(loadHybridDeliveryMap(job?.id));
+  }, [job?.id]);
+
+  useEffect(() => {
+    setOpenDetailsRows({});
   }, [job?.id]);
 
   useEffect(() => {
@@ -661,6 +792,59 @@ export function JobTasksExecutionTable({
       return { ...deliverable, ...(patch || {}) };
     });
     onJobUpdate({ deliverables: nextDeliverables });
+  };
+
+  const getHybridDeliveryState = (deliverableId) => {
+    const key = String(deliverableId || '');
+    return normalizeHybridDeliveryEntry(hybridDeliveryMap?.[key] || {});
+  };
+
+  const updateHybridDelivery = (deliverableId, patch) => {
+    if (!deliverableId) return;
+    setHybridDeliveryMap((prev) => {
+      const key = String(deliverableId);
+      const next = {
+        ...(prev || {}),
+        [key]: normalizeHybridDeliveryEntry({
+          ...normalizeHybridDeliveryEntry(prev?.[key] || {}),
+          ...(patch || {}),
+        }),
+      };
+      saveHybridDeliveryMap(job?.id, next);
+      return next;
+    });
+  };
+
+  const startHybridDescriptionEdit = (deliverableId, serviceTypeId) => {
+    const hybridState = getHybridDeliveryState(deliverableId);
+    const entry = getHybridServiceEntry(hybridState, serviceTypeId);
+    setHybridDescriptionEditor({
+      deliverableId: String(deliverableId),
+      serviceTypeId: String(serviceTypeId),
+      value: entry.notes || '',
+    });
+  };
+
+  const saveHybridDescriptionEdit = () => {
+    if (!hybridDescriptionEditor) return;
+    updateHybridDelivery(hybridDescriptionEditor.deliverableId, setHybridServiceEntry(
+      getHybridDeliveryState(hybridDescriptionEditor.deliverableId),
+      hybridDescriptionEditor.serviceTypeId,
+      { notes: hybridDescriptionEditor.value }
+    ));
+    setHybridDescriptionEditor(null);
+  };
+
+  const cancelHybridDescriptionEdit = () => {
+    setHybridDescriptionEditor(null);
+  };
+
+  const toggleDetailsRow = (deliverableId) => {
+    if (!deliverableId) return;
+    setOpenDetailsRows((prev) => ({
+      ...(prev || {}),
+      [String(deliverableId)]: !prev?.[String(deliverableId)],
+    }));
   };
 
   const openStatusPrompt = (deliverableId, nextStatus, promptType) => {
@@ -862,14 +1046,15 @@ export function JobTasksExecutionTable({
   const isTaskExpanded = (taskId) => expandedTaskIds.has(taskId);
   const toggleTaskExpanded = (taskId) => {
     setExpandedTaskIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
+      const next = new Set();
+      if (!prev.has(taskId)) next.add(taskId);
       return next;
     });
+    if (descriptionEditor?.taskId === taskId) setDescriptionEditor(null);
+    if (editingCell?.taskId === taskId) {
+      setEditingCell(null);
+      setEditingValue('');
+    }
   };
 
   const getPrimaryAllocation = (task) => (task?.allocations || [])[0] || null;
@@ -1111,7 +1296,7 @@ export function JobTasksExecutionTable({
     const hasPools = allowedTypeIds.length > 0;
     const isReady = isTaskReady(task, deliverable);
     const draftOutlineClass = !isReady ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
-    const gridStyle = { gridTemplateColumns: '1.2fr 1.2fr 0.6fr 0.8fr 0.8fr' };
+    const gridStyle = { gridTemplateColumns: '1.15fr 1.1fr 0.62fr 0.9fr 0.82fr' };
 
     const addAllocation = () => {
       if (readOnly) return;
@@ -1120,114 +1305,90 @@ export function JobTasksExecutionTable({
         { id: createId('alloc'), assigneeUserId: null, serviceTypeId: null, loeHours: null },
       ]);
     };
-
-    const rows = [];
-
-    rows.push(h('tr', {
-      key: `${task.id}-alloc-header`,
-      'data-alloc-group': task.id,
-      className: `bg-slate-50 dark:bg-slate-900/70 ${draftOutlineClass}`,
+    return h('div', {
+      className: `rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 space-y-3 ${draftOutlineClass}`,
     }, [
-      h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2' }, [
-        hasPools ? null : h('div', { className: 'mb-2 text-xs text-slate-500 dark:text-slate-400' }, 'Assign this task to a deliverable with available hours to set service types.'),
-        h('div', { className: 'grid gap-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400', style: gridStyle }, [
-          h('div', null, 'Assignee'),
-          h('div', null, 'Service Type'),
-          h('div', null, 'LOE'),
-          h('div', null, 'Meter'),
-          h('div', null, 'Due Date'),
-        ]),
+      hasPools ? null : h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Assign this task to a deliverable with available hours to set service types.'),
+      h('div', { className: 'grid gap-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 px-1', style: gridStyle }, [
+        h('div', null, 'Assignee'),
+        h('div', null, 'Service Type'),
+        h('div', null, 'LOE'),
+        h('div', null, 'Meter'),
+        h('div', null, 'Due Date'),
       ]),
-    ]));
-
-    if (allocations.length) {
-      allocations.forEach((alloc) => {
-        const pool = (deliverable?.effectivePools || []).find((item) => String(item.serviceTypeId) === String(alloc.serviceTypeId));
-        const allocationActual = Number(alloc.actualHours) || 0;
-        const allocationMeterTask = {
-          loeHours: Number.isFinite(Number(alloc.loeHours)) ? Number(alloc.loeHours) : null,
-          dueDate: task.dueDate || null,
-        };
-        rows.push(h('tr', {
-          key: alloc.id,
-          'data-alloc-group': task.id,
-          className: `bg-slate-50 dark:bg-slate-900/70 ${draftOutlineClass}`,
-        }, [
-          h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2' }, [
-            h('div', { className: 'grid gap-3 items-center', style: gridStyle }, [
-              h('select', {
-                value: alloc.assigneeUserId ? String(alloc.assigneeUserId) : '',
-                disabled: readOnly,
-                onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
-                  list.map((item) => item.id === alloc.id ? { ...item, assigneeUserId: event.target.value || null } : item)
-                )),
-                className: 'h-8 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
-              }, [
-                h('option', { value: '' }, 'Unassigned'),
-                ...(assigneeList || []).map((member) => h('option', { key: member.id, value: member.id }, member.name || member.email)),
-              ]),
-              h('select', {
-                value: alloc.serviceTypeId ? String(alloc.serviceTypeId) : '',
-                disabled: readOnly || !hasPools,
-                onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
-                  list.map((item) => item.id === alloc.id ? { ...item, serviceTypeId: event.target.value || null } : item)
-                )),
-                className: 'h-8 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
-              }, [
-                h('option', { value: '' }, hasPools ? 'Select' : 'No pools'),
-                ...allowedTypeIds.map((id) => h('option', { key: id, value: id }, serviceTypeMap.get(id)?.name || id)),
-              ]),
-              h('input', {
-                type: 'number',
-                min: 0,
-                step: 0.25,
-                value: alloc.loeHours ?? '',
-                disabled: readOnly,
-                onChange: (event) => {
-                  const raw = event.target.value;
-                  const next = raw === '' ? null : Number(raw);
-                  updateAllocations(deliverable?.id || null, task.id, (list) => (
-                    list.map((item) => item.id === alloc.id ? { ...item, loeHours: Number.isFinite(next) ? next : null } : item)
-                  ));
-                },
-                className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
-              }),
-              h('div', null, renderQuickTaskMeter(allocationMeterTask, allocationActual)),
-              h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, task.dueDate || '—'),
+      allocations.length
+        ? h('div', { className: 'space-y-2' }, allocations.map((alloc) => {
+          const allocationActual = Number(alloc.actualHours) || 0;
+          const allocationMeterTask = {
+            loeHours: Number.isFinite(Number(alloc.loeHours)) ? Number(alloc.loeHours) : null,
+            dueDate: task.dueDate || null,
+          };
+          return h('div', {
+            key: alloc.id,
+            className: 'grid gap-3 items-center',
+            style: gridStyle,
+          }, [
+            h('select', {
+              value: alloc.assigneeUserId ? String(alloc.assigneeUserId) : '',
+              disabled: readOnly,
+              onClick: (event) => event.stopPropagation(),
+              onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
+                list.map((item) => item.id === alloc.id ? { ...item, assigneeUserId: event.target.value || null } : item)
+              )),
+              className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-60',
+            }, [
+              h('option', { value: '' }, 'Unassigned'),
+              ...(assigneeList || []).map((member) => h('option', { key: member.id, value: member.id }, member.name || member.email)),
             ]),
-          ]),
-        ]));
-      });
-    } else {
-      rows.push(h('tr', {
-        key: `${task.id}-alloc-empty`,
-        'data-alloc-group': task.id,
-        className: `bg-slate-50 dark:bg-slate-900/70 ${draftOutlineClass}`,
-      }, [
-        h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2 text-xs text-slate-500 dark:text-slate-400' }, 'No allocations yet.'),
-      ]));
-    }
-
-    rows.push(h('tr', {
-      key: `${task.id}-alloc-add`,
-      'data-alloc-group': task.id,
-      className: `bg-slate-50 dark:bg-slate-900/70 ${draftOutlineClass}`,
-    }, [
-      h('td', { colSpan: COLUMN_ORDER.length, className: 'px-6 py-2' }, [
-        h('button', {
-          type: 'button',
-          className: 'inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60',
-          onClick: addAllocation,
-          disabled: readOnly,
-        }, '+ Add allocation'),
-      ]),
-    ]));
-
-    return rows;
+            h('select', {
+              value: alloc.serviceTypeId ? String(alloc.serviceTypeId) : '',
+              disabled: readOnly || !hasPools,
+              onClick: (event) => event.stopPropagation(),
+              onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
+                list.map((item) => item.id === alloc.id ? { ...item, serviceTypeId: event.target.value || null } : item)
+              )),
+              className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-60',
+            }, [
+              h('option', { value: '' }, hasPools ? 'Select' : 'No pools'),
+              ...allowedTypeIds.map((id) => h('option', { key: id, value: id }, serviceTypeMap.get(id)?.name || id)),
+            ]),
+            h('input', {
+              type: 'number',
+              min: 0,
+              step: 0.25,
+              value: alloc.loeHours ?? '',
+              disabled: readOnly,
+              onClick: (event) => event.stopPropagation(),
+              onChange: (event) => {
+                const raw = event.target.value;
+                const next = raw === '' ? null : Number(raw);
+                updateAllocations(deliverable?.id || null, task.id, (list) => (
+                  list.map((item) => item.id === alloc.id ? { ...item, loeHours: Number.isFinite(next) ? next : null } : item)
+                ));
+              },
+              className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-60',
+            }),
+            h('div', { className: 'min-w-0' }, renderQuickTaskMeter(allocationMeterTask, allocationActual)),
+            h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, task.dueDate || '—'),
+          ]);
+        }))
+        : h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'No assignees yet.'),
+      h('button', {
+        type: 'button',
+        className: 'inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60',
+        onClick: (event) => {
+          event.stopPropagation();
+          addAllocation();
+        },
+        disabled: readOnly,
+      }, '+ Assignee'),
+    ]);
   };
 
   const renderDescriptionEditor = (task, deliverableId, isDraft) => {
-    const value = descriptionEditor?.value ?? '';
+    const value = descriptionEditor?.taskId === task.id
+      ? (descriptionEditor?.value ?? '')
+      : String(task.description || '');
     const save = () => {
       if (readOnly) return;
       updateTask(deliverableId, task.id, { description: value });
@@ -1236,37 +1397,30 @@ export function JobTasksExecutionTable({
     const cancel = () => {
       setDescriptionEditor(null);
     };
-    const draftOutlineClass = isDraft ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
-    return h('tr', { key: `${task.id}-description`, className: `bg-white dark:bg-slate-900/60 ${draftOutlineClass}` }, [
-      h('td', { colSpan: COLUMN_ORDER.length, className: 'px-4 py-3' }, [
-        h(TaskStyleRichTextField, {
-          label: 'Description',
-          value,
-          rows: 3,
-          autoFocus: true,
-          disabled: readOnly,
-          onChange: (nextValue) => setDescriptionEditor((prev) => ({ ...prev, value: nextValue })),
-          onBlur: save,
-          onKeyDown: (event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              cancel();
-            }
-            if (event.key === 'Tab') {
-              event.preventDefault();
-              save();
-              startEdit(task, deliverableId, 'status');
-            }
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              save();
-              startEdit(task, deliverableId, 'status');
-            }
-          },
-          footerText: 'Enter to save · Esc to cancel',
-        }),
-      ]),
-    ]);
+    return h(TaskStyleRichTextField, {
+      label: 'Description',
+      value,
+      rows: 3,
+      autoFocus: descriptionEditor?.taskId === task.id,
+      disabled: readOnly,
+      onChange: (nextValue) => setDescriptionEditor({
+        taskId: task.id,
+        deliverableId,
+        value: nextValue,
+      }),
+      onBlur: save,
+      onKeyDown: (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancel();
+        }
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          save();
+        }
+      },
+      footerText: 'Enter to save · Esc to cancel',
+    });
   };
 
   const renderDraftDescriptionEditor = (deliverableId) => {
@@ -1305,12 +1459,6 @@ export function JobTasksExecutionTable({
     const deliverableEstimate = sumEstimated(deliverable?.effectivePools || []);
     const effortRatio = deliverableEstimate ? allocTotal / deliverableEstimate : 0;
     const timelineRatio = getTimelineRatio(task.dueDate);
-    const isEditing = editingCell?.taskId === task.id;
-    const titleEditing = isEditing && editingCell.field === 'title';
-    const statusEditing = isEditing && editingCell.field === 'status';
-    const assigneeEditing = isEditing && editingCell.field === 'assignees';
-    const serviceEditing = isEditing && editingCell.field === 'service';
-    const loeEditing = isEditing && editingCell.field === 'loe';
     const descriptionOpen = descriptionEditor?.taskId === task.id;
 
     const assigneeIds = [...new Set((task.allocations || [])
@@ -1334,108 +1482,70 @@ export function JobTasksExecutionTable({
     const isReady = isTaskReady(task, deliverable);
     const isDraft = !isReady;
     const draftOutlineClass = isDraft ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
-    const allocationCount = (task.allocations || []).length;
-    const singleAllocationMode = allocationCount <= 1;
+    const taskExpanded = isTaskExpanded(task.id);
 
     const cellClass = 'px-6 py-3 text-sm text-gray-700 dark:text-gray-200 align-top';
+    const expandedPanel = h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 space-y-4 transition-all duration-200 ease-out' }, [
+      renderDescriptionEditor(task, deliverableId, isDraft),
+      renderAllocations(task, deliverable),
+    ]);
 
-    const allocationRows = isTaskExpanded(task.id) ? renderAllocations(task, deliverable) : [];
-
-    return [
-      h('tr', {
-        key: task.id,
-        className: `contacts-row border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors ${draftOutlineClass}`,
+    return h(TaskSystemRow, {
+      key: task.id,
+      taskId: task.id,
+      expanded: taskExpanded,
+      onToggle: toggleTaskExpanded,
+      colSpan: COLUMN_ORDER.length,
+      rowClassName: `contacts-row border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors cursor-pointer ${draftOutlineClass}`,
+      expandedRowClassName: `bg-white dark:bg-slate-900/60 ${draftOutlineClass}`,
+      rowProps: {
         onDragOver: (event) => {
           if (readOnly) return;
           if (dragState?.deliverableId !== deliverableId) return;
           event.preventDefault();
         },
         onDrop: (event) => handleDrop(event, deliverableId, task.id),
-      }, [
-        h('td', { className: `${cellClass} w-10 align-middle` }, [
-          h('button', {
-            type: 'button',
-            className: 'h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 flex items-center justify-center',
-            draggable: !readOnly,
-            onDragStart: (event) => handleDragStart(event, deliverableId, task.id),
-            disabled: readOnly,
-            'aria-label': 'Drag task',
-          }, [
-            h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
-              h('circle', { cx: '8', cy: '8', r: '1' }),
-              h('circle', { cx: '16', cy: '8', r: '1' }),
-              h('circle', { cx: '8', cy: '16', r: '1' }),
-              h('circle', { cx: '16', cy: '16', r: '1' }),
-            ]),
-          ]),
-        ]),
+      },
+      expandedContent: expandedPanel,
+      cells: [
         h('td', {
+          key: 'title',
           className: `${cellClass} min-w-[220px]`,
           tabIndex: 0,
           'data-cell': 'task',
           'data-row': task.id,
           'data-col': 'title',
           onKeyDown: handleKeyNav,
-          onClick: () => startEdit(task, deliverableId, 'title'),
         }, [
-          titleEditing
-            ? h('input', {
-              value: editingValue,
-              autoFocus: true,
-              onChange: (event) => setEditingValue(event.target.value),
-              onBlur: (event) => commitOnBlur(task, deliverableId, 'title', event.target.value),
-              onKeyDown: (event) => handleEditorKeyDown(event, task, deliverableId, 'title'),
-              className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-1 text-sm text-slate-700 dark:text-slate-200',
-            })
-            : h('div', { className: 'space-y-1' }, [
-              h('div', { className: 'font-semibold text-gray-900 dark:text-gray-100' }, task.title || 'Untitled task'),
-              h('div', { className: 'flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400' }, [
-                isDraft
-                  ? h('span', { className: 'text-[10px] font-semibold tracking-wide text-purple-400 uppercase' }, 'DRAFT')
-                  : null,
-                task.isRecurring
-                  ? h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-0.5 text-slate-600 dark:text-slate-300' }, 'R')
-                  : null,
-                taskMeta?.plannedLabel
-                  ? h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-0.5 text-slate-600 dark:text-slate-300' }, `Pending: ${taskMeta.plannedLabel}`)
-                  : null,
-                statusEditing
-                  ? h('select', {
-                    value: editingValue,
-                    autoFocus: true,
-                    disabled: readOnly,
-                    onChange: (event) => setEditingValue(event.target.value),
-                    onBlur: (event) => commitOnBlur(task, deliverableId, 'status', event.target.value),
-                    onKeyDown: (event) => handleEditorKeyDown(event, task, deliverableId, 'status'),
-                    className: 'h-6 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-[11px] font-semibold text-slate-600 dark:text-slate-200',
-                  }, STATUS_OPTIONS.map((option) => (
-                    h('option', { key: option.value, value: option.value }, option.label)
-                  )))
-                  : h('button', {
-                    type: 'button',
-                    className: 'text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
-                    onClick: (event) => {
-                      event.stopPropagation();
-                      startEdit(task, deliverableId, 'status');
-                    },
-                  }, statusLabel),
-              ].filter(Boolean)),
-            ]),
+          h('div', { className: 'space-y-1' }, [
+            h('div', { className: 'font-semibold text-gray-900 dark:text-gray-100' }, task.title || 'Untitled task'),
+            h('div', { className: 'flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400' }, [
+              isDraft
+                ? h('span', { className: 'text-[10px] font-semibold tracking-wide text-purple-400 uppercase' }, 'DRAFT')
+                : null,
+              task.isRecurring
+                ? h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-0.5 text-slate-600 dark:text-slate-300' }, 'R')
+                : null,
+              taskMeta?.plannedLabel
+                ? h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-0.5 text-slate-600 dark:text-slate-300' }, `Pending: ${taskMeta.plannedLabel}`)
+                : null,
+              h('span', { className: 'text-[11px] font-semibold text-slate-600 dark:text-slate-300' }, statusLabel),
+            ].filter(Boolean)),
+          ]),
         ]),
         h('td', {
+          key: 'description',
           className: `${cellClass} min-w-[200px]`,
           tabIndex: 0,
           'data-cell': 'task',
           'data-row': task.id,
           'data-col': 'description',
           onKeyDown: handleKeyNav,
-          onClick: () => {
-            startEdit(task, deliverableId, 'description');
-          },
         }, [
-          h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate max-w-[240px] cursor-pointer' }, task.description || 'Add description'),
+          h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate max-w-[240px]' }, task.description || 'Add description'),
         ]),
         h('td', {
+          key: 'chat',
           className: `${cellClass} text-center`,
           tabIndex: 0,
           'data-cell': 'task',
@@ -1455,147 +1565,68 @@ export function JobTasksExecutionTable({
           }, renderChatIndicator(chatIndicator)),
         ]),
         h('td', {
+          key: 'assignees',
           className: `${cellClass} min-w-[140px]`,
           tabIndex: 0,
           'data-cell': 'task',
           'data-row': task.id,
           'data-col': 'assignees',
           onKeyDown: handleKeyNav,
-          onClick: (event) => {
-            event.stopPropagation();
-            if (singleAllocationMode) startEdit(task, deliverableId, 'assignees');
-          },
         }, [
-          assigneeEditing && singleAllocationMode
-            ? h('select', {
-              value: editingValue,
-              autoFocus: true,
-              disabled: readOnly,
-              onChange: (event) => setEditingValue(event.target.value),
-              onBlur: (event) => commitOnBlur(task, deliverableId, 'assignees', event.target.value),
-              onKeyDown: (event) => handleEditorKeyDown(event, task, deliverableId, 'assignees'),
-              className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200',
-            }, [
-              h('option', { value: '' }, 'Unassigned'),
-              ...(assigneeList || []).map((member) => (
-                h('option', { key: member.id, value: member.id }, member.name || member.email)
-              )),
-            ])
-            : h('div', { className: 'flex items-center justify-between gap-2' }, [
-              assigneeLabels.length
-                ? h('div', { className: 'flex -space-x-1 items-center' }, assigneeLabels.slice(0, 3).map((label, idx) => (
-                  h('span', {
-                    key: `${task.id}-assignee-${idx}`,
-                    className: 'h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-semibold flex items-center justify-center border border-white dark:border-slate-900',
-                  }, label)
-                )))
-                : h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, 'Unassigned'),
-              h('button', {
-                type: 'button',
-                className: 'h-6 w-6 flex items-center justify-center text-sm font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white',
-                onClick: (event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  toggleTaskExpanded(task.id);
-                },
-                title: 'Toggle allocations',
-              }, '▾'),
-            ]),
+          h('div', { className: 'flex items-center gap-2' }, [
+            assigneeLabels.length
+              ? h('div', { className: 'flex -space-x-1 items-center' }, assigneeLabels.slice(0, 3).map((label, idx) => (
+                h('span', {
+                  key: `${task.id}-assignee-${idx}`,
+                  className: 'h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-semibold flex items-center justify-center border border-white dark:border-slate-900',
+                }, label)
+              )))
+              : h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, 'Unassigned'),
+          ]),
         ]),
         h('td', {
+          key: 'service',
           className: `${cellClass} min-w-[140px]`,
           tabIndex: 0,
           'data-cell': 'task',
           'data-row': task.id,
           'data-col': 'service',
           onKeyDown: handleKeyNav,
-          onClick: (event) => {
-            event.stopPropagation();
-            if (hasPools && singleAllocationMode) startEdit(task, deliverableId, 'service');
-          },
         }, [
-          serviceEditing && singleAllocationMode
-            ? h('select', {
-              value: editingValue,
-              autoFocus: true,
-              disabled: readOnly || !hasPools,
-              onChange: (event) => setEditingValue(event.target.value),
-              onBlur: (event) => commitOnBlur(task, deliverableId, 'service', event.target.value),
-              onKeyDown: (event) => handleEditorKeyDown(event, task, deliverableId, 'service'),
-              className: 'h-8 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 disabled:opacity-60',
-            }, [
-              h('option', { value: '' }, hasPools ? 'Select' : 'No pools'),
-              ...allowedTypeIds.map((id) => h('option', { key: id, value: id }, serviceTypeMap.get(id)?.name || id)),
-            ])
-            : h('div', { className: 'flex items-center justify-between gap-2' }, [
-              h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, hasPools ? serviceTypeLabels : 'No pools'),
-              h('button', {
-                type: 'button',
-                className: 'h-6 w-6 flex items-center justify-center text-sm font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white',
-                onClick: (event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  toggleTaskExpanded(task.id);
-                },
-                title: 'Toggle allocations',
-              }, '▾'),
-            ]),
+          h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, hasPools ? serviceTypeLabels : 'No pools'),
         ]),
         h('td', {
+          key: 'due',
           className: `${cellClass} min-w-[90px]`,
           tabIndex: 0,
           'data-cell': 'task',
           'data-row': task.id,
           'data-col': 'due',
-          onKeyDown: (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              startEdit(task, deliverableId, 'dueDate');
-              return;
-            }
-            handleKeyNav(event);
-          },
-          onClick: (event) => {
-            event.stopPropagation();
-            startEdit(task, deliverableId, 'dueDate');
-          },
+          onKeyDown: handleKeyNav,
         }, [
           h('span', {
             className: `text-xs ${due.tone === 'danger' ? 'text-rose-600 dark:text-rose-300' : due.tone === 'warn' ? 'text-amber-600 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'}`,
           }, due.label),
         ]),
         h('td', {
+          key: 'meter',
           className: `${cellClass} min-w-[110px]`,
           tabIndex: 0,
           'data-cell': 'task',
           'data-row': task.id,
           'data-col': 'meter',
           onKeyDown: handleKeyNav,
-          onClick: () => {
-            if (singleAllocationMode) startEdit(task, deliverableId, 'loe');
-          },
         }, [
-          loeEditing && singleAllocationMode
-            ? h('input', {
-              type: 'number',
-              min: 0,
-              step: 0.25,
-              value: editingValue,
-              autoFocus: true,
-              onChange: (event) => setEditingValue(event.target.value),
-              onBlur: (event) => commitOnBlur(task, deliverableId, 'loe', event.target.value),
-              onKeyDown: (event) => handleEditorKeyDown(event, task, deliverableId, 'loe'),
-              className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-700 dark:text-slate-200',
-            })
-            : renderQuickTaskMeter(
-              {
-                loeHours: Number.isFinite(Number(allocTotal)) ? Number(allocTotal) : null,
-                dueDate: task.dueDate || null,
-              },
-              getActualHours(task),
-            ),
+          renderQuickTaskMeter(
+            {
+              loeHours: Number.isFinite(Number(allocTotal)) ? Number(allocTotal) : null,
+              dueDate: task.dueDate || null,
+            },
+            getActualHours(task),
+          ),
         ]),
         h('td', {
+          key: 'actions',
           className: `px-4 py-3 text-sm text-gray-700 dark:text-gray-200 align-top text-right`,
           tabIndex: 0,
           'data-cell': 'task',
@@ -1614,10 +1645,8 @@ export function JobTasksExecutionTable({
             title: 'More',
           }, '⋯'),
         ]),
-      ]),
-      descriptionOpen ? renderDescriptionEditor(task, deliverableId, isDraft) : null,
-      ...(allocationRows || []),
-    ].filter(Boolean);
+      ],
+    });
   };
 
   const renderGroupHeader = (group, isMuted = false) => {
@@ -1645,6 +1674,185 @@ export function JobTasksExecutionTable({
     const confidenceValue = confidenceMap?.[String(group.id)] || 'not_set';
     const confidenceMenuOpen = openConfidenceMenuId === group.id;
     const statusMenuOpen = openDeliverableStatusMenuId === group.id;
+    const hybridState = getHybridDeliveryState(group.id);
+    const hybridServiceTypeIds = getAllowedServiceTypeIds(group);
+    const hybridTotalHours = sumHybridServiceTypeHours(hybridState.serviceTypeEntries);
+    const hybridActiveServices = countHybridActiveServices(hybridState.serviceTypeEntries);
+    const deliverableTypeLabel = String(group.deliverableType || '').trim();
+    const detailsOpen = !!openDetailsRows?.[String(group.id)];
+    const modifiedByChangeOrder = (job?.changeOrders || []).some((changeOrder) => (
+      changeOrder?.status === 'applied'
+      && (changeOrder?.changes || []).some((change) => (
+        String(change?.deliverableId || '') === String(group.id)
+        || String(change?.createdDeliverableId || '') === String(group.id)
+      ))
+    ));
+    const collapsedMetaParts = [];
+    if (modifiedByChangeOrder) {
+      collapsedMetaParts.push('Modified by Change Order');
+    }
+    if (deliverableTypeLabel) {
+      collapsedMetaParts.push(`→ ${deliverableTypeLabel}`);
+    }
+    if (!isMuted && job?.status === 'active' && hybridState.enabled) {
+      collapsedMetaParts.push(hybridActiveServices > 0
+        ? `Agent-assisted • ~${formatHybridHours(hybridTotalHours)} hrs across ${hybridActiveServices} services`
+        : 'Agent-assisted');
+    }
+    const collapsedHybridMeta = collapsedMetaParts.join(' • ') || null;
+    const deliverableTypeDetail = h('div', { className: 'rounded-xl border border-slate-200/10 bg-white/5 p-4 space-y-3' }, [
+      h('div', { className: 'space-y-1' }, [
+        h('div', { className: 'text-sm font-semibold text-white' }, 'Deliverable Type'),
+        h('div', { className: 'text-xs text-slate-400' }, 'Group similar deliverables across jobs'),
+      ]),
+      h('div', { className: 'space-y-2' }, [
+        h('input', {
+          type: 'text',
+          list: `deliverable-type-options-${group.id}`,
+          value: deliverableTypeLabel,
+          placeholder: 'e.g. Website Build, SEO Sprint',
+          onChange: (event) => updateDeliverable(group.id, { deliverableType: String(event.target.value || '').trim() || null }),
+          onBlur: (event) => setDeliverableTypeOptions((current) => rememberDeliverableType(event.target.value, current)),
+          onKeyDown: (event) => {
+            if (event.key === 'Enter') {
+              setDeliverableTypeOptions((current) => rememberDeliverableType(event.currentTarget.value, current));
+            }
+          },
+          className: 'h-10 w-full rounded-md border border-slate-200/10 bg-slate-900 px-3 text-sm text-slate-100',
+        }),
+        h('datalist', { id: `deliverable-type-options-${group.id}` },
+          (deliverableTypeOptions || []).map((option) => h('option', { key: option, value: option }))
+        ),
+      ]),
+    ]);
+    const hybridDetail = !isMuted && job?.status === 'active'
+      ? h('div', { className: 'rounded-xl border border-slate-200/10 bg-slate-900/40 p-4 space-y-4' }, [
+        h('div', { className: 'space-y-1' }, [
+          h('div', { className: 'text-sm font-semibold text-white' }, 'Hybrid Delivery'),
+          h('div', { className: 'text-xs text-slate-400' }, 'Estimate how much AI contributed to each type of work on this deliverable.'),
+        ]),
+        h('div', { className: 'flex items-start justify-between gap-4 rounded-lg border border-slate-200/10 bg-white/5 px-3 py-3' }, [
+          h('div', { className: 'text-xs text-slate-400' }, hybridState.enabled
+            ? 'Hybrid detail is enabled for this deliverable.'
+            : 'No AI-assisted work recorded'),
+          h('label', { className: 'relative inline-flex cursor-pointer items-center' }, [
+            h('input', {
+              type: 'checkbox',
+              className: 'peer sr-only',
+              checked: !!hybridState.enabled,
+              onChange: (event) => updateHybridDelivery(group.id, { enabled: !!event.target.checked }),
+            }),
+            h('span', { className: 'h-6 w-11 rounded-full bg-slate-700 transition-colors peer-checked:bg-netnet-purple' }),
+            h('span', { className: 'pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5' }),
+          ]),
+        ]),
+        hybridState.enabled
+          ? h('div', { className: 'space-y-4' }, [
+            hybridServiceTypeIds.length
+              ? h('div', { className: 'overflow-hidden rounded-xl border border-slate-200/10 bg-white/5' }, [
+                h('div', {
+                  className: 'grid items-center gap-3 border-b border-slate-200/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400',
+                  style: { gridTemplateColumns: '1fr 1.4fr 140px' },
+                }, [
+                  h('div', null, 'Service Type'),
+                  h('div', null, 'Description'),
+                  h('div', { className: 'text-right' }, 'AI Contribution (hrs)'),
+                ]),
+                hybridServiceTypeIds.map((serviceTypeId) => {
+                  const serviceEntry = getHybridServiceEntry(hybridState, serviceTypeId);
+                  const editorOpen = hybridDescriptionEditor
+                    && String(hybridDescriptionEditor.deliverableId) === String(group.id)
+                    && String(hybridDescriptionEditor.serviceTypeId) === String(serviceTypeId);
+                  return h('div', {
+                    key: `${group.id}-${serviceTypeId}`,
+                    className: 'grid items-start gap-3 border-b border-slate-200/10 px-4 py-3 last:border-b-0',
+                    style: { gridTemplateColumns: '1fr 1.4fr 140px' },
+                  }, [
+                    h('div', { className: 'pt-2 text-sm font-medium text-slate-200' }, serviceTypeMap.get(String(serviceTypeId))?.name || 'Service Type'),
+                    editorOpen
+                      ? h('textarea', {
+                        value: hybridDescriptionEditor.value,
+                        rows: 3,
+                        autoFocus: true,
+                        placeholder: 'Add notes',
+                        onChange: (event) => setHybridDescriptionEditor((prev) => ({ ...prev, value: event.target.value })),
+                        onBlur: saveHybridDescriptionEdit,
+                        onKeyDown: (event) => {
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            cancelHybridDescriptionEdit();
+                          }
+                          if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault();
+                            saveHybridDescriptionEdit();
+                          }
+                        },
+                        className: 'w-full rounded-md border border-slate-200/10 bg-slate-900 px-3 py-2 text-sm text-slate-100',
+                      })
+                      : h('button', {
+                        type: 'button',
+                        className: `w-full rounded-md border border-transparent px-3 py-2 text-left text-sm ${serviceEntry.notes ? 'text-slate-300' : 'text-slate-500'} hover:border-slate-200/10 hover:bg-slate-900/60`,
+                        onClick: () => startHybridDescriptionEdit(group.id, serviceTypeId),
+                      }, serviceEntry.notes || 'Add notes'),
+                    h('input', {
+                      type: 'number',
+                      min: '0',
+                      step: '0.25',
+                      value: serviceEntry.hours ?? '',
+                      placeholder: '0',
+                      onChange: (event) => {
+                        const raw = String(event.target.value || '').trim();
+                        updateHybridDelivery(group.id, setHybridServiceEntry(
+                          hybridState,
+                          serviceTypeId,
+                          { hours: raw === '' ? null : Number(raw) }
+                        ));
+                      },
+                      className: 'h-10 w-full rounded-md border border-slate-200/10 bg-slate-900 px-3 text-right text-sm text-slate-100',
+                    }),
+                  ]);
+                }),
+              ])
+              : h('div', { className: 'text-xs text-slate-400' }, 'No service types are mapped to this deliverable yet.'),
+            h('div', { className: 'text-sm font-medium text-slate-300' }, `Total AI contribution: ${formatHybridHours(hybridTotalHours || 0)} hrs`),
+          ])
+          : null,
+      ])
+      : null;
+    const expandedHybridDetail = h('div', { className: 'rounded-xl border border-slate-200/10 bg-slate-950/20 overflow-hidden' }, [
+      h('button', {
+        type: 'button',
+        className: 'flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors',
+        onClick: (event) => {
+          event.stopPropagation();
+          toggleDetailsRow(group.id);
+        },
+        'aria-expanded': detailsOpen ? 'true' : 'false',
+      }, [
+        h('div', { className: 'space-y-1' }, [
+          h('div', { className: 'text-sm font-semibold text-white' }, 'Details'),
+          h('div', { className: 'text-xs text-slate-400' }, detailsOpen
+            ? 'Hide deliverable metadata'
+            : 'Show Deliverable Type and Hybrid Delivery'),
+        ]),
+        h('svg', {
+          className: 'h-4 w-4 text-slate-400 transition-transform duration-200',
+          style: { transform: detailsOpen ? 'rotate(180deg)' : 'rotate(0deg)' },
+          fill: 'none',
+          stroke: 'currentColor',
+          viewBox: '0 0 24 24',
+          strokeWidth: '2',
+        }, [
+          h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M19 9l-7 7-7-7' }),
+        ]),
+      ]),
+      detailsOpen
+        ? h('div', { className: 'border-t border-slate-200/10 px-4 py-4 space-y-4 transition-all duration-200 ease-out' }, [
+          deliverableTypeDetail,
+          hybridDetail,
+        ].filter(Boolean))
+        : null,
+    ]);
     return h(DeliverableHeaderRow, {
       groupId: group.id,
       groupName: group.name || 'Deliverable',
@@ -1676,6 +1884,8 @@ export function JobTasksExecutionTable({
       onOpenDuePicker: (anchorEl, deliverableId, value) => openDeliverableDatePicker(anchorEl, deliverableId, value),
       onToggle: () => toggleGroup(group.id),
       onOpenChat,
+      collapsedMeta: collapsedHybridMeta,
+      expandedDetail: expandedHybridDetail,
     });
   };
 

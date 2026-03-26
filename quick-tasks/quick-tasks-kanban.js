@@ -1,4 +1,4 @@
-import { getMemberById, getTaskActualHours } from './quick-tasks-store.js';
+import { getMemberById, getTaskActualHours, getTaskAssigneeIds, getTaskContext } from './quick-tasks-store.js';
 import { escapeHtml, formatShortDate, renderAvatar, renderMiniMeters } from './quick-tasks-helpers.js';
 import { getContactsData } from '../contacts/contacts-data.js';
 
@@ -17,11 +17,12 @@ function findPersonName(id, companies) {
 }
 
 function renderClientLine(task, companies) {
-  if (task.isInternal) {
+  const context = getTaskContext(task);
+  if (context.type === 'internal') {
     return '<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-700/60 dark:text-slate-100 dark:border-white/10">Internal</span>';
   }
-  const companyName = task.companyId ? findCompanyName(task.companyId, companies) : '';
-  const personName = task.personId ? findPersonName(task.personId, companies) : '';
+  const companyName = context.companyId ? findCompanyName(context.companyId, companies) : '';
+  const personName = context.personId ? findPersonName(context.personId, companies) : '';
   const companyLabel = escapeHtml(companyName || 'Client');
   const personLabel = personName ? `<span class="text-[11px] text-slate-400 dark:text-slate-500 truncate">${escapeHtml(personName)}</span>` : '';
   return `
@@ -69,7 +70,7 @@ function renderCardMenu(task, assignee, { hasTime }) {
 }
 
 function renderCard(task, members, companies) {
-  const assignee = getMemberById(task.assigneeUserId, members);
+  const assignee = getMemberById(getTaskAssigneeIds(task)[0], members);
   const actual = getTaskActualHours(task);
   const hasTime = actual > 0 || (Array.isArray(task.timeEntries) && task.timeEntries.length > 0);
   return `

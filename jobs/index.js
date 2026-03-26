@@ -26,7 +26,8 @@ function resolveRoute() {
   if (!segments[0]) return { redirect: '#/app/jobs' };
   const jobId = segments[0];
   const subview = segments[1] || null;
-  return { view: 'detail', jobId, subview };
+  const detailSegments = segments.slice(2);
+  return { view: 'detail', jobId, subview, detailSegments };
 }
 
 function useJobsRoute() {
@@ -49,7 +50,11 @@ function JobsApp() {
   if (route.redirect) return null;
   if (route.view === 'new') return h(JobsCreateScreen);
   if (route.view === 'all_tasks') return h(JobsAllTasksScreen);
-  if (route.view === 'detail') return h(JobDetailShell, { jobId: route.jobId, subview: route.subview });
+  if (route.view === 'detail') return h(JobDetailShell, {
+    jobId: route.jobId,
+    subview: route.subview,
+    detailSegments: route.detailSegments,
+  });
   return h(JobsListScreen);
 }
 

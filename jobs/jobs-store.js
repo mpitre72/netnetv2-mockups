@@ -170,6 +170,7 @@ function normalizeDeliverableDetailsMap(details = {}) {
       durationUnit: item.durationUnit === 'weeks' || item.durationUnit === 'months' ? item.durationUnit : 'days',
       dependencyRowId: String(item.dependencyRowId || ''),
       internalNotes: String(item.internalNotes || ''),
+      deliverableType: String(item.deliverableType || ''),
     };
     return acc;
   }, {});
@@ -182,6 +183,59 @@ function normalizeTimeline(timeline = {}) {
     endDate: timeline?.endDate || null,
     zoomValue: Number.isFinite(zoomValue) ? Math.max(0, Math.min(100, Math.round(zoomValue))) : 62,
   };
+}
+
+function normalizeChangeOrderServiceTypeHours(serviceTypeHours = {}) {
+  if (!serviceTypeHours || typeof serviceTypeHours !== 'object') return {};
+  return Object.keys(serviceTypeHours).reduce((acc, key) => {
+    const value = Number(serviceTypeHours[key]);
+    if (Number.isFinite(value) && value > 0) acc[String(key)] = Math.round(value * 100) / 100;
+    return acc;
+  }, {});
+}
+
+function normalizeChangeOrderChanges(changes = []) {
+  if (!Array.isArray(changes)) return [];
+  return changes
+    .map((change) => {
+      if (!change || typeof change !== 'object') return null;
+      const kind = change.kind === 'new_deliverable' ? 'new_deliverable' : 'existing';
+      return {
+        id: change.id || createId('cochg'),
+        kind,
+        deliverableId: kind === 'existing' ? String(change.deliverableId || '') : '',
+        createdDeliverableId: change.createdDeliverableId ? String(change.createdDeliverableId) : null,
+        name: kind === 'new_deliverable' ? String(change.name || '') : '',
+        description: kind === 'new_deliverable' ? String(change.description || '') : '',
+        internalNotes: kind === 'new_deliverable' ? String(change.internalNotes || '') : '',
+        serviceTypeHours: normalizeChangeOrderServiceTypeHours(change.serviceTypeHours || {}),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeChangeOrders(changeOrders = []) {
+  if (!Array.isArray(changeOrders)) return [];
+  return changeOrders
+    .map((changeOrder) => {
+      if (!changeOrder || typeof changeOrder !== 'object') return null;
+      const status = changeOrder.status === 'applied'
+        ? 'applied'
+        : changeOrder.status === 'approved'
+          ? 'approved'
+          : 'draft';
+      return {
+        id: changeOrder.id || createId('co'),
+        name: String(changeOrder.name || '').trim() || 'Change Order',
+        status,
+        createdAt: changeOrder.createdAt || new Date().toISOString(),
+        appliedAt: status === 'applied' ? (changeOrder.appliedAt || null) : null,
+        notes: String(changeOrder.notes || ''),
+        impactHours: Math.round((Number(changeOrder.impactHours) || 0) * 100) / 100,
+        changes: normalizeChangeOrderChanges(changeOrder.changes || []),
+      };
+    })
+    .filter(Boolean);
 }
 
 function normalizeAllocations(allocations = []) {
@@ -257,6 +311,7 @@ function normalizeDeliverables(deliverables = [], jobId) {
         status,
         description: String(deliverable?.description || ''),
         internalNotes: String(deliverable?.internalNotes || ''),
+        deliverableType: String(deliverable?.deliverableType || ''),
         durationValue: String(deliverable?.durationValue || ''),
         durationUnit: deliverable?.durationUnit === 'weeks' || deliverable?.durationUnit === 'months'
           ? deliverable.durationUnit
@@ -782,6 +837,7 @@ export function createJob(payload = {}, wsId = workspaceId()) {
       endDate: kind === 'project' ? (payload.targetEndDate || null) : null,
       zoomValue: 62,
     }),
+    changeOrders: normalizeChangeOrders(payload.changeOrders || []),
     lastNonArchivedStatus: normalizeLifecycleStatus(payload.lastNonArchivedStatus),
     archivedAt,
     archivedByUserId,
@@ -897,6 +953,9 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
       ? normalizeDeliverableDetailsMap(updates.deliverableDetailsById || {})
       : normalizeDeliverableDetailsMap(current.deliverableDetailsById || {}),
     timeline: nextTimeline,
+    changeOrders: updates.changeOrders !== undefined
+      ? normalizeChangeOrders(updates.changeOrders || [])
+      : normalizeChangeOrders(current.changeOrders || []),
     lastNonArchivedStatus,
     archivedAt,
     archivedByUserId,

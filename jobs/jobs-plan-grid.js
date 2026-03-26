@@ -191,6 +191,7 @@ export function JobPlanEditor({
   onOpenRowDetails,
   onDeliverableCreated,
   renderExpandedRow,
+  renderRowSummary,
   stickyHeaderOffset = 0,
   headerActions = null,
 }) {
@@ -538,9 +539,16 @@ export function JobPlanEditor({
                   })
                   : h('button', {
                     type: 'button',
-                    className: `w-full truncate rounded-md px-3 py-2 text-left text-sm ${row.name ? 'text-slate-800 dark:text-white' : 'text-slate-400 dark:text-slate-500'} hover:bg-slate-100 dark:hover:bg-white/5`,
+                    className: `w-full rounded-md px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-white/5`,
                     onClick: () => startNameEdit(row),
-                  }, row.name || 'Untitled deliverable'),
+                  }, [
+                    h('div', {
+                      className: `truncate text-sm ${row.name ? 'text-slate-800 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`,
+                    }, row.name || 'Untitled deliverable'),
+                    activeRowDetailsId !== row.id && typeof renderRowSummary === 'function'
+                      ? renderRowSummary(row)
+                      : null,
+                  ]),
                 showRowDetailsAction
                   ? h('button', {
                     type: 'button',
