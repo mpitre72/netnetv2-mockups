@@ -531,12 +531,16 @@ function sortTasks(tasks = []) {
     .map((item) => item.task);
 }
 
+function getTaskAllocations(task) {
+  return Array.isArray(task?.allocations) ? task.allocations : [];
+}
+
 function sumEstimated(pools = []) {
   return (pools || []).reduce((sum, pool) => sum + (Number(pool?.estimatedHours) || 0), 0);
 }
 
 function sumAllocations(task) {
-  return (task?.allocations || []).reduce((sum, alloc) => sum + (Number(alloc?.loeHours) || 0), 0);
+  return getTaskAllocations(task).reduce((sum, alloc) => sum + (Number(alloc?.loeHours) || 0), 0);
 }
 
 function clamp(value, min, max) {
@@ -562,7 +566,7 @@ function getTimelineRatio(dueDate) {
 }
 
 function getServiceTypeLabels(task, serviceTypeMap) {
-  const ids = (task.allocations || [])
+  const ids = getTaskAllocations(task)
     .map((alloc) => String(alloc.serviceTypeId || ''))
     .filter(Boolean);
   const unique = [...new Set(ids)];
@@ -583,7 +587,7 @@ function isTaskReady(task, deliverable) {
   if (!task || !String(task.title || '').trim()) return false;
   if (!String(task.description || '').trim()) return false;
   if (!task.dueDate) return false;
-  const allocations = task.allocations || [];
+  const allocations = getTaskAllocations(task);
   if (!allocations.length) return false;
   const allowedTypes = new Set(getAllowedServiceTypeIds(deliverable));
   if (!allowedTypes.size) return false;
@@ -1038,7 +1042,7 @@ export function JobTasksExecutionTable({
     updateTaskList(deliverableId, (tasks) => (
       (tasks || []).map((task) => {
         if (task.id !== taskId) return task;
-        return { ...task, allocations: updater(task.allocations || []) };
+        return { ...task, allocations: updater(getTaskAllocations(task)) };
       })
     ));
   };
@@ -1057,7 +1061,7 @@ export function JobTasksExecutionTable({
     }
   };
 
-  const getPrimaryAllocation = (task) => (task?.allocations || [])[0] || null;
+  const getPrimaryAllocation = (task) => getTaskAllocations(task)[0] || null;
 
   const updatePrimaryAllocation = (deliverableId, taskId, patch) => {
     updateAllocations(deliverableId, taskId, (allocations) => {
@@ -1461,7 +1465,7 @@ export function JobTasksExecutionTable({
     const timelineRatio = getTimelineRatio(task.dueDate);
     const descriptionOpen = descriptionEditor?.taskId === task.id;
 
-    const assigneeIds = [...new Set((task.allocations || [])
+    const assigneeIds = [...new Set(getTaskAllocations(task)
       .map((alloc) => String(alloc.assigneeUserId || ''))
       .filter(Boolean))];
     const assigneeLabels = assigneeIds
@@ -1490,7 +1494,7 @@ export function JobTasksExecutionTable({
       renderAllocations(task, deliverable),
     ]);
 
-    return h(TaskSystemRow, {
+    return [h(TaskSystemRow, {
       key: task.id,
       taskId: task.id,
       expanded: taskExpanded,
@@ -1646,7 +1650,7 @@ export function JobTasksExecutionTable({
           }, '⋯'),
         ]),
       ],
-    });
+    })];
   };
 
   const renderGroupHeader = (group, isMuted = false) => {
