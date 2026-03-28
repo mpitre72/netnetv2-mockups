@@ -1,8 +1,10 @@
 import { loadServiceTypes } from '../../quick-tasks/quick-tasks-store.js';
+import { openSingleDatePickerPopover } from '../../quick-tasks/quick-task-detail.js';
 import { loadJobs } from '../jobs-store.js';
 import { getJobNumber, isJobNumberUnique } from '../job-number-utils.js';
 import { isJobNumberFormatValid, setJobNumberOverride } from '../jobs-ui-state.js';
 import { JobTaskDrawer } from '../job-task-drawer.js';
+import { mergeTaskLifecycleFields } from '../task-execution-utils.js';
 import { JobActivationModal } from './job-activation-modal.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
@@ -13,6 +15,13 @@ function localDateISO(date = new Date()) {
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function formatLongDate(value) {
+  if (!value) return 'Select date';
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return 'Select date';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function JobSettingsTab({
@@ -31,10 +40,14 @@ export function JobSettingsTab({
   const [drawerState, setDrawerState] = useState({ deliverableId: null, taskId: null });
   const [jobNumberInput, setJobNumberInput] = useState(() => getJobNumber(job));
   const [jobNumberError, setJobNumberError] = useState('');
+  const [datePickerCleanup, setDatePickerCleanup] = useState(null);
 
   const readOnly = readOnlyOverride === undefined ? job?.status === 'archived' : readOnlyOverride;
   const status = job?.status || 'pending';
   const today = localDateISO();
+  const isProject = job?.kind === 'project';
+  const projectStartDate = job?.startDate || null;
+  const projectEndDate = job?.targetEndDate || null;
 
   const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
   const memberMap = useMemo(() => new Map((members || []).map((member) => [String(member.id), member])), [members]);
@@ -91,7 +104,7 @@ export function JobSettingsTab({
 
   const handleSaveTask = (payload) => {
     if (!activeDeliverable || !activeTask) return;
-    applyTaskUpdate(activeDeliverable.id, activeTask.id, payload);
+    applyTaskUpdate(activeDeliverable.id, activeTask.id, mergeTaskLifecycleFields(activeTask, payload));
     closeDrawer();
   };
 
@@ -180,6 +193,39 @@ export function JobSettingsTab({
     setJobNumberInput(currentJobNumber);
     setJobNumberError('');
   }, [job?.id, currentJobNumber]);
+
+  useEffect(() => () => {
+    if (datePickerCleanup) datePickerCleanup();
+  }, [datePickerCleanup]);
+
+  const updateProjectDates = (patch = {}) => {
+    if (typeof onJobUpdate !== 'function' || readOnly) return false;
+    const nextStart = Object.prototype.hasOwnProperty.call(patch, 'startDate')
+      ? (patch.startDate || null)
+      : projectStartDate;
+    const nextEnd = Object.prototype.hasOwnProperty.call(patch, 'targetEndDate')
+      ? (patch.targetEndDate || null)
+      : projectEndDate;
+    if (nextStart && nextEnd && nextStart > nextEnd) {
+      window?.showToast?.('Start date must be on or before end date.');
+      return false;
+    }
+    onJobUpdate(patch);
+    return true;
+  };
+
+  const openProjectDatePicker = (anchorEl, field) => {
+    if (!anchorEl || readOnly || typeof onJobUpdate !== 'function') return;
+    if (datePickerCleanup) datePickerCleanup();
+    const cleanup = openSingleDatePickerPopover({
+      anchorEl,
+      value: field === 'startDate' ? projectStartDate : projectEndDate,
+      onSelect: (next) => updateProjectDates({ [field]: next || null }),
+      onClear: () => updateProjectDates({ [field]: null }),
+      onClose: () => setDatePickerCleanup(null),
+    });
+    setDatePickerCleanup(() => cleanup);
+  };
 
   const lifecycleButtons = [];
   if (status === 'pending') {
@@ -286,6 +332,48 @@ export function JobSettingsTab({
         ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `Archived on ${job.archivedAt}`)
         : null,
     ]),
+    isProject
+      ? h('div', { className: 'rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 p-5 space-y-4' }, [
+        h('div', { className: 'space-y-1' }, [
+          h('h3', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Timeline Anchors'),
+          h('p', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'These dates power the project START and FINISH markers in Timeline.'),
+        ]),
+        h('div', { className: 'grid gap-3 sm:grid-cols-2' }, [
+          h('div', { className: 'space-y-1' }, [
+            h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Start Date'),
+            h('button', {
+              type: 'button',
+              disabled: readOnly,
+              onClick: (event) => openProjectDatePicker(event.currentTarget, 'startDate'),
+              className: 'flex h-10 w-full items-center justify-between rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-60',
+            }, [
+              h('span', null, formatLongDate(projectStartDate)),
+              h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+                h('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
+                h('line', { x1: '16', y1: '2', x2: '16', y2: '6' }),
+                h('line', { x1: '8', y1: '2', x2: '8', y2: '6' }),
+              ]),
+            ]),
+          ]),
+          h('div', { className: 'space-y-1' }, [
+            h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'End Date'),
+            h('button', {
+              type: 'button',
+              disabled: readOnly,
+              onClick: (event) => openProjectDatePicker(event.currentTarget, 'targetEndDate'),
+              className: 'flex h-10 w-full items-center justify-between rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-60',
+            }, [
+              h('span', null, formatLongDate(projectEndDate)),
+              h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+                h('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
+                h('line', { x1: '16', y1: '2', x2: '16', y2: '6' }),
+                h('line', { x1: '8', y1: '2', x2: '8', y2: '6' }),
+              ]),
+            ]),
+          ]),
+        ]),
+      ])
+      : null,
     h('div', { className: 'rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 p-5 space-y-4' }, [
       h('div', { className: 'space-y-1' }, [
         h('h3', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Job Team'),

@@ -1,5 +1,11 @@
 import { getActiveWorkspace } from '../app-shell/app-helpers.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
+import {
+  getTaskCompletedTimestamp,
+  getTaskStartTimestamp,
+  mergeTaskLifecycleFields,
+  normalizeTaskLifecycleStatus,
+} from '../jobs/task-execution-utils.js';
 
 const FALLBACK_SERVICE_TYPES = [
   { id: 'pm', name: 'Project Management', billable: true, baseRate: 0, status: 'active', serviceGroupId: null },
@@ -15,7 +21,7 @@ const LEGACY_TEAM_EMAILS = new Set([
   'sam@netnet.com',
   'avery@netnet.com',
 ]);
-const VALID_TASK_STATUSES = new Set(['backlog', 'in_progress', 'completed']);
+const VALID_TASK_STATUSES = new Set(['backlog', 'in_progress', 'completed', 'archived']);
 
 function workspaceId() {
   return getActiveWorkspace()?.id || 'default';
@@ -207,7 +213,7 @@ function getSeedContact() {
 }
 
 function normalizeStatus(status) {
-  return VALID_TASK_STATUSES.has(status) ? status : 'in_progress';
+  return normalizeTaskLifecycleStatus(status, 'in_progress');
 }
 
 function normalizeAllocation(allocation = {}) {
@@ -269,16 +275,22 @@ function normalizeQuickTask(task = {}) {
   const allocations = normalizeAllocations(task);
   const context = normalizeContext(task);
   const status = normalizeStatus(task.status);
+  const startTimestamp = getTaskStartTimestamp(task);
+  const completedTimestamp = getTaskCompletedTimestamp(task);
+  const isArchived = status === 'archived' || !!task.isArchived;
   return {
     id: task.id || createId('qt'),
     title: String(task.title || ''),
     description: String(task.description || ''),
     status,
     dueDate: task.dueDate || null,
-    completedAt: status === 'completed' ? (task.completedAt || null) : null,
+    startTimestamp,
+    startedAt: startTimestamp,
+    completedTimestamp,
+    completedAt: completedTimestamp,
     context,
     allocations,
-    isArchived: !!task.isArchived,
+    isArchived,
     createdAt: task.createdAt || Date.now(),
     updatedAt: task.updatedAt || Date.now(),
     createdByUserId: task.createdByUserId || null,
@@ -438,7 +450,7 @@ export function getTaskContext(task) {
 export function createQuickTask(payload, wsId = workspaceId()) {
   const list = loadAllTasks(wsId);
   const now = Date.now();
-  const task = normalizeQuickTask({
+  const task = normalizeQuickTask(mergeTaskLifecycleFields({}, {
     ...payload,
     id: payload.id || createId('qt'),
     status: payload.status || 'in_progress',
@@ -447,7 +459,7 @@ export function createQuickTask(payload, wsId = workspaceId()) {
     createdByUserId: payload.createdByUserId || getCurrentUserId(),
     jobId: payload.jobId ?? null,
     deliverableId: payload.deliverableId ?? null,
-  });
+  }));
   list.unshift(task);
   persistTasks(wsId, list);
   return task;
@@ -457,9 +469,10 @@ export function updateTask(taskId, updates = {}, wsId = workspaceId()) {
   const list = loadAllTasks(wsId);
   const idx = list.findIndex((task) => String(task.id) === String(taskId));
   if (idx < 0) return null;
+  const merged = mergeTaskLifecycleFields(list[idx], updates || {});
   const next = normalizeQuickTask({
     ...list[idx],
-    ...updates,
+    ...merged,
     updatedAt: Date.now(),
   });
   list[idx] = next;
@@ -470,7 +483,7 @@ export function updateTask(taskId, updates = {}, wsId = workspaceId()) {
 export function canDeleteTask(task) {
   if (!task) return false;
   const hasTime = Array.isArray(task.timeEntries) && task.timeEntries.length > 0;
-  return task.status !== 'completed' && !hasTime;
+  return !hasTime;
 }
 
 export function deleteTask(taskId, wsId = workspaceId()) {
@@ -478,7 +491,7 @@ export function deleteTask(taskId, wsId = workspaceId()) {
   const target = list.find((task) => String(task.id) === String(taskId));
   if (!target) return { ok: false, reason: 'Task not found.' };
   if (!canDeleteTask(target)) {
-    return { ok: false, reason: 'Cannot delete completed tasks or tasks with time.' };
+    return { ok: false, reason: 'Cannot delete task with logged time.' };
   }
   const next = list.filter((task) => String(task.id) !== String(taskId));
   persistTasks(wsId, next);
@@ -486,17 +499,20 @@ export function deleteTask(taskId, wsId = workspaceId()) {
 }
 
 export function archiveTask(taskId, wsId = workspaceId()) {
-  return updateTask(taskId, { isArchived: true }, wsId);
+  return updateTask(taskId, { status: 'archived', isArchived: true }, wsId);
 }
 
 export function setTaskStatus(taskId, status, options = {}, wsId = workspaceId()) {
   if (!status) return null;
-  const next = { status };
-  if (status === 'completed') {
-    next.completedAt = options.completedAt || localDateISO();
-  } else {
-    next.completedAt = null;
-  }
+  const lifecyclePatch = {
+    status,
+    isArchived: status === 'archived',
+  };
+  if (options.startTimestamp !== undefined) lifecyclePatch.startTimestamp = options.startTimestamp;
+  if (options.startedAt !== undefined) lifecyclePatch.startedAt = options.startedAt;
+  if (options.completedTimestamp !== undefined) lifecyclePatch.completedTimestamp = options.completedTimestamp;
+  if (options.completedAt !== undefined) lifecyclePatch.completedAt = options.completedAt;
+  const next = mergeTaskLifecycleFields(getTaskById(taskId, wsId) || {}, lifecyclePatch);
   return updateTask(taskId, next, wsId);
 }
 

@@ -13,6 +13,10 @@ export function TaskStyleRichTextField({
   muted = false,
 }) {
   return h('div', {
+    'data-no-row-toggle': 'true',
+    onClick: (event) => event.stopPropagation(),
+    onMouseDown: (event) => event.stopPropagation(),
+    onKeyDown: (event) => event.stopPropagation(),
     className: [
       'rounded-xl border border-slate-200 dark:border-white/10 p-3',
       muted ? 'bg-slate-100 dark:bg-slate-950/70' : 'bg-slate-50 dark:bg-slate-900',

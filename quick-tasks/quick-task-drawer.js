@@ -146,7 +146,7 @@ function buildAssigneeRows(draft, members, onChangeAssignee, onAddAssignee, onRe
     h('div', { className: 'flex items-center justify-between gap-3' }, [
       h('div', { className: 'space-y-1' }, [
         h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Assignees'),
-        h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Start with one assignee here, then fine-tune from the expanded task row.'),
+        h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Use the same assignee pattern as the unified Quick Task rows.'),
       ]),
       h('button', {
         type: 'button',
@@ -423,7 +423,7 @@ export function QuickTaskDrawerPanel({
       ]),
       h('div', { className: 'flex-1 overflow-y-auto px-5 py-5 space-y-5' }, [
         h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/40 p-4 space-y-4' }, [
-          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Basics'),
+          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Task'),
           h('label', { className: 'flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
             h('div', { className: 'flex items-center justify-between' }, [
               h('span', null, 'Title'),
@@ -453,7 +453,7 @@ export function QuickTaskDrawerPanel({
             : null,
         ]),
         h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950/40 p-4 space-y-4' }, [
-          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Planning'),
+          h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Scope'),
           h('div', { className: 'grid gap-4 md:grid-cols-2' }, [
             h('label', { className: 'flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
               h('div', { className: 'flex items-center justify-between' }, [

@@ -1,5 +1,6 @@
 import { SectionHeader } from '../components/layout/SectionHeader.js';
 import {
+  createQuickTask,
   archiveTask,
   deleteTask,
   getTaskAssigneeIds,
@@ -11,7 +12,6 @@ import {
 } from './quick-tasks-store.js';
 import { QuickTasksExecutionTable } from './quick-tasks-list.js';
 import { getQuickTasksUIState, setQuickTasksFilters } from './quick-tasks-ui-state.js';
-import { openCompletionDateModal, openQuickTaskDrawer } from './quick-task-detail.js';
 
 const { createElement: h } = React;
 const { createRoot } = ReactDOM;
@@ -45,8 +45,9 @@ function filterTasks(tasks, uiState, options = {}) {
   const term = searchValue.trim().toLowerCase();
   const statusFilter = options.statusFilter || 'all';
   return tasks.filter((task) => {
-    if (statusFilter === 'archived') return !!task.isArchived;
-    if (task.isArchived) return false;
+    const isArchived = task.status === 'archived' || !!task.isArchived;
+    if (statusFilter === 'archived') return isArchived;
+    if (isArchived) return false;
     if (statusFilter === 'backlog' && task.status !== 'backlog') return false;
     if (statusFilter === 'in_progress' && task.status !== 'in_progress') return false;
     if (statusFilter === 'completed' && task.status !== 'completed') return false;
@@ -70,7 +71,8 @@ function sortTasks(tasks) {
     if (task.status === 'in_progress') return 0;
     if (task.status === 'backlog') return 1;
     if (task.status === 'completed') return 2;
-    return 3;
+    if (task.status === 'archived') return 3;
+    return 4;
   };
   return [...tasks].sort((a, b) => {
     const rankDiff = rankFor(a) - rankFor(b);
@@ -108,6 +110,8 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
   let statusFilter = uiState.statusLens === 'archived' ? 'archived' : uiState.statusLens === 'completed' ? 'completed' : 'all';
   let tasks = loadQuickTasks();
   let recentlyCreatedTaskId = null;
+  let createIntentId = 0;
+  let stickyFiltersHeight = 0;
 
   const refresh = () => {
     tasks = loadQuickTasks();
@@ -124,54 +128,50 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
     statusFilter = 'all';
   };
 
-  const openNewTask = () => {
-    openQuickTaskDrawer({
-      mode: 'create',
-      onCreated: ({ task } = {}) => {
-        recentlyCreatedTaskId = task?.id || null;
-        ensureCreatedTaskVisible();
-        refresh();
-      },
-    });
-  };
-
   const handleStatusChange = (taskId, status, originStatus) => {
     if (!taskId) return;
-    if (status === 'completed') {
-      openCompletionDateModal({
-        onConfirm: (date) => {
-          setTaskStatus(taskId, 'completed', { completedAt: date });
-          refresh();
-        },
-        onCancel: () => {
-          if (originStatus && originStatus !== 'completed') {
-            setTaskStatus(taskId, originStatus);
-          }
-          refresh();
-        },
-      });
-      return;
-    }
     setTaskStatus(taskId, status);
     refresh();
   };
 
-  const openEditTask = (taskId) => {
-    openQuickTaskDrawer({
-      mode: 'edit',
-      taskId,
-      onUpdated: refresh,
-      onDeleted: refresh,
-    });
+  const renderHeader = () => {
+    const breadcrumb = h('div', { className: 'flex items-center gap-2' }, [
+      h('span', { className: 'text-sm text-slate-500 dark:text-white/70' }, 'Tasks'),
+      h('span', { className: 'text-slate-400 dark:text-white/50' }, '›'),
+      h('span', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Quick Tasks'),
+    ]);
+
+    const searchBox = h('div', { className: 'flex-1 min-w-[220px]' }, [
+      h('input', {
+        type: 'search',
+        value: uiState.search || '',
+        placeholder: 'Search quick tasks...',
+        onInput: (event) => {
+          uiState = setQuickTasksFilters({ search: (event.target?.value || '').toString() });
+          renderBody();
+        },
+        className: 'w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-white shadow-inner focus:outline-none focus:ring-2 focus:ring-netnet-purple',
+      }),
+    ]);
+
+    headerRoot.render(h(React.Fragment, null, [
+      h(SectionHeader, {
+        title: breadcrumb,
+        showHelpIcon: true,
+        showSecondaryRow: false,
+        className: 'mb-1',
+      }),
+    ]));
   };
 
-  const renderHeader = () => {
+  const renderBody = () => {
+    if (!body) return;
     const members = loadTeamMembers();
+    const serviceTypes = loadServiceTypes().filter((type) => type.active);
     const memberOptions = [
       h('option', { value: 'all' }, 'All assignees'),
       ...members.map((member) => h('option', { key: member.id, value: member.id }, member.name || member.email || 'Member')),
     ];
-
     const statusLens = h('div', { className: 'inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-1 py-1' }, [
       ['all', 'All'],
       ['backlog', 'Backlog'],
@@ -199,7 +199,6 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
         renderAll();
       },
     }, label)));
-
     const assigneeFilter = h('select', {
       className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 px-3 text-sm',
       value: uiState.assignee || 'all',
@@ -208,7 +207,6 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
         renderAll();
       },
     }, memberOptions);
-
     const dueFilter = h('select', {
       className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 px-3 text-sm',
       value: uiState.duePreset || 'all',
@@ -222,19 +220,15 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
       h('option', { value: '7' }, 'Next 7 days'),
       h('option', { value: '30' }, 'Next 30 days'),
     ]);
-
     const newBtn = h('button', {
       type: 'button',
       className: 'inline-flex items-center justify-center h-10 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110',
-      onClick: openNewTask,
+      onClick: () => {
+        ensureCreatedTaskVisible();
+        createIntentId += 1;
+        renderBody();
+      },
     }, '+ New Quick Task');
-
-    const breadcrumb = h('div', { className: 'flex items-center gap-2' }, [
-      h('span', { className: 'text-sm text-slate-500 dark:text-white/70' }, 'Tasks'),
-      h('span', { className: 'text-slate-400 dark:text-white/50' }, '›'),
-      h('span', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, 'Quick Tasks'),
-    ]);
-
     const searchBox = h('div', { className: 'flex-1 min-w-[220px]' }, [
       h('input', {
         type: 'search',
@@ -247,28 +241,6 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
         className: 'w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-white shadow-inner focus:outline-none focus:ring-2 focus:ring-netnet-purple',
       }),
     ]);
-
-    headerRoot.render(h(React.Fragment, null, [
-      h(SectionHeader, {
-        title: breadcrumb,
-        showHelpIcon: true,
-        showSecondaryRow: false,
-        className: 'mb-1',
-      }),
-      h('div', { className: 'flex w-full flex-wrap items-center gap-2' }, [
-        statusLens,
-        assigneeFilter,
-        dueFilter,
-        searchBox,
-        newBtn,
-      ]),
-    ]));
-  };
-
-  const renderBody = () => {
-    if (!body) return;
-    const members = loadTeamMembers();
-    const serviceTypes = loadServiceTypes().filter((type) => type.active);
     const filtered = sortTasks(filterTasks(tasks, uiState, { statusFilter }));
     const prioritized = recentlyCreatedTaskId
       ? [
@@ -285,38 +257,68 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
       body.innerHTML = '<div id="quick-tasks-list-root"></div>';
       bodyRoot = createRoot(body.querySelector('#quick-tasks-list-root'));
     }
-    bodyRoot.render(h(QuickTasksExecutionTable, {
-      tasks: prioritized,
-      members,
-      serviceTypes,
-      statusFilter,
-      highlightTaskId: recentlyCreatedTaskId,
-      autoExpandTaskId: recentlyCreatedTaskId,
-      onNewTask: openNewTask,
-      onTaskUpdate: (taskId, updates) => {
-        updateTask(taskId, updates);
-        refresh();
-      },
-      onTaskDelete: (taskId) => {
-        const result = deleteTask(taskId);
-        if (!result.ok) {
-          window?.showToast?.(result.reason);
-          return;
-        }
-        if (String(recentlyCreatedTaskId) === String(taskId)) {
-          recentlyCreatedTaskId = null;
-        }
-        refresh();
-      },
-      onTaskArchive: (taskId) => {
-        archiveTask(taskId);
-        if (String(recentlyCreatedTaskId) === String(taskId) && statusFilter === 'archived') {
-          recentlyCreatedTaskId = taskId;
-        }
-        refresh();
-      },
-      onTaskStatusChange: handleStatusChange,
-    }));
+    bodyRoot.render(h('div', { className: 'space-y-0' }, [
+      h('div', {
+        id: 'quick-tasks-sticky-filters',
+        className: 'sticky top-0 z-30 -mx-4 mb-0 px-4 py-3 bg-[#f8fafc] dark:bg-[#020617] border-b border-slate-200/80 dark:border-white/10',
+      }, [
+        h('div', { className: 'flex w-full flex-wrap items-center gap-2' }, [
+          statusLens,
+          assigneeFilter,
+          dueFilter,
+          searchBox,
+          newBtn,
+        ]),
+      ]),
+      h(QuickTasksExecutionTable, {
+        tasks: prioritized,
+        members,
+        serviceTypes,
+        statusFilter,
+        stickyOffsetPx: stickyFiltersHeight,
+        highlightTaskId: recentlyCreatedTaskId,
+        autoExpandTaskId: recentlyCreatedTaskId,
+        createIntentId,
+        onCreateTask: (payload) => {
+          const created = createQuickTask(payload);
+          recentlyCreatedTaskId = created?.id || null;
+          ensureCreatedTaskVisible();
+          refresh();
+          return created;
+        },
+        onTaskUpdate: (taskId, updates) => {
+          updateTask(taskId, updates);
+          refresh();
+        },
+        onTaskDelete: (taskId) => {
+          const result = deleteTask(taskId);
+          if (!result.ok) {
+            window?.showToast?.(result.reason);
+            return;
+          }
+          if (String(recentlyCreatedTaskId) === String(taskId)) {
+            recentlyCreatedTaskId = null;
+          }
+          refresh();
+        },
+        onTaskArchive: (taskId) => {
+          archiveTask(taskId);
+          if (String(recentlyCreatedTaskId) === String(taskId) && statusFilter === 'archived') {
+            recentlyCreatedTaskId = taskId;
+          }
+          refresh();
+        },
+        onTaskStatusChange: handleStatusChange,
+      }),
+    ]));
+
+    requestAnimationFrame(() => {
+      const nextHeight = body.querySelector('#quick-tasks-sticky-filters')?.offsetHeight || 0;
+      if (nextHeight !== stickyFiltersHeight) {
+        stickyFiltersHeight = nextHeight;
+        renderBody();
+      }
+    });
   };
 
   const renderAll = () => {

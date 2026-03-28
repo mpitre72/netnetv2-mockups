@@ -4,6 +4,11 @@ function stopEvent(event) {
   event.stopPropagation();
 }
 
+function isInteractiveTarget(target) {
+  if (!target || typeof target.closest !== 'function') return false;
+  return !!target.closest('button, input, select, textarea, a, label, [role="button"], [contenteditable="true"], [data-no-row-toggle="true"]');
+}
+
 export function TaskSystemRow({
   taskId,
   expanded = false,
@@ -17,6 +22,8 @@ export function TaskSystemRow({
   toggleLabelCollapsed = 'Expand task',
   rowProps = {},
   expandedCellClassName = 'px-6 pb-4',
+  toggleCellClassName = 'px-6 py-3 text-sm text-gray-700 dark:text-gray-200 align-middle w-10',
+  toggleButtonClassName = 'h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 flex items-center justify-center',
 }) {
   const nextColSpan = Number(colSpan) || (cells.length + 1);
   const toggle = () => onToggle?.(taskId);
@@ -31,21 +38,23 @@ export function TaskSystemRow({
       onClick: (event) => {
         rowProps.onClick?.(event);
         if (event.defaultPrevented) return;
+        if (isInteractiveTarget(event.target)) return;
         toggle();
       },
       onKeyDown: (event) => {
         rowProps.onKeyDown?.(event);
         if (event.defaultPrevented) return;
+        if (isInteractiveTarget(event.target)) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           toggle();
         }
       },
     }, [
-      h('td', { className: 'px-6 py-3 text-sm text-gray-700 dark:text-gray-200 align-middle w-10' }, [
+      h('td', { className: toggleCellClassName }, [
         h('button', {
           type: 'button',
-          className: 'h-8 w-8 rounded-md border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 flex items-center justify-center',
+          className: toggleButtonClassName,
           onMouseDown: stopEvent,
           onClick: (event) => {
             stopEvent(event);

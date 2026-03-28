@@ -1,6 +1,4 @@
 import { navigate } from '../router.js';
-import { mountCompanyLookup } from '../contacts/company-lookup.js';
-import { mountPersonLookup } from '../contacts/person-lookup.js';
 import { QuickTaskDrawerPanel, buildQuickTaskDrawerInitialDraft } from './quick-task-drawer.js';
 import {
   addTimeEntry,

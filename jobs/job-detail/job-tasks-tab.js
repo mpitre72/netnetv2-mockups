@@ -20,6 +20,7 @@ import {
   getTaskCycleKey,
   shiftCycleKey,
 } from '../retainer-cycle-utils.js';
+import { mergeTaskLifecycleFields } from '../task-execution-utils.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 
@@ -153,10 +154,11 @@ export function JobTasksTab({
   const handleSaveTask = (payload) => {
     if (!activeDeliverable || !activeTask) return;
     if (typeof onJobUpdate !== 'function' || readOnly) return;
+    const nextPayload = mergeTaskLifecycleFields(activeTask, payload);
     const nextDeliverables = (job.deliverables || []).map((deliverable) => {
       if (deliverable.id !== activeDeliverable.id) return deliverable;
       const tasks = (deliverable.tasks || []).map((task) => (
-        task.id === activeTask.id ? { ...task, ...payload } : task
+        task.id === activeTask.id ? { ...task, ...nextPayload } : task
       ));
       return { ...deliverable, tasks };
     });

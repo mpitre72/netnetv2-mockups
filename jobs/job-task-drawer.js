@@ -14,6 +14,7 @@ function localDateISO(date = new Date()) {
 }
 
 function formatStatus(status) {
+  if (status === 'archived') return 'Archived';
   if (status === 'in_progress') return 'In Progress';
   if (status === 'completed') return 'Completed';
   return 'Backlog';
@@ -184,6 +185,7 @@ export function JobTaskDrawer({
               h('option', { value: 'backlog' }, 'Backlog'),
               h('option', { value: 'in_progress' }, 'In Progress'),
               h('option', { value: 'completed' }, 'Completed'),
+              h('option', { value: 'archived' }, 'Archived'),
             ]),
           ]),
           h('label', { className: 'space-y-1 block' }, [

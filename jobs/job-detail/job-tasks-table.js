@@ -5,6 +5,8 @@ import { JobKanbanTab } from './job-kanban-tab.js';
 import { TaskStyleRichTextField } from '../task-style-rich-text-field.js';
 import { loadDeliverableTypeOptions, rememberDeliverableType } from '../deliverable-type-store.js';
 import { TaskSystemRow } from '../../components/tasks/task-system-row.js';
+import { RowActionsMenu } from '../../components/performance/primitives.js';
+import { localDateISO, mergeTaskLifecycleFields, TASK_STATUS_OPTIONS } from '../task-execution-utils.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
@@ -21,11 +23,7 @@ const COLUMN_ORDER = [
 ];
 
 const EDITABLE_FIELDS = ['title', 'description', 'status', 'assignees', 'service', 'dueDate', 'loe'];
-const STATUS_OPTIONS = [
-  { value: 'backlog', label: 'Backlog' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'completed', label: 'Completed' },
-];
+const STATUS_OPTIONS = TASK_STATUS_OPTIONS;
 const DELIVERABLE_STATUS_OPTIONS = [
   { value: 'backlog', label: 'Backlog' },
   { value: 'in_progress', label: 'In Progress' },
@@ -467,23 +465,78 @@ function getActualHours(task) {
 }
 
 function renderQuickTaskMeter(taskLike, actualHours) {
+  const dueTiming = getDueTiming(taskLike);
+  const dueToneClass = dueTiming.tone === 'danger'
+    ? 'text-rose-600 dark:text-rose-400'
+    : dueTiming.tone === 'warn'
+      ? 'text-amber-500 dark:text-amber-300'
+      : dueTiming.tone === 'muted'
+        ? 'text-slate-400 dark:text-slate-500'
+        : 'text-slate-600 dark:text-slate-300';
+  const meterHtml = renderMiniMeters(taskLike, actualHours).replace(
+    /<div class="text-\[11px\] text-slate-600 dark:text-slate-300">Due .*?<\/div>/,
+    `<div class="text-[11px] ${dueToneClass}">${dueTiming.label}</div>`,
+  );
   return h('div', {
     className: 'min-w-[160px]',
-    dangerouslySetInnerHTML: { __html: renderMiniMeters(taskLike, actualHours) },
+    dangerouslySetInnerHTML: { __html: meterHtml },
   });
+}
+
+function renderAllocationLoeMeter(loeHours, actualHours) {
+  const estimate = Number(loeHours);
+  const actual = Number(actualHours);
+  const estimateLabel = Number.isFinite(estimate) ? `${Math.round(estimate * 10) / 10}`.replace(/\.0$/, '') : '-';
+  const actualLabel = Number.isFinite(actual) ? `${Math.round(actual * 10) / 10}`.replace(/\.0$/, '') : '0';
+  const loePercent = Number.isFinite(estimate) && estimate > 0 && Number.isFinite(actual)
+    ? Math.min(100, Math.round((actual / estimate) * 100))
+    : 0;
+  const loeColor = Number.isFinite(estimate) && Number.isFinite(actual) && estimate > 0 && actual > estimate
+    ? 'bg-rose-500'
+    : loePercent >= 80
+      ? 'bg-amber-500'
+      : 'bg-emerald-500';
+  const loeTooltip = Number.isFinite(estimate) && estimate > 0 && Number.isFinite(actual)
+    ? `LOE: ${actualLabel}h of ${estimateLabel}h (${Math.min(999, Math.round((actual / estimate) * 100))}%)`
+    : `LOE: ${actualLabel}h of ${estimateLabel === '-' ? '-' : `${estimateLabel}h`}`;
+  return h('div', {
+    className: 'min-w-[124px] space-y-1',
+    title: loeTooltip,
+  }, [
+    h('div', { className: 'h-1.5 w-full rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden' }, [
+      h('div', {
+        className: `${loeColor} h-full rounded-full`,
+        style: { width: `${loePercent}%` },
+      }),
+    ]),
+    h('div', { className: 'text-[11px] text-slate-600 dark:text-slate-300' }, `LOE ${actualLabel} / ${estimateLabel === '-' ? '-' : estimateLabel}h`),
+  ]);
 }
 
 function formatDueIn(task) {
   if (!task?.dueDate) return { label: '—', tone: 'muted' };
-  if (task.status === 'completed') return { label: 'Done', tone: 'muted' };
   const today = new Date();
   const due = new Date(`${task.dueDate}T00:00:00`);
   if (Number.isNaN(due.getTime())) return { label: task.dueDate, tone: 'muted' };
-  const diffMs = due.setHours(0, 0, 0, 0) - today.setHours(0, 0, 0, 0);
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const dueTime = due.setHours(0, 0, 0, 0);
+  const todayTime = today.setHours(0, 0, 0, 0);
+  return {
+    label: formatShortDate(task.dueDate),
+    tone: dueTime < todayTime ? 'danger' : 'normal',
+  };
+}
+
+function getDueTiming(task) {
+  if (!task?.dueDate) return { label: '—', tone: 'muted' };
+  const today = new Date();
+  const due = new Date(`${task.dueDate}T00:00:00`);
+  if (Number.isNaN(due.getTime())) return { label: '—', tone: 'muted' };
+  const dueTime = due.setHours(0, 0, 0, 0);
+  const todayTime = today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((dueTime - todayTime) / (24 * 60 * 60 * 1000));
   if (diffDays < 0) return { label: 'Overdue', tone: 'danger' };
   if (diffDays === 0) return { label: 'Due today', tone: 'warn' };
-  return { label: `${diffDays}d`, tone: diffDays <= 5 ? 'warn' : 'neutral' };
+  return { label: `Due in ${diffDays}d`, tone: 'normal' };
 }
 
 function formatShortDate(dateValue) {
@@ -506,6 +559,19 @@ function getStatusLabel(status) {
   return match ? match.label : 'Backlog';
 }
 
+function getStatusToneClass(status) {
+  if (status === 'completed') {
+    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200';
+  }
+  if (status === 'in_progress') {
+    return 'bg-netnet-purple/15 text-netnet-purple dark:bg-netnet-purple/20 dark:text-netnet-purple';
+  }
+  if (status === 'archived') {
+    return 'bg-slate-200 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300';
+  }
+  return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
+}
+
 function getInitials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
@@ -520,7 +586,8 @@ function sortTasks(tasks = []) {
     if (task.status === 'backlog' && !task.isDraft) return 1;
     if (task.isDraft) return 2;
     if (task.status === 'completed') return 3;
-    return 4;
+    if (task.status === 'archived') return 4;
+    return 5;
   };
   return tasks
     .map((task, idx) => ({ task, idx }))
@@ -1130,7 +1197,9 @@ export function JobTasksExecutionTable({
     const nextValue = field === 'title' ? String(value || '').trim() : value;
     if (field === 'title' && !nextValue) return false;
     if (field === 'status') {
-      updateTask(deliverableId, task.id, { status: nextValue || 'in_progress' });
+      updateTask(deliverableId, task.id, mergeTaskLifecycleFields(task, {
+        status: nextValue || 'in_progress',
+      }));
       return true;
     }
     if (field === 'dueDate') {
@@ -1215,14 +1284,23 @@ export function JobTasksExecutionTable({
       isRecurring: false,
       recurringTemplateId: null,
       dueDate: draft.dueDate || null,
+      startedAt: null,
       completedAt: null,
       cycleKey: cycleKey || null,
       allocations,
     };
-    updateTaskList(deliverableId, (tasks) => [task, ...(tasks || [])]);
+    const taskWithLifecycle = {
+      ...task,
+      ...mergeTaskLifecycleFields(task, {
+        status: task.status,
+        startedAt: task.status === 'in_progress' ? localDateISO() : null,
+        completedAt: task.status === 'completed' ? localDateISO() : null,
+      }),
+    };
+    updateTaskList(deliverableId, (tasks) => [taskWithLifecycle, ...(tasks || [])]);
     clearDraftRow(deliverableId);
     closeDraftRow(deliverableId);
-    return task;
+    return taskWithLifecycle;
   };
 
   const createTaskAndEdit = (deliverableId, nextField) => {
@@ -1300,7 +1378,7 @@ export function JobTasksExecutionTable({
     const hasPools = allowedTypeIds.length > 0;
     const isReady = isTaskReady(task, deliverable);
     const draftOutlineClass = !isReady ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
-    const gridStyle = { gridTemplateColumns: '1.15fr 1.1fr 0.62fr 0.9fr 0.82fr' };
+    const gridStyle = { gridTemplateColumns: '1.15fr 1fr 0.55fr 0.8fr auto' };
 
     const addAllocation = () => {
       if (readOnly) return;
@@ -1309,24 +1387,51 @@ export function JobTasksExecutionTable({
         { id: createId('alloc'), assigneeUserId: null, serviceTypeId: null, loeHours: null },
       ]);
     };
+    const removeAllocation = (allocationId) => {
+      if (readOnly) return;
+      updateAllocations(deliverable?.id || null, task.id, (list) => (
+        (list || []).filter((item) => item.id !== allocationId)
+      ));
+    };
     return h('div', {
+      'data-no-row-toggle': 'true',
       className: `rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 space-y-3 ${draftOutlineClass}`,
+      onMouseDown: (event) => event.stopPropagation(),
+      onClick: (event) => event.stopPropagation(),
     }, [
       hasPools ? null : h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Assign this task to a deliverable with available hours to set service types.'),
       h('div', { className: 'grid gap-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 px-1', style: gridStyle }, [
         h('div', null, 'Assignee'),
         h('div', null, 'Service Type'),
         h('div', null, 'LOE'),
-        h('div', null, 'Meter'),
-        h('div', null, 'Due Date'),
+        h('div', null, 'Metrics'),
+        h('div', { className: 'text-right' }, 'Actions'),
       ]),
       allocations.length
         ? h('div', { className: 'space-y-2' }, allocations.map((alloc) => {
           const allocationActual = Number(alloc.actualHours) || 0;
-          const allocationMeterTask = {
-            loeHours: Number.isFinite(Number(alloc.loeHours)) ? Number(alloc.loeHours) : null,
-            dueDate: task.dueDate || null,
-          };
+          const removeDisabled = allocationActual > 0;
+          const actionMenu = removeDisabled
+            ? h('button', {
+              type: 'button',
+              disabled: true,
+              title: 'Cannot remove assignee with logged time',
+              className: 'p-2 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-300 dark:text-slate-500 shadow-sm cursor-not-allowed inline-flex items-center justify-center',
+              onMouseDown: (event) => event.stopPropagation(),
+              onClick: (event) => event.stopPropagation(),
+            }, [
+              h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, [
+                h('circle', { cx: '12', cy: '5', r: '1.5' }),
+                h('circle', { cx: '12', cy: '12', r: '1.5' }),
+                h('circle', { cx: '12', cy: '19', r: '1.5' }),
+              ]),
+            ])
+            : h(RowActionsMenu, {
+              menuItems: ['Remove Assignee'],
+              onSelect: (item) => {
+                if (item === 'Remove Assignee') removeAllocation(alloc.id);
+              },
+            });
           return h('div', {
             key: alloc.id,
             className: 'grid gap-3 items-center',
@@ -1335,6 +1440,8 @@ export function JobTasksExecutionTable({
             h('select', {
               value: alloc.assigneeUserId ? String(alloc.assigneeUserId) : '',
               disabled: readOnly,
+              'data-no-row-toggle': 'true',
+              onMouseDown: (event) => event.stopPropagation(),
               onClick: (event) => event.stopPropagation(),
               onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
                 list.map((item) => item.id === alloc.id ? { ...item, assigneeUserId: event.target.value || null } : item)
@@ -1347,6 +1454,8 @@ export function JobTasksExecutionTable({
             h('select', {
               value: alloc.serviceTypeId ? String(alloc.serviceTypeId) : '',
               disabled: readOnly || !hasPools,
+              'data-no-row-toggle': 'true',
+              onMouseDown: (event) => event.stopPropagation(),
               onClick: (event) => event.stopPropagation(),
               onChange: (event) => updateAllocations(deliverable?.id || null, task.id, (list) => (
                 list.map((item) => item.id === alloc.id ? { ...item, serviceTypeId: event.target.value || null } : item)
@@ -1362,6 +1471,8 @@ export function JobTasksExecutionTable({
               step: 0.25,
               value: alloc.loeHours ?? '',
               disabled: readOnly,
+              'data-no-row-toggle': 'true',
+              onMouseDown: (event) => event.stopPropagation(),
               onClick: (event) => event.stopPropagation(),
               onChange: (event) => {
                 const raw = event.target.value;
@@ -1372,14 +1483,21 @@ export function JobTasksExecutionTable({
               },
               className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-60',
             }),
-            h('div', { className: 'min-w-0' }, renderQuickTaskMeter(allocationMeterTask, allocationActual)),
-            h('span', { className: 'text-xs text-slate-500 dark:text-slate-400' }, task.dueDate || '—'),
+            renderAllocationLoeMeter(alloc.loeHours, allocationActual),
+            h('div', {
+              className: 'flex justify-end',
+              'data-no-row-toggle': 'true',
+              onMouseDown: (event) => event.stopPropagation(),
+              onClick: (event) => event.stopPropagation(),
+            }, [actionMenu]),
           ]);
         }))
         : h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'No assignees yet.'),
       h('button', {
         type: 'button',
         className: 'inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white disabled:opacity-60',
+        'data-no-row-toggle': 'true',
+        onMouseDown: (event) => event.stopPropagation(),
         onClick: (event) => {
           event.stopPropagation();
           addAllocation();
@@ -1487,9 +1605,16 @@ export function JobTasksExecutionTable({
     const isDraft = !isReady;
     const draftOutlineClass = isDraft ? 'outline outline-1 outline-[#6d28d9]/35 outline-offset-[-1px]' : '';
     const taskExpanded = isTaskExpanded(task.id);
+    const titleEditing = editingCell?.taskId === task.id && editingCell.field === 'title';
+    const statusEditing = editingCell?.taskId === task.id && editingCell.field === 'status';
 
     const cellClass = 'px-6 py-3 text-sm text-gray-700 dark:text-gray-200 align-top';
-    const expandedPanel = h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 space-y-4 transition-all duration-200 ease-out' }, [
+    const expandedPanel = h('div', {
+      'data-no-row-toggle': 'true',
+      className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 space-y-4 transition-all duration-200 ease-out',
+      onMouseDown: (event) => event.stopPropagation(),
+      onClick: (event) => event.stopPropagation(),
+    }, [
       renderDescriptionEditor(task, deliverableId, isDraft),
       renderAllocations(task, deliverable),
     ]);
@@ -1522,7 +1647,28 @@ export function JobTasksExecutionTable({
           onKeyDown: handleKeyNav,
         }, [
           h('div', { className: 'space-y-1' }, [
-            h('div', { className: 'font-semibold text-gray-900 dark:text-gray-100' }, task.title || 'Untitled task'),
+            titleEditing
+              ? h('input', {
+                type: 'text',
+                value: editingValue,
+                autoFocus: true,
+                'data-no-row-toggle': 'true',
+                className: 'h-9 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-gray-900 dark:text-gray-100',
+                onClick: (event) => event.stopPropagation(),
+                onMouseDown: (event) => event.stopPropagation(),
+                onChange: (event) => setEditingValue(event.target.value || ''),
+                onBlur: () => commitOnBlur(task, deliverableId, 'title', editingValue),
+                onKeyDown: (event) => handleEditorKeyDown(event, task, deliverableId, 'title'),
+              })
+              : h('button', {
+                type: 'button',
+                'data-no-row-toggle': 'true',
+                className: 'text-left font-semibold text-gray-900 dark:text-gray-100 hover:text-netnet-purple dark:hover:text-netnet-purple',
+                onClick: (event) => {
+                  event.stopPropagation();
+                  startEdit(task, deliverableId, 'title');
+                },
+              }, task.title || 'Untitled task'),
             h('div', { className: 'flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400' }, [
               isDraft
                 ? h('span', { className: 'text-[10px] font-semibold tracking-wide text-purple-400 uppercase' }, 'DRAFT')
@@ -1533,7 +1679,47 @@ export function JobTasksExecutionTable({
               taskMeta?.plannedLabel
                 ? h('span', { className: 'rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-0.5 text-slate-600 dark:text-slate-300' }, `Pending: ${taskMeta.plannedLabel}`)
                 : null,
-              h('span', { className: 'text-[11px] font-semibold text-slate-600 dark:text-slate-300' }, statusLabel),
+              statusEditing
+                ? h('select', {
+                  value: editingValue || task.status || 'backlog',
+                  autoFocus: true,
+                  'data-no-row-toggle': 'true',
+                  className: 'h-7 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200',
+                  onMouseDown: (event) => event.stopPropagation(),
+                  onClick: (event) => event.stopPropagation(),
+                  onChange: (event) => {
+                    const nextValue = event.target.value || 'backlog';
+                    setEditingValue(nextValue);
+                    commitField(task, deliverableId, 'status', nextValue);
+                    setEditingCell(null);
+                    setEditingValue('');
+                  },
+                  onBlur: () => {
+                    setEditingCell(null);
+                    setEditingValue('');
+                  },
+                  onKeyDown: (event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setEditingCell(null);
+                      setEditingValue('');
+                    }
+                  },
+                }, STATUS_OPTIONS.map((option) => (
+                  h('option', { key: option.value, value: option.value }, option.label)
+                )))
+                : h('button', {
+                  type: 'button',
+                  'data-no-row-toggle': 'true',
+                  className: 'inline-flex items-center',
+                  onMouseDown: (event) => event.stopPropagation(),
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    startEdit(task, deliverableId, 'status');
+                  },
+                }, [
+                  h('span', { className: `rounded-full px-2 py-0.5 text-[11px] font-semibold ${getStatusToneClass(task.status)}` }, statusLabel),
+                ]),
             ].filter(Boolean)),
           ]),
         ]),
@@ -1559,7 +1745,9 @@ export function JobTasksExecutionTable({
         }, [
           h('button', {
             type: 'button',
+            'data-no-row-toggle': 'true',
             className: 'inline-flex items-center justify-center text-xs font-semibold',
+            onMouseDown: (event) => event.stopPropagation(),
             onClick: (event) => {
               event.stopPropagation();
               onOpenChat && onOpenChat({ type: 'task', deliverableId, taskId: task.id });
@@ -1608,8 +1796,15 @@ export function JobTasksExecutionTable({
           'data-col': 'due',
           onKeyDown: handleKeyNav,
         }, [
-          h('span', {
-            className: `text-xs ${due.tone === 'danger' ? 'text-rose-600 dark:text-rose-300' : due.tone === 'warn' ? 'text-amber-600 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'}`,
+          h('button', {
+            type: 'button',
+            'data-no-row-toggle': 'true',
+            className: `text-xs font-medium hover:underline ${due.tone === 'danger' ? 'text-rose-600 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}`,
+            onMouseDown: (event) => event.stopPropagation(),
+            onClick: (event) => {
+              event.stopPropagation();
+              startEdit(task, deliverableId, 'dueDate');
+            },
           }, due.label),
         ]),
         h('td', {
@@ -1640,14 +1835,16 @@ export function JobTasksExecutionTable({
         }, [
           h('button', {
             type: 'button',
+            'data-no-row-toggle': 'true',
             className: 'nn-btn nn-btn--micro',
             disabled: readOnly || !canOpenDrawer,
+            onMouseDown: (event) => event.stopPropagation(),
             onClick: (event) => {
               event.stopPropagation();
               if (canOpenDrawer) onOpenDrawer(deliverableId, task.id);
             },
             title: 'More',
-          }, '⋯'),
+          }, '⋮'),
         ]),
       ],
     })];
@@ -1903,9 +2100,9 @@ export function JobTasksExecutionTable({
     h('th', { className: 'px-6 py-2 text-center w-16' }, 'Chat'),
     h('th', { className: 'px-6 py-2 min-w-[140px]' }, 'Assignee(s)'),
     h('th', { className: 'px-6 py-2 min-w-[140px]' }, 'Service Type'),
-    h('th', { className: 'px-6 py-2 min-w-[90px]' }, 'Due In'),
+    h('th', { className: 'px-6 py-2 min-w-[90px]' }, 'Due Date'),
     h('th', { className: 'px-6 py-2 min-w-[110px]' }, 'Meter'),
-    h('th', { className: 'px-4 py-2 text-right w-14' }, '⋯'),
+    h('th', { className: 'px-4 py-2 text-right w-14' }, ''),
   ]);
 
   const renderTasksSubToolbarRow = (groupId) => {

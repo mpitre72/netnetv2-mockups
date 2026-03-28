@@ -3,15 +3,9 @@ import { JobTaskDrawer } from '../job-task-drawer.js';
 import { READY_TASK_MESSAGE, isTaskReady } from '../job-tasks-helpers.js';
 import { getCurrentCycleKey, getPoolsForCycle, getTaskCycleKey } from '../retainer-cycle-utils.js';
 import { renderMiniMeters } from '../../quick-tasks/quick-tasks-helpers.js';
+import { localDateISO, mergeTaskLifecycleFields } from '../task-execution-utils.js';
 
 const { createElement: h, useMemo, useRef, useState } = React;
-
-function localDateISO(date = new Date()) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 function getInitials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
@@ -167,7 +161,7 @@ export function JobKanbanTab({
 
   const handleSaveTask = (payload) => {
     if (!activeDeliverable || !activeTask) return;
-    applyTaskUpdate(activeDeliverable.id, activeTask.id, payload);
+    applyTaskUpdate(activeDeliverable.id, activeTask.id, mergeTaskLifecycleFields(activeTask, payload));
     closeDrawer();
   };
 
@@ -211,16 +205,24 @@ export function JobKanbanTab({
       return;
     }
 
-    applyTaskUpdate(deliverable.id, task.id, { status: nextStatus, completedAt: null });
+    applyTaskUpdate(deliverable.id, task.id, mergeTaskLifecycleFields(task, {
+      status: nextStatus,
+      completedAt: null,
+    }));
   };
 
   const confirmCompletion = () => {
     if (readOnly) return;
     if (!pendingComplete) return;
-    applyTaskUpdate(pendingComplete.deliverableId, pendingComplete.taskId, {
+    const active = findTask(job, pendingComplete.taskId);
+    if (!active?.task) {
+      setPendingComplete(null);
+      return;
+    }
+    applyTaskUpdate(pendingComplete.deliverableId, pendingComplete.taskId, mergeTaskLifecycleFields(active.task, {
       status: 'completed',
       completedAt: completionDate || localDateISO(),
-    });
+    }));
     setPendingComplete(null);
   };
 

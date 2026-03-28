@@ -1,10 +1,15 @@
 import { getActiveWorkspace } from '../app-shell/app-helpers.js';
 import { loadServiceTypes } from '../quick-tasks/quick-tasks-store.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
+import {
+  getTaskCompletedTimestamp,
+  getTaskStartTimestamp,
+  normalizeTaskLifecycleStatus,
+} from './task-execution-utils.js';
 
 const VALID_KINDS = new Set(['project', 'retainer']);
 const VALID_STATUSES = new Set(['pending', 'active', 'completed', 'archived']);
-const VALID_TASK_STATUSES = new Set(['backlog', 'in_progress', 'completed']);
+const VALID_TASK_STATUSES = new Set(['backlog', 'in_progress', 'completed', 'archived']);
 const VALID_DELIVERABLE_STATUSES = new Set(['backlog', 'in_progress', 'completed']);
 const VALID_LIFECYCLE_STATUSES = new Set(['pending', 'active', 'completed']);
 const DEFAULT_USER_ID = 'currentUser';
@@ -261,7 +266,9 @@ function normalizeTasks(tasks = [], { jobId, deliverableId } = {}) {
       if (!task) return null;
       const title = String(task.title || '').trim();
       if (!title) return null;
-      const status = VALID_TASK_STATUSES.has(task.status) ? task.status : 'backlog';
+      const status = normalizeTaskLifecycleStatus(task.status, 'backlog');
+      const startTimestamp = getTaskStartTimestamp(task);
+      const completedTimestamp = getTaskCompletedTimestamp(task);
       return {
         id: task.id || createId('task'),
         jobId: task.jobId || jobId || null,
@@ -273,7 +280,10 @@ function normalizeTasks(tasks = [], { jobId, deliverableId } = {}) {
         isRecurring: !!task.isRecurring,
         recurringTemplateId: task.recurringTemplateId || null,
         dueDate: task.dueDate || null,
-        completedAt: status === 'completed' ? (task.completedAt || null) : null,
+        startTimestamp,
+        startedAt: startTimestamp,
+        completedTimestamp,
+        completedAt: completedTimestamp,
         cycleKey: task.cycleKey || null,
         allocations: normalizeAllocations(task.allocations || []),
       };

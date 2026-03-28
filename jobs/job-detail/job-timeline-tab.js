@@ -1,23 +1,38 @@
-import { getCurrentUserId, loadTeamMembers } from '../../quick-tasks/quick-tasks-store.js';
+import {
+  getTaskCompletedTimestamp,
+  getTaskStartTimestamp,
+  localDateISO,
+  normalizeExecutionDate,
+  normalizeTaskLifecycleStatus,
+} from '../task-execution-utils.js';
+import { openSingleDatePickerPopover } from '../../quick-tasks/quick-task-detail.js';
 
-const { createElement: h, useEffect, useMemo, useState } = React;
+const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
 const MS_DAY = 24 * 60 * 60 * 1000;
-const TIMELINE_LEFT_COL_WIDTH = 280;
-const ACTIVE_TIMELINE_ROW_HEIGHT = 72;
-const ACTIVE_TIMELINE_HEADER_HEIGHT = 56;
-
-const ZOOMS = [
-  { value: 'day', label: 'Day', pxPerDay: 28, tickStep: 1 },
-  { value: 'week', label: 'Week', pxPerDay: 10, tickStep: 7 },
-  { value: 'month', label: 'Month', pxPerDay: 4, tickStep: 30 },
+const TIMELINE_LEFT_COL_WIDTH = 320;
+const GROUP_ROW_HEIGHT = 72;
+const TASK_ROW_HEIGHT = 34;
+const TIMELINE_HEADER_HEIGHT = 56;
+const TIMELINE_ZOOM_PRESETS = [
+  { value: 'days', label: 'Day', slider: 100 },
+  { value: 'weeks', label: 'Week', slider: 62 },
+  { value: 'months', label: 'Month', slider: 30 },
+  { value: 'year', label: 'Year', slider: 8 },
 ];
 
-function localDateISO(date = new Date()) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function getTimelineZoomMode(sliderValue) {
+  if (sliderValue >= 82) return 'days';
+  if (sliderValue >= 48) return 'weeks';
+  if (sliderValue >= 18) return 'months';
+  return 'year';
+}
+
+function getTimelineZoomConfig(sliderValue) {
+  const mode = getTimelineZoomMode(sliderValue);
+  const pxPerDay = 2.2 + ((Number(sliderValue) || 0) / 100) * 34;
+  const tickStep = mode === 'days' ? 1 : mode === 'weeks' ? 7 : mode === 'months' ? 30 : 90;
+  return { mode, pxPerDay, tickStep };
 }
 
 function parseISO(dateStr) {
@@ -41,260 +56,576 @@ function diffDays(startStr, endStr) {
 }
 
 function formatDateLabel(dateStr) {
-  if (!dateStr) return 'No due date';
+  if (!dateStr) return 'No date';
   const date = parseISO(dateStr);
   if (!date) return dateStr;
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 }
 
+function formatLongDate(dateStr) {
+  if (!dateStr) return 'Select date';
+  const date = parseISO(dateStr);
+  if (!date) return dateStr;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function formatShortDate(dateStr) {
+  if (!dateStr) return 'No date';
+  const date = parseISO(dateStr);
+  if (!date) return dateStr;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+}
+
 function formatTick(dateStr, zoom) {
   const date = parseISO(dateStr);
   if (!date) return dateStr || '';
-  if (zoom === 'month') {
+  if (zoom === 'year' || zoom === 'months') {
     return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(date);
   }
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
 }
 
-function buildDependencyDraft(job) {
-  const draft = {};
-  (job?.deliverables || []).forEach((deliverable) => {
-    draft[deliverable.id] = Array.isArray(deliverable.dependencyDeliverableIds)
-      ? [...deliverable.dependencyDeliverableIds]
-      : [];
-  });
-  return draft;
+function FieldShell({ label, children }) {
+  return h('label', { className: 'space-y-2' }, [
+    h('div', { className: 'flex items-center gap-2' }, [
+      h('span', { className: 'text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, label),
+    ]),
+    children,
+  ]);
 }
 
-function detectCycle(graph) {
-  const visiting = new Set();
-  const visited = new Set();
-  const visit = (node) => {
-    if (visiting.has(node)) return true;
-    if (visited.has(node)) return false;
-    visiting.add(node);
-    const deps = graph.get(node) || [];
-    for (const dep of deps) {
-      if (visit(dep)) return true;
+function normalizeTaskStatus(status) {
+  return normalizeTaskLifecycleStatus(status, 'backlog');
+}
+
+function statusLabel(status) {
+  if (status === 'archived') return 'Archived';
+  if (status === 'completed') return 'Completed';
+  if (status === 'in_progress') return 'In Progress';
+  return 'Backlog';
+}
+
+function statusToneClass(status) {
+  if (status === 'archived') {
+    return 'bg-slate-200 text-slate-600 dark:bg-slate-800/80 dark:text-slate-300';
+  }
+  if (status === 'completed') {
+    return 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200';
+  }
+  if (status === 'in_progress') {
+    return 'bg-netnet-purple/15 text-netnet-purple dark:bg-netnet-purple/20 dark:text-netnet-purple';
+  }
+  return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+}
+
+function buildTaskExecutionVisual(task) {
+  const status = normalizeTaskStatus(task?.status);
+  const dueDate = normalizeExecutionDate(task?.dueDate);
+  const startedAt = getTaskStartTimestamp(task);
+  const completedAt = getTaskCompletedTimestamp(task);
+  const today = localDateISO();
+
+  if (status === 'archived') {
+    return { kind: 'none', status };
+  }
+
+  if (status === 'backlog') {
+    return dueDate
+      ? { kind: 'dot', status, anchorDate: dueDate }
+      : { kind: 'none', status };
+  }
+
+  if (status === 'in_progress') {
+    if (!dueDate) return { kind: 'none', status };
+    const fallbackStart = startedAt || today;
+    const startDate = fallbackStart <= dueDate ? fallbackStart : dueDate;
+    const endDate = fallbackStart <= dueDate ? dueDate : fallbackStart;
+    return { kind: 'bar', status, startDate, endDate };
+  }
+
+  const fallbackEnd = completedAt || dueDate;
+  if (!fallbackEnd) {
+    return { kind: 'none', status };
+  }
+  const fallbackStart = startedAt || dueDate || fallbackEnd;
+  const startDate = fallbackStart <= fallbackEnd ? fallbackStart : fallbackEnd;
+  const endDate = fallbackStart <= fallbackEnd ? fallbackEnd : fallbackStart;
+  return { kind: 'bar', status, startDate, endDate };
+}
+
+function getVisualDatePoints(visual) {
+  if (!visual || visual.kind === 'none') return [];
+  if (visual.kind === 'dot') return visual.anchorDate ? [visual.anchorDate] : [];
+  return [visual.startDate, visual.endDate].filter(Boolean);
+}
+
+function minDateValue(values = []) {
+  return values.reduce((min, value) => (!min || value < min ? value : min), null);
+}
+
+function maxDateValue(values = []) {
+  return values.reduce((max, value) => (!max || value > max ? value : max), null);
+}
+
+function sortTimelineTasks(tasks = []) {
+  const statusOrder = { in_progress: 0, backlog: 1, completed: 2, archived: 3 };
+  return [...(tasks || [])].sort((a, b) => {
+    const aStatus = normalizeTaskStatus(a?.status);
+    const bStatus = normalizeTaskStatus(b?.status);
+    if (statusOrder[aStatus] !== statusOrder[bStatus]) {
+      return statusOrder[aStatus] - statusOrder[bStatus];
     }
-    visiting.delete(node);
-    visited.add(node);
-    return false;
-  };
-  for (const node of graph.keys()) {
-    if (visit(node)) return true;
-  }
-  return false;
+    const aDue = normalizeExecutionDate(a?.dueDate) || '9999-12-31';
+    const bDue = normalizeExecutionDate(b?.dueDate) || '9999-12-31';
+    if (aDue !== bDue) return aDue.localeCompare(bDue);
+    return String(a?.title || '').localeCompare(String(b?.title || ''));
+  });
 }
 
-function validateDependencies(deliverables) {
-  const ids = new Set((deliverables || []).map((d) => String(d.id)));
-  const graph = new Map();
-  for (const deliverable of deliverables || []) {
-    const id = String(deliverable.id);
-    const deps = (deliverable.dependencyDeliverableIds || [])
-      .map((dep) => String(dep))
-      .filter((dep) => dep && dep !== id && ids.has(dep));
-    graph.set(id, deps);
+function buildTimelineGroup(group) {
+  const tasks = sortTimelineTasks(group?.tasks || []).map((task) => ({
+    ...task,
+    timelineVisual: buildTaskExecutionVisual(task),
+  }));
+  const barVisuals = tasks
+    .map((task) => task.timelineVisual)
+    .filter((visual) => visual?.kind === 'bar');
+  const dotVisuals = tasks
+    .map((task) => task.timelineVisual)
+    .filter((visual) => visual?.kind === 'dot' && visual.anchorDate);
+  const aggregateStatus = tasks.some((task) => normalizeTaskStatus(task.status) === 'in_progress')
+    ? 'in_progress'
+    : tasks.some((task) => normalizeTaskStatus(task.status) === 'completed')
+      ? 'completed'
+      : 'backlog';
+  const aggregateVisual = barVisuals.length
+    ? {
+      kind: 'bar',
+      status: aggregateStatus,
+      startDate: minDateValue(barVisuals.map((visual) => visual.startDate).filter(Boolean)),
+      endDate: maxDateValue([
+        ...barVisuals.map((visual) => visual.endDate).filter(Boolean),
+        ...dotVisuals.map((visual) => visual.anchorDate).filter(Boolean),
+      ]),
+    }
+    : dotVisuals.length
+      ? {
+        kind: 'dot',
+        status: 'backlog',
+        anchorDate: maxDateValue(dotVisuals.map((visual) => visual.anchorDate).filter(Boolean)),
+      }
+      : { kind: 'none', status: aggregateStatus };
+  const counts = tasks.reduce((acc, task) => {
+    const status = normalizeTaskStatus(task.status);
+    acc[status] += 1;
+    return acc;
+  }, { backlog: 0, in_progress: 0, completed: 0, archived: 0 });
+  return {
+    ...group,
+    tasks,
+    aggregateVisual,
+    counts,
+    renderableCount: tasks.filter((task) => task.timelineVisual.kind !== 'none').length,
+    datePoints: tasks.flatMap((task) => getVisualDatePoints(task.timelineVisual)),
+  };
+}
+
+function summarizeGroup(group) {
+  const parts = [`${group.tasks.length} ${group.tasks.length === 1 ? 'task' : 'tasks'}`];
+  if (group.counts.in_progress) parts.push(`${group.counts.in_progress} in progress`);
+  if (group.counts.backlog) parts.push(`${group.counts.backlog} backlog`);
+  if (group.counts.completed) parts.push(`${group.counts.completed} completed`);
+  if (group.counts.archived) parts.push(`${group.counts.archived} archived`);
+  return parts.join(' · ');
+}
+
+function getTaskTimelineCaption(task, visual) {
+  const status = normalizeTaskStatus(task?.status);
+  const dueDate = normalizeExecutionDate(task?.dueDate);
+  const startedAt = getTaskStartTimestamp(task);
+  const completedAt = getTaskCompletedTimestamp(task);
+
+  if (status === 'archived') {
+    return '';
   }
-  if (detectCycle(graph)) {
-    return 'Dependency cycles are not allowed. Remove the loop and try again.';
+
+  if (status === 'backlog') {
+    return '';
   }
+
+  if (status === 'in_progress') {
+    if (visual.kind === 'bar') {
+      return `Started ${formatShortDate(visual.startDate)} · Due ${formatShortDate(visual.endDate)}`;
+    }
+    if (dueDate) return `Due ${formatShortDate(dueDate)}`;
+    if (startedAt) return `Started ${formatShortDate(startedAt)}`;
+    return '';
+  }
+
+  if (visual.kind === 'bar') {
+    return `Started ${formatShortDate(visual.startDate)} · Completed ${formatShortDate(visual.endDate)}`;
+  }
+  if (completedAt) return `Completed ${formatShortDate(completedAt)}`;
+  if (dueDate) return `Due ${formatShortDate(dueDate)}`;
+  if (startedAt) return `Started ${formatShortDate(startedAt)}`;
   return '';
 }
 
-function getStartDate(deliverable, deliverableMap, fallbackStart, today) {
-  const deps = Array.isArray(deliverable.dependencyDeliverableIds) ? deliverable.dependencyDeliverableIds : [];
-  const candidates = deps
-    .map((depId) => deliverableMap.get(String(depId))?.dueDate)
-    .filter(Boolean);
-  if (candidates.length) {
-    const latest = candidates.sort().slice(-1)[0];
-    return addDays(latest, 1);
-  }
-  return fallbackStart || today;
+function renderChevron(expanded) {
+  return h('svg', {
+    className: 'h-4 w-4 text-slate-400 transition-transform duration-200',
+    style: { transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' },
+    viewBox: '0 0 20 20',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: '2',
+  }, [
+    h('path', { d: 'M7 5l6 5-6 5', strokeLinecap: 'round', strokeLinejoin: 'round' }),
+  ]);
 }
 
-export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride }) {
-  const [zoom, setZoom] = useState('week');
-  const [editingId, setEditingId] = useState(null);
-  const [draftDueDate, setDraftDueDate] = useState('');
-  const [historyOpenId, setHistoryOpenId] = useState(null);
-  const [showDependencies, setShowDependencies] = useState(false);
-  const [dependencyDraft, setDependencyDraft] = useState(() => buildDependencyDraft(job));
-  const [dependencyError, setDependencyError] = useState('');
-
-  const members = useMemo(() => loadTeamMembers(), []);
-  const memberMap = useMemo(() => new Map(members.map((member) => [String(member.id), member])), [members]);
-  const currentUserId = useMemo(() => getCurrentUserId(members), [members]);
-  const today = useMemo(() => localDateISO(), []);
+export function JobTimelineTab({ job, onJobUpdate, readOnly = false }) {
+  const [zoomValue, setZoomValue] = useState(62);
+  const [expandedGroupIds, setExpandedGroupIds] = useState(() => new Set());
+  const duePickerCleanupRef = useRef(null);
+  const timelineBodyScrollRef = useRef(null);
+  const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
 
   useEffect(() => {
-    setDependencyDraft(buildDependencyDraft(job));
-  }, [job?.id, job?.deliverables?.length]);
+    setExpandedGroupIds(new Set());
+  }, [job?.id]);
+
+  useEffect(() => () => {
+    if (duePickerCleanupRef.current) duePickerCleanupRef.current();
+  }, []);
 
   if (!job) return null;
-  const readOnly = readOnlyOverride === undefined ? job.status === 'archived' : readOnlyOverride;
 
-  const deliverables = job.deliverables || [];
-  const deliverableMap = new Map(deliverables.map((deliverable) => [String(deliverable.id), deliverable]));
-  const jobStart = job.startDate || today;
-  const zoomConfig = ZOOMS.find((item) => item.value === zoom) || ZOOMS[1];
+  const today = localDateISO();
+  const zoomConfig = getTimelineZoomConfig(zoomValue);
+  const projectStartDate = normalizeExecutionDate(job?.startDate || job?.timeline?.startDate);
+  const projectFinishDate = normalizeExecutionDate(job?.targetEndDate || job?.timeline?.endDate);
 
-  const schedule = deliverables.map((deliverable) => {
-    const startDate = getStartDate(deliverable, deliverableMap, jobStart, today);
-    const endDate = deliverable.dueDate || null;
-    return { deliverable, startDate, endDate };
-  });
+  const groups = useMemo(() => {
+    const next = (job?.deliverables || []).map((deliverable) => buildTimelineGroup({
+      id: String(deliverable.id),
+      name: deliverable.name || 'Deliverable',
+      tasks: deliverable.tasks || [],
+      isUnassigned: false,
+    }));
+    if (Array.isArray(job?.unassignedTasks) && job.unassignedTasks.length) {
+      next.push(buildTimelineGroup({
+        id: 'unassigned',
+        name: 'General Job Tasks',
+        tasks: job.unassignedTasks,
+        isUnassigned: true,
+      }));
+    }
+    return next;
+  }, [job]);
 
-  const rangeStart = schedule.reduce((min, item) => (!min || item.startDate < min ? item.startDate : min), null) || today;
-  const maxEnd = schedule.reduce((max, item) => {
-    const end = item.endDate || item.startDate;
-    return !max || end > max ? end : max;
-  }, null) || today;
-  const targetEnd = job.targetEndDate || null;
-  const rangeEnd = targetEnd && targetEnd > maxEnd ? targetEnd : maxEnd;
+  const allDatePoints = [
+    ...groups.flatMap((group) => group.datePoints),
+    ...(projectStartDate ? [projectStartDate] : []),
+    ...(projectFinishDate ? [projectFinishDate] : []),
+  ];
+  const rangeStart = allDatePoints.reduce((min, date) => (!min || date < min ? date : min), null) || today;
+  const rangeEnd = allDatePoints.reduce((max, date) => (!max || date > max ? date : max), null) || today;
   const paddedStart = addDays(rangeStart, -3);
   const paddedEnd = addDays(rangeEnd, 3);
   const rangeDays = Math.max(1, diffDays(paddedStart, paddedEnd) + 1);
   const timelineWidth = Math.max(860, rangeDays * zoomConfig.pxPerDay);
-  const timelineBodyHeight = schedule.length * ACTIVE_TIMELINE_ROW_HEIGHT;
-  const startLineOffset = jobStart ? diffDays(paddedStart, jobStart) * zoomConfig.pxPerDay : null;
-  const finishLineOffset = targetEnd ? diffDays(paddedStart, targetEnd) * zoomConfig.pxPerDay : null;
+  const shouldRenderStartColumn = Boolean(projectStartDate);
+  const shouldRenderFinishColumn = Boolean(projectFinishDate);
+  const startLineOffset = projectStartDate ? diffDays(paddedStart, projectStartDate) * zoomConfig.pxPerDay : null;
+  const finishLineOffset = projectFinishDate ? diffDays(paddedStart, projectFinishDate) * zoomConfig.pxPerDay : null;
 
-  const ticks = [];
-  for (let offset = 0; offset <= rangeDays; offset += zoomConfig.tickStep) {
-    ticks.push({
-      date: addDays(paddedStart, offset),
-      offset: offset * zoomConfig.pxPerDay,
-    });
-  }
-
-  const connectors = useMemo(() => {
-    const byId = new Map(schedule.map((item, index) => [String(item.deliverable.id), { ...item, index }]));
-    return schedule.flatMap((item, index) => {
-      const deps = Array.isArray(item.deliverable?.dependencyDeliverableIds)
-        ? item.deliverable.dependencyDeliverableIds.map((id) => String(id)).filter(Boolean)
-        : [];
-      return deps.flatMap((dependencyId) => {
-        const dependency = byId.get(dependencyId);
-        if (!dependency || !dependency.endDate) return [];
-        const sourceX = (diffDays(paddedStart, dependency.endDate) + 1) * zoomConfig.pxPerDay;
-        const targetX = diffDays(paddedStart, item.startDate) * zoomConfig.pxPerDay;
-        const sourceY = (dependency.index * ACTIVE_TIMELINE_ROW_HEIGHT) + (ACTIVE_TIMELINE_ROW_HEIGHT / 2);
-        const targetY = (index * ACTIVE_TIMELINE_ROW_HEIGHT) + (ACTIVE_TIMELINE_ROW_HEIGHT / 2);
-        const controlOffset = Math.max(28, Math.abs(targetX - sourceX) * 0.4);
-        const d = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
-        return [{ key: `${dependency.deliverable.id}-${item.deliverable.id}`, d }];
+  const ticks = useMemo(() => {
+    const next = [];
+    for (let offset = 0; offset <= rangeDays; offset += zoomConfig.tickStep) {
+      next.push({
+        date: addDays(paddedStart, offset),
+        offset: offset * zoomConfig.pxPerDay,
       });
-    });
-  }, [schedule, paddedStart, zoomConfig.pxPerDay]);
-
-  const openEdit = (deliverable) => {
-    if (readOnly) return;
-    setEditingId(deliverable.id);
-    setDraftDueDate(deliverable.dueDate || '');
-  };
-
-  const closeEdit = () => {
-    setEditingId(null);
-    setDraftDueDate('');
-  };
-
-  const saveDueDate = () => {
-    if (readOnly) return;
-    if (!editingId || typeof onJobUpdate !== 'function') return;
-    const deliverable = deliverableMap.get(String(editingId));
-    if (!deliverable) {
-      closeEdit();
-      return;
     }
-    const nextDate = draftDueDate || null;
-    const prevDate = deliverable.dueDate || null;
-    if (prevDate === nextDate) {
-      closeEdit();
-      return;
-    }
-    const originalDueDate = deliverable.originalDueDate || (prevDate && prevDate !== nextDate ? prevDate : null);
-    const dueDateHistory = Array.isArray(deliverable.dueDateHistory) ? [...deliverable.dueDateHistory] : [];
-    dueDateHistory.push({
-      fromDate: prevDate,
-      toDate: nextDate,
-      changedAt: new Date().toISOString(),
-      changedByUserId: currentUserId || null,
-    });
-    const nextDeliverables = deliverables.map((item) => (
-      item.id === deliverable.id
-        ? { ...item, dueDate: nextDate, originalDueDate, dueDateHistory }
-        : item
-    ));
-    onJobUpdate({ deliverables: nextDeliverables });
-    closeEdit();
-  };
+    return next;
+  }, [paddedStart, rangeDays, zoomConfig.pxPerDay, zoomConfig.tickStep]);
 
-  const toggleDependency = (deliverableId, dependencyId) => {
-    if (readOnly) return;
-    setDependencyDraft((prev) => {
-      const current = new Set(prev[deliverableId] || []);
-      if (current.has(dependencyId)) {
-        current.delete(dependencyId);
+  const toggleGroup = (groupId) => {
+    setExpandedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
       } else {
-        current.add(dependencyId);
+        next.add(groupId);
       }
-      return { ...prev, [deliverableId]: Array.from(current) };
+      return next;
     });
   };
 
-  const saveDependencies = () => {
-    if (readOnly) return;
-    if (typeof onJobUpdate !== 'function') return;
-    const nextDeliverables = deliverables.map((deliverable) => {
-      const deps = Array.isArray(dependencyDraft[deliverable.id]) ? dependencyDraft[deliverable.id] : [];
-      const filtered = deps
-        .map((id) => String(id))
-        .filter((id) => id && id !== String(deliverable.id) && deliverableMap.has(id));
-      return { ...deliverable, dependencyDeliverableIds: Array.from(new Set(filtered)) };
-    });
-    const error = validateDependencies(nextDeliverables);
-    if (error) {
-      setDependencyError(error);
-      return;
+  const renderGridLines = (key) => ticks.map((tick) => h('div', {
+    key: `${key}-${tick.date}`,
+    className: 'absolute inset-y-0 w-px bg-slate-200/70 dark:bg-white/10',
+    style: { left: `${tick.offset}px` },
+  }));
+
+  const renderVisual = (visual, key, options = {}) => {
+    if (!visual || visual.kind === 'none') return null;
+    const {
+      rowHeight = TASK_ROW_HEIGHT,
+      variant = 'task',
+    } = options;
+    const isGroup = variant === 'group';
+
+    if (visual.kind === 'dot') {
+      const size = isGroup ? 14 : 10;
+      const anchorOffset = diffDays(paddedStart, visual.anchorDate) * zoomConfig.pxPerDay;
+      const dotClass = visual.status === 'completed'
+        ? 'bg-netnet-purple/55'
+        : visual.status === 'in_progress'
+          ? 'bg-netnet-purple/85'
+          : 'bg-slate-400/80 dark:bg-slate-500/85';
+      return h('div', {
+        key,
+        className: `absolute z-10 rounded-full ${dotClass}`,
+        style: {
+          left: `${anchorOffset - (size / 2)}px`,
+          top: `${(rowHeight - size) / 2}px`,
+          width: `${size}px`,
+          height: `${size}px`,
+        },
+      });
     }
-    onJobUpdate({ deliverables: nextDeliverables });
-    setShowDependencies(false);
-    setDependencyError('');
+
+    const startOffset = diffDays(paddedStart, visual.startDate) * zoomConfig.pxPerDay;
+    const endOffset = diffDays(paddedStart, visual.endDate) * zoomConfig.pxPerDay;
+    const width = Math.max(12, (endOffset - startOffset) + zoomConfig.pxPerDay);
+    const barHeight = isGroup ? Math.round(rowHeight * 0.65) : 10;
+    const barClass = isGroup
+      ? (visual.status === 'completed'
+        ? 'bg-netnet-purple/55 border border-netnet-purple/30 shadow-[0_10px_24px_rgba(113,31,255,0.14)]'
+        : 'bg-netnet-purple shadow-[0_10px_24px_rgba(113,31,255,0.18)]')
+      : (visual.status === 'completed'
+        ? 'bg-netnet-purple/45 border border-netnet-purple/30'
+        : 'bg-netnet-purple/80 shadow-[0_6px_16px_rgba(113,31,255,0.14)]');
+    return h('div', {
+      key,
+      className: `absolute z-10 ${isGroup ? 'rounded-[8px]' : 'rounded-[7px]'} ${barClass}`,
+      style: {
+        left: `${startOffset}px`,
+        top: `${(rowHeight - barHeight) / 2}px`,
+        width: `${width}px`,
+        height: `${barHeight}px`,
+      },
+    });
   };
 
-  const renderHistory = (deliverable) => {
-    const history = Array.isArray(deliverable.dueDateHistory) ? deliverable.dueDateHistory : [];
-    if (!history.length) return h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'No changes yet.');
-    return h('div', { className: 'space-y-2' }, history.slice().reverse().map((entry, idx) => {
-      const user = entry.changedByUserId ? memberMap.get(String(entry.changedByUserId)) : null;
-      return h('div', { key: `${entry.changedAt || idx}` , className: 'text-xs text-slate-600 dark:text-slate-300' }, [
-        h('div', { className: 'font-semibold' }, `${formatDateLabel(entry.fromDate)} → ${formatDateLabel(entry.toDate)}`),
-        entry.changedAt
-          ? h('div', { className: 'text-[11px] text-slate-500 dark:text-slate-400' }, [
-            new Date(entry.changedAt).toLocaleString(),
-            user ? ` · ${user.name || user.email || 'User'}` : '',
-          ].join(''))
-          : null,
-      ]);
-    }));
+  const renderGroupRow = (group) => {
+    const expanded = expandedGroupIds.has(group.id);
+    const visual = group.aggregateVisual;
+    return h('div', {
+      key: `group-${group.id}`,
+      className: 'grid border-b border-slate-200/80 dark:border-white/10',
+      style: {
+        gridTemplateColumns: `${TIMELINE_LEFT_COL_WIDTH}px ${timelineWidth}px`,
+        minHeight: `${GROUP_ROW_HEIGHT}px`,
+      },
+    }, [
+      h('button', {
+        type: 'button',
+        className: 'flex items-center gap-3 border-r border-slate-200 bg-white/95 px-4 text-left hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950/90 dark:hover:bg-slate-900/90',
+        onClick: () => toggleGroup(group.id),
+        'aria-expanded': expanded ? 'true' : 'false',
+      }, [
+        h('span', { className: 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900' }, [
+          renderChevron(expanded),
+        ]),
+        h('div', { className: 'min-w-0 space-y-1 py-3' }, [
+          h('div', { className: 'truncate text-sm font-semibold text-slate-900 dark:text-white' }, group.name || 'Deliverable'),
+          h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400' }, [
+            h('span', null, summarizeGroup(group)),
+          ]),
+        ]),
+      ]),
+      h('div', { className: 'relative bg-slate-950/5 dark:bg-slate-950/40', style: { minHeight: `${GROUP_ROW_HEIGHT}px` } }, [
+        ...renderGridLines(`group-${group.id}`),
+        renderVisual(visual, `group-${group.id}-aggregate`, {
+          rowHeight: GROUP_ROW_HEIGHT,
+          variant: 'group',
+        }),
+      ]),
+    ]);
   };
 
-  const zoomControls = h('div', { className: 'inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-1 py-1' }, (
-    ZOOMS.map((option) => h('button', {
-      key: option.value,
-      type: 'button',
-      className: [
-        'px-3 py-1 rounded-full text-xs font-semibold transition-colors border',
-        zoom === option.value
-          ? 'bg-[var(--color-brand-purple,#711FFF)] text-white border-transparent shadow-sm'
-          : 'text-slate-600 dark:text-slate-300 border-transparent hover:bg-slate-100 dark:hover:bg-white/10',
-      ].join(' '),
-      onClick: () => setZoom(option.value),
-    }, option.label))
+  const renderTaskRow = (groupId, task) => {
+    const visual = task.timelineVisual;
+    const taskStart = getTaskStartTimestamp(task);
+    const tooltipLines = [
+      `Status: ${statusLabel(task.status)}`,
+      `Due: ${task.dueDate ? formatShortDate(task.dueDate) : 'No date'}`,
+      ...(taskStart ? [`Started: ${formatShortDate(taskStart)}`] : []),
+    ];
+    return h('div', {
+      key: `task-${task.id}`,
+      className: 'grid border-b border-slate-200/60 dark:border-white/5',
+      style: {
+        gridTemplateColumns: `${TIMELINE_LEFT_COL_WIDTH}px ${timelineWidth}px`,
+        minHeight: `${TASK_ROW_HEIGHT}px`,
+      },
+    }, [
+      h('div', { className: 'flex items-center border-r border-slate-200 bg-white/90 pl-12 pr-4 dark:border-white/10 dark:bg-slate-950/70' }, [
+        h('div', { className: 'flex min-w-0 items-center gap-2 py-1.5' }, [
+          h('span', { className: 'inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center text-slate-400' }, [
+            renderChevron(false),
+          ]),
+          h('span', { className: 'truncate text-[13px] leading-4 text-slate-800 dark:text-slate-100' }, task.title || 'Untitled task'),
+          h('span', {
+            className: 'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-200 text-[10px] font-semibold text-slate-500 dark:border-white/10 dark:text-slate-400',
+            tabIndex: 0,
+            'data-tooltip': tooltipLines.join('\n'),
+            'aria-label': 'Task details',
+          }, 'ⓘ'),
+        ]),
+      ]),
+      h('div', { className: 'relative bg-white/40 dark:bg-slate-950/30', style: { minHeight: `${TASK_ROW_HEIGHT}px` } }, [
+        ...renderGridLines(`task-${groupId}-${task.id}`),
+        renderVisual(visual, `task-visual-${task.id}`, {
+          rowHeight: TASK_ROW_HEIGHT,
+          variant: 'task',
+        }),
+      ]),
+    ]);
+  };
+
+  const renderEmptyTaskRow = (groupId) => h('div', {
+    key: `empty-${groupId}`,
+    className: 'grid border-b border-slate-200/60 dark:border-white/5',
+    style: {
+      gridTemplateColumns: `${TIMELINE_LEFT_COL_WIDTH}px ${timelineWidth}px`,
+      minHeight: `${TASK_ROW_HEIGHT}px`,
+    },
+  }, [
+    h('div', { className: 'flex items-center border-r border-slate-200 bg-white/90 pl-12 pr-4 text-sm text-slate-500 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-400' }, 'No tasks yet'),
+    h('div', { className: 'relative bg-white/40 dark:bg-slate-950/30', style: { minHeight: `${TASK_ROW_HEIGHT}px` } }, [
+      ...renderGridLines(`empty-${groupId}`),
+    ]),
+  ]);
+
+  const renderedTimelineRows = groups.length
+    ? groups.flatMap((group) => {
+      const rows = [renderGroupRow(group)];
+      if (expandedGroupIds.has(group.id)) {
+        if (group.tasks.length) {
+          rows.push(...group.tasks.map((task) => renderTaskRow(group.id, task)));
+        } else {
+          rows.push(renderEmptyTaskRow(group.id));
+        }
+      }
+      return rows;
+    })
+    : [
+      h('div', {
+        key: 'empty-timeline',
+        className: 'grid',
+        style: {
+          gridTemplateColumns: `${TIMELINE_LEFT_COL_WIDTH}px ${timelineWidth}px`,
+          minHeight: `${GROUP_ROW_HEIGHT}px`,
+        },
+      }, [
+        h('div', { className: 'flex items-center border-r border-slate-200 bg-white/95 px-4 text-sm text-slate-500 dark:border-white/10 dark:bg-slate-950/90 dark:text-slate-400' }, 'No deliverables yet'),
+        h('div', { className: 'relative bg-slate-950/5 dark:bg-slate-950/40', style: { minHeight: `${GROUP_ROW_HEIGHT}px` } }, [
+          ...renderGridLines('empty'),
+        ]),
+      ]),
+    ];
+
+  const timelineBodyHeight = groups.length
+    ? groups.reduce((total, group) => total + GROUP_ROW_HEIGHT + (
+      expandedGroupIds.has(group.id)
+        ? ((group.tasks.length || 1) * TASK_ROW_HEIGHT)
+        : 0
+    ), 0)
+    : GROUP_ROW_HEIGHT;
+
+  const updateProjectDates = (patch = {}) => {
+    if (typeof onJobUpdate !== 'function' || readOnly) return false;
+    const nextStart = Object.prototype.hasOwnProperty.call(patch, 'startDate')
+      ? normalizeExecutionDate(patch.startDate)
+      : projectStartDate;
+    const nextFinish = Object.prototype.hasOwnProperty.call(patch, 'targetEndDate')
+      ? normalizeExecutionDate(patch.targetEndDate)
+      : projectFinishDate;
+    if (nextStart && nextFinish && nextStart > nextFinish) {
+      window?.showToast?.('Start date must be on or before end date.');
+      return false;
+    }
+    onJobUpdate(patch);
+    return true;
+  };
+
+  const openProjectDatePicker = (anchorEl, field) => {
+    if (!anchorEl || typeof onJobUpdate !== 'function' || readOnly) return;
+    const value = field === 'startDate' ? projectStartDate : projectFinishDate;
+    if (duePickerCleanupRef.current) duePickerCleanupRef.current();
+    duePickerCleanupRef.current = openSingleDatePickerPopover({
+      anchorEl,
+      value,
+      onSelect: (next) => {
+        updateProjectDates({ [field]: next || null });
+      },
+      onClear: () => {
+        updateProjectDates({ [field]: null });
+      },
+      onClose: () => {
+        duePickerCleanupRef.current = null;
+      },
+    });
+  };
+
+  const updateZoomValue = (value) => {
+    const safeValue = Math.max(0, Math.min(100, Number(value) || 62));
+    setZoomValue(safeValue);
+  };
+
+  const zoomButtons = h('div', { className: 'inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 dark:border-white/10 dark:bg-slate-900' }, (
+    TIMELINE_ZOOM_PRESETS.map((preset) => {
+      const isActive = getTimelineZoomMode(zoomValue) === preset.value;
+      return h('button', {
+        key: preset.value,
+        type: 'button',
+        className: [
+          'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+          isActive
+            ? 'bg-netnet-purple text-white shadow-sm'
+            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10',
+        ].join(' '),
+        onClick: () => updateZoomValue(preset.slider),
+      }, preset.label);
+    })
   ));
+
+  useEffect(() => {
+    const node = timelineBodyScrollRef.current;
+    if (!node) return;
+    const viewportWidth = Math.max(0, node.clientWidth - TIMELINE_LEFT_COL_WIDTH);
+    if (viewportWidth <= 0) return;
+    const targetOffset = shouldRenderFinishColumn && finishLineOffset !== null
+      ? finishLineOffset
+      : shouldRenderStartColumn && startLineOffset !== null
+        ? startLineOffset
+        : null;
+    if (targetOffset === null) return;
+    const desired = Math.max(0, Math.min(targetOffset - (viewportWidth * 0.68), Math.max(0, timelineWidth - viewportWidth)));
+    node.scrollLeft = desired;
+    setTimelineScrollLeft(desired);
+  }, [
+    finishLineOffset,
+    shouldRenderFinishColumn,
+    startLineOffset,
+    shouldRenderStartColumn,
+    timelineWidth,
+    zoomValue,
+  ]);
 
   return h('div', { className: 'space-y-5 pb-12' }, [
     h('style', null, `
@@ -309,50 +640,116 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
         border-radius: 999px;
       }
     `),
-    h('div', { className: 'flex flex-wrap items-center justify-between gap-3' }, [
-      h('div', { className: 'space-y-1' }, [
-        h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, 'Timeline'),
-        h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Deliverable-level schedule with dependencies and slippage tracking.'),
-      ]),
-        h('div', { className: 'flex flex-wrap items-center gap-2' }, [
-          zoomControls,
-          h('button', {
+    h('div', {
+      className: 'overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950',
+    }, [
+      h('div', { className: 'flex flex-wrap items-center justify-between gap-3 bg-white p-5 dark:bg-slate-950' }, [
+        h('div', { className: 'grid gap-3 sm:grid-cols-2 lg:grid-cols-[180px_180px]' }, [
+          h(FieldShell, { label: 'Start Date' }, h('button', {
             type: 'button',
-            className: 'inline-flex items-center justify-center h-9 px-3 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50',
-            onClick: () => {
-              setDependencyDraft(buildDependencyDraft(job));
-              setDependencyError('');
-              setShowDependencies(true);
-            },
-            disabled: readOnly,
-          }, 'Dependencies'),
+            className: 'flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200',
+            onClick: (event) => openProjectDatePicker(event.currentTarget, 'startDate'),
+          }, [
+            h('span', null, formatLongDate(projectStartDate)),
+            h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+              h('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
+              h('line', { x1: '16', y1: '2', x2: '16', y2: '6' }),
+              h('line', { x1: '8', y1: '2', x2: '8', y2: '6' }),
+            ]),
+          ])),
+          h(FieldShell, { label: 'End Date' }, h('button', {
+            type: 'button',
+            className: 'flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200',
+            onClick: (event) => openProjectDatePicker(event.currentTarget, 'targetEndDate'),
+          }, [
+            h('span', null, formatLongDate(projectFinishDate)),
+            h('svg', { viewBox: '0 0 24 24', className: 'h-4 w-4 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '2' }, [
+              h('rect', { x: '3', y: '4', width: '18', height: '18', rx: '2' }),
+              h('line', { x1: '16', y1: '2', x2: '16', y2: '6' }),
+              h('line', { x1: '8', y1: '2', x2: '8', y2: '6' }),
+            ]),
+          ])),
+        ]),
+        h('div', { className: 'flex min-w-[320px] flex-1 flex-col items-stretch gap-3 lg:max-w-[420px]' }, [
+          zoomButtons,
+          h('div', { className: 'flex items-center gap-3' }, [
+            h('span', { className: 'text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500' }, 'Scale'),
+            h('input', {
+              type: 'range',
+              min: '0',
+              max: '100',
+              step: '1',
+              value: zoomValue,
+              onChange: (event) => updateZoomValue(Number(event.target.value || 0)),
+              className: 'w-full accent-netnet-purple',
+            }),
+          ]),
         ]),
       ]),
-    targetEnd
-      ? h('div', { className: 'flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400' }, [
-        h('span', { className: 'inline-block w-3 h-3 rounded-sm bg-rose-400/70' }),
-        h('span', null, `Job deadline · ${formatDateLabel(targetEnd)}`),
-      ])
-      : null,
-    h('div', { className: 'overflow-hidden rounded-[28px] border border-slate-200/80 dark:border-white/10 bg-white shadow-sm dark:bg-slate-950' }, [
-      h('div', { className: 'job-timeline-scroll overflow-x-auto overflow-y-hidden', style: { scrollbarWidth: 'thin', scrollbarColor: 'rgba(148,163,184,0.35) transparent' } }, [
-        h('div', { className: 'min-w-[720px]' }, [
+      h('div', { className: 'max-w-full overflow-hidden border-t border-slate-200/80 bg-slate-950 dark:border-white/10 dark:bg-slate-950' }, [
+        h('div', {
+          className: 'relative z-20 flex overflow-hidden border-b border-white/10 bg-slate-900/95 shadow-sm',
+          style: { minHeight: `${TIMELINE_HEADER_HEIGHT}px` },
+        }, [
           h('div', {
-            className: 'grid border-b border-white/10 bg-slate-900/95 text-xs uppercase tracking-wide text-slate-400 shadow-sm',
-            style: { gridTemplateColumns: `${TIMELINE_LEFT_COL_WIDTH}px ${timelineWidth}px`, minHeight: `${ACTIVE_TIMELINE_HEADER_HEIGHT}px` },
+            className: 'flex shrink-0 items-center border-r border-white/10 bg-slate-900/95 px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400',
+            style: { width: `${TIMELINE_LEFT_COL_WIDTH}px`, minHeight: `${TIMELINE_HEADER_HEIGHT}px` },
+          }, 'Deliverable / Task'),
+          h('div', {
+            className: 'relative min-w-0 flex-1 overflow-hidden bg-slate-900/95',
+            style: { minHeight: `${TIMELINE_HEADER_HEIGHT}px` },
           }, [
-            h('div', { className: 'flex items-center border-r border-white/10 bg-slate-900/95 px-4 font-semibold tracking-[0.18em]' }, 'Deliverable'),
-            h('div', { className: 'relative', style: { minHeight: `${ACTIVE_TIMELINE_HEADER_HEIGHT}px` } }, [
-              h('div', { className: 'absolute inset-0' }, ticks.map((tick) => (
-                h('div', { key: tick.date, className: 'absolute top-0 bottom-0', style: { left: `${tick.offset}px` } }, [
-                  h('div', { className: 'absolute top-0 bottom-0 w-px bg-white/10' }),
-                  h('div', { className: 'absolute left-1 top-3 whitespace-nowrap rounded-md bg-slate-900/95 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300 shadow-sm normal-case tracking-normal' }, formatTick(tick.date, zoom)),
-                ])
-              ))),
-              startLineOffset !== null && startLineOffset >= 0 && startLineOffset <= timelineWidth
-                ? h('div', {
-                  className: 'absolute inset-y-0',
+            h('div', {
+              className: 'relative',
+              style: {
+                width: `${timelineWidth}px`,
+                minHeight: `${TIMELINE_HEADER_HEIGHT}px`,
+                transform: `translateX(-${timelineScrollLeft}px)`,
+              },
+            }, [
+              ticks.map((tick) => h('div', {
+                key: `${tick.date}-${tick.offset}`,
+                className: 'absolute inset-y-0',
+                style: { left: `${tick.offset}px` },
+              }, [
+                h('div', { className: 'absolute inset-y-0 w-px bg-white/10' }),
+                h('div', {
+                  className: 'absolute left-1 top-3 whitespace-nowrap rounded-md bg-slate-900/95 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300 shadow-sm',
+                }, formatTick(tick.date, zoomConfig.mode)),
+              ])),
+            ]),
+          ]),
+        ]),
+      ]),
+    ]),
+    h('div', { className: 'overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40 md:-mt-px md:p-5' }, [
+      h('div', {
+        ref: timelineBodyScrollRef,
+        className: 'job-timeline-scroll overflow-x-auto overflow-y-hidden',
+        style: { scrollbarWidth: 'thin', scrollbarColor: 'rgba(148,163,184,0.35) transparent' },
+        onScroll: (event) => setTimelineScrollLeft(event.currentTarget.scrollLeft || 0),
+      }, [
+        h('div', { className: 'relative', style: { minWidth: `${TIMELINE_LEFT_COL_WIDTH + timelineWidth}px` } }, [
+          h('div', { className: 'relative' }, [
+              h('div', {
+              className: 'pointer-events-none absolute z-[5]',
+              style: {
+                top: '0px',
+                left: `${TIMELINE_LEFT_COL_WIDTH}px`,
+                width: `${timelineWidth}px`,
+                height: `${timelineBodyHeight}px`,
+              },
+            }, [
+              shouldRenderStartColumn && startLineOffset !== null
+                ? h('button', {
+                  type: 'button',
+                  className: 'pointer-events-auto absolute bottom-0 top-0 cursor-pointer',
                   style: { left: `${startLineOffset}px` },
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    openProjectDatePicker(event.currentTarget, 'startDate');
+                  },
+                  'aria-label': 'Edit project start date',
                 }, [
                   h('div', {
                     className: 'absolute rounded-none',
@@ -374,10 +771,16 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
                   }, 'START'.split('').map((letter, idx) => h('span', { key: `start-${idx}` }, letter))),
                 ])
                 : null,
-              finishLineOffset !== null && finishLineOffset >= 0 && finishLineOffset <= timelineWidth
-                ? h('div', {
-                  className: 'absolute inset-y-0',
+              shouldRenderFinishColumn && finishLineOffset !== null
+                ? h('button', {
+                  type: 'button',
+                  className: 'pointer-events-auto absolute bottom-0 top-0 cursor-pointer',
                   style: { left: `${finishLineOffset}px` },
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    openProjectDatePicker(event.currentTarget, 'targetEndDate');
+                  },
+                  'aria-label': 'Edit project end date',
                 }, [
                   h('div', {
                     className: 'absolute rounded-none',
@@ -400,220 +803,10 @@ export function JobTimelineTab({ job, onJobUpdate, readOnly: readOnlyOverride })
                 ])
                 : null,
             ]),
-          ]),
-          h('div', { className: 'relative' }, [
-            h('svg', {
-              className: 'pointer-events-none absolute left-[280px] top-0 z-0 overflow-visible',
-              width: timelineWidth,
-              height: timelineBodyHeight,
-              viewBox: `0 0 ${timelineWidth} ${timelineBodyHeight}`,
-            }, [
-              connectors.map((connector) => h('path', {
-                key: connector.key,
-                d: connector.d,
-                fill: 'none',
-                stroke: 'rgba(113,31,255,0.28)',
-                strokeWidth: '2',
-                strokeLinecap: 'round',
-              })),
-            ]),
-            schedule.map(({ deliverable, startDate, endDate }) => {
-            const offset = diffDays(paddedStart, startDate) * zoomConfig.pxPerDay;
-            const endForBar = endDate || startDate;
-            const duration = Math.max(1, diffDays(startDate, endForBar) + 1);
-            const width = duration * zoomConfig.pxPerDay;
-            const moved = !!deliverable.originalDueDate && deliverable.originalDueDate !== deliverable.dueDate;
-            const depsCount = Array.isArray(deliverable.dependencyDeliverableIds)
-              ? deliverable.dependencyDeliverableIds.length
-              : 0;
-            return h('div', {
-              key: deliverable.id,
-              className: 'grid border-b border-slate-200/80 dark:border-white/10',
-              style: { gridTemplateColumns: `${TIMELINE_LEFT_COL_WIDTH}px ${timelineWidth}px`, minHeight: `${ACTIVE_TIMELINE_ROW_HEIGHT}px` },
-            }, [
-              h('div', { className: 'flex items-center border-r border-slate-200 bg-white/95 px-4 dark:border-white/10 dark:bg-slate-950/90' }, [
-                h('div', { className: 'min-w-0 space-y-1 py-3' }, [
-                h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, deliverable.name || 'Deliverable'),
-                h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400' }, [
-                  readOnly
-                    ? h('span', null, deliverable.dueDate ? formatDateLabel(deliverable.dueDate) : 'No due date')
-                    : h('button', {
-                      type: 'button',
-                      className: 'underline underline-offset-2 hover:text-slate-900 dark:hover:text-white',
-                      onClick: () => openEdit(deliverable),
-                    }, deliverable.dueDate ? formatDateLabel(deliverable.dueDate) : 'No due date'),
-                  depsCount
-                    ? h('span', { className: 'rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] text-slate-600 dark:text-slate-300' }, `Depends on ${depsCount}`)
-                    : null,
-                  moved
-                    ? h('button', {
-                      type: 'button',
-                      className: 'rounded-full border border-amber-200 dark:border-amber-400/30 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-200',
-                      onClick: () => setHistoryOpenId(historyOpenId === deliverable.id ? null : deliverable.id),
-                    }, 'Moved')
-                    : null,
-                ]),
-                historyOpenId === deliverable.id
-                  ? h('div', { className: 'mt-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3 text-xs shadow-md' }, [
-                    h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500' }, 'Due date history'),
-                    h('div', { className: 'mt-2 space-y-2' }, [
-                      h('div', { className: 'text-xs text-slate-600 dark:text-slate-300' }, `Original: ${formatDateLabel(deliverable.originalDueDate)}`),
-                      h('div', { className: 'text-xs text-slate-600 dark:text-slate-300' }, `Current: ${formatDateLabel(deliverable.dueDate)}`),
-                      renderHistory(deliverable),
-                    ]),
-                  ])
-                  : null,
-                ]),
-              ]),
-              h('div', { className: 'relative z-0', style: { minHeight: `${ACTIVE_TIMELINE_ROW_HEIGHT}px` } }, [
-                ticks.map((tick) => h('div', {
-                  key: `grid-${deliverable.id}-${tick.date}`,
-                  className: 'absolute inset-y-0 w-px bg-slate-200/70 dark:bg-white/10',
-                  style: { left: `${tick.offset}px` },
-                })),
-                startLineOffset !== null && startLineOffset >= 0 && startLineOffset <= timelineWidth
-                  ? h('div', {
-                    className: 'absolute inset-y-0 z-[1]',
-                    style: { left: `${startLineOffset}px` },
-                  }, [
-                    h('div', {
-                      className: 'absolute rounded-none',
-                      style: {
-                        backgroundColor: 'rgba(31, 122, 255, 0.55)',
-                        width: '40px',
-                        height: '100%',
-                        position: 'absolute',
-                        top: 0,
-                        bottom: 0,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        borderRadius: '0',
-                      },
-                    }),
-                  ])
-                  : null,
-                finishLineOffset !== null && finishLineOffset >= 0 && finishLineOffset <= timelineWidth
-                  ? h('div', {
-                    className: 'absolute inset-y-0 z-[1]',
-                    style: { left: `${finishLineOffset}px` },
-                  }, [
-                    h('div', {
-                      className: 'absolute rounded-none',
-                      style: {
-                        backgroundColor: 'rgba(95, 206, 168, 0.55)',
-                        width: '40px',
-                        height: '100%',
-                        position: 'absolute',
-                        top: 0,
-                        bottom: 0,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        borderRadius: '0',
-                      },
-                    }),
-                  ])
-                  : null,
-                h('div', {
-                  className: 'absolute top-1/2 z-10 -translate-y-1/2 rounded-[8px] bg-netnet-purple shadow-[0_10px_24px_rgba(113,31,255,0.18)]',
-                  style: {
-                    left: `${offset}px`,
-                    width: `${width}px`,
-                    height: `${Math.round(ACTIVE_TIMELINE_ROW_HEIGHT * 0.65)}px`,
-                  },
-                }, [
-                  endDate
-                    ? null
-                    : h('div', { className: 'h-full w-full rounded-[8px] border border-dashed border-slate-400/80 bg-white/60 dark:border-slate-500 dark:bg-slate-900' }),
-                ]),
-              ]),
-            ]);
-          }),
+            ...renderedTimelineRows,
           ]),
         ]),
       ]),
     ]),
-    editingId
-      ? h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center px-4' }, [
-        h('div', { className: 'absolute inset-0 bg-black/40', onClick: closeEdit }),
-        h('div', { className: 'relative z-10 w-full max-w-sm rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-xl' }, [
-          h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Change due date'),
-          h('input', {
-            type: 'date',
-            value: draftDueDate,
-            onChange: (e) => setDraftDueDate(e.target.value || ''),
-            className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200',
-          }),
-          h('div', { className: 'flex items-center justify-end gap-2' }, [
-            h('button', {
-              type: 'button',
-              className: 'inline-flex items-center justify-center h-9 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-              onClick: closeEdit,
-            }, 'Cancel'),
-            h('button', {
-              type: 'button',
-              className: 'inline-flex items-center justify-center h-9 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110',
-              onClick: saveDueDate,
-            }, 'Save'),
-          ]),
-        ]),
-      ])
-      : null,
-    showDependencies
-      ? h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center px-4' }, [
-        h('div', { className: 'absolute inset-0 bg-black/40', onClick: () => setShowDependencies(false) }),
-        h('div', { className: 'relative z-10 w-full max-w-3xl rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-6 space-y-4 shadow-xl' }, [
-          h('div', { className: 'flex items-start justify-between gap-4' }, [
-            h('div', { className: 'space-y-1' }, [
-              h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Dependencies'),
-              h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Define which deliverables must complete before another can start.'),
-            ]),
-            h('button', {
-              type: 'button',
-              className: 'h-9 w-9 rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
-              onClick: () => setShowDependencies(false),
-              'aria-label': 'Close',
-            }, '×'),
-          ]),
-          deliverables.length < 2
-            ? h('div', { className: 'rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-500 dark:text-slate-400' }, 'Add at least two deliverables to set dependencies.')
-            : h('div', { className: 'space-y-4 max-h-[60vh] overflow-y-auto' }, deliverables.map((deliverable) => (
-              h('div', { key: deliverable.id, className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-3' }, [
-                h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, deliverable.name || 'Deliverable'),
-                h('div', { className: 'flex flex-wrap gap-2' }, deliverables.filter((item) => item.id !== deliverable.id).map((item) => (
-                  h('label', {
-                    key: item.id,
-                    className: 'flex items-center gap-2 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-1 text-xs text-slate-600 dark:text-slate-300',
-                  }, [
-                    h('input', {
-                      type: 'checkbox',
-                      checked: (dependencyDraft[deliverable.id] || []).includes(item.id),
-                      onChange: () => toggleDependency(deliverable.id, item.id),
-                      disabled: readOnly,
-                      className: 'h-3 w-3 rounded border-slate-300 dark:border-white/20 text-netnet-purple focus:ring-netnet-purple disabled:opacity-60',
-                    }),
-                    h('span', null, item.name || 'Deliverable'),
-                  ])
-                ))),
-              ])
-            ))),
-          dependencyError
-            ? h('div', { className: 'rounded-lg border border-rose-200 dark:border-rose-400/30 bg-rose-50 dark:bg-rose-500/10 p-3 text-sm text-rose-600 dark:text-rose-200' }, dependencyError)
-            : null,
-          h('div', { className: 'flex items-center justify-end gap-2 pt-2' }, [
-            h('button', {
-              type: 'button',
-              className: 'inline-flex items-center justify-center h-9 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-              onClick: () => setShowDependencies(false),
-            }, 'Cancel'),
-            h('button', {
-              type: 'button',
-              className: `inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-semibold ${readOnly ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-netnet-purple text-white hover:brightness-110'}`,
-              onClick: saveDependencies,
-              disabled: readOnly,
-            }, 'Save dependencies'),
-          ]),
-        ]),
-      ])
-      : null,
   ]);
 }
