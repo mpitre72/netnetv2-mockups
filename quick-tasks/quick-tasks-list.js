@@ -17,6 +17,8 @@ import {
 import { renderMiniMeters } from './quick-tasks-helpers.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
 import { openSingleDatePickerPopover } from './quick-task-detail.js';
+import { openQuickTaskDrawer } from './quick-task-detail.js';
+import { openTaskReassignDrawer } from '../components/tasks/task-reassign-drawer.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 
@@ -179,6 +181,50 @@ function stopRowToggle(event) {
   event.stopPropagation();
 }
 
+export function InlineTaskStatusControl({
+  taskId = null,
+  status = 'backlog',
+  editing = false,
+  onStartEdit,
+  onCommit,
+  onCancel,
+  onStopPropagation = stopRowToggle,
+}) {
+  const statusLabel = getStatusLabel(status);
+  if (editing) {
+    return h('select', {
+      value: status || 'backlog',
+      autoFocus: true,
+      onClick: onStopPropagation,
+      onMouseDown: onStopPropagation,
+      onChange: (event) => onCommit?.(event.target.value || 'backlog'),
+      onBlur: () => onCancel?.(),
+      onKeyDown: (event) => {
+        onStopPropagation(event);
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onCancel?.();
+        }
+      },
+      className: 'h-7 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200',
+    }, TASK_STATUS_OPTIONS.map((option) => (
+      h('option', { key: option.value, value: option.value }, option.label)
+    )));
+  }
+  return h('button', {
+    type: 'button',
+    className: 'inline-flex items-center',
+    onClick: (event) => {
+      onStopPropagation(event);
+      onStartEdit?.(taskId);
+    },
+    onMouseDown: onStopPropagation,
+    'aria-label': 'Edit task status',
+  }, [
+    h('span', { className: `rounded-full px-2 py-0.5 text-[11px] font-semibold ${getStatusToneClass(status)}` }, statusLabel),
+  ]);
+}
+
 function formatPickerButtonLabel(value) {
   if (!value) return 'Select date';
   const date = new Date(`${value}T00:00:00`);
@@ -226,6 +272,7 @@ export function QuickTasksExecutionTable({
   serviceTypes = [],
   statusFilter = 'all',
   stickyOffsetPx = 0,
+  stickyHeader = true,
   highlightTaskId = null,
   autoExpandTaskId = null,
   createIntentId = 0,
@@ -234,6 +281,9 @@ export function QuickTasksExecutionTable({
   onTaskDelete,
   onTaskArchive,
   onTaskStatusChange,
+  customColumns = null,
+  customRows = null,
+  customEmptyMessage = '',
 }) {
   const companies = useMemo(() => getContactsData(), []);
   const individuals = useMemo(() => getIndividualsData(), []);
@@ -548,170 +598,167 @@ export function QuickTasksExecutionTable({
   };
 
   const rows = [];
+  const useCustomRows = Array.isArray(customRows);
 
-  tasks.forEach((task) => {
-    const taskExpanded = String(expandedTaskId || '') === String(task.id);
-    const taskHighlighted = highlightTaskId && String(highlightTaskId) === String(task.id);
-    const due = formatDueLabel(task);
-    const summary = clientSummary(task, companyMap, personMap);
-    const primaryAssigneeId = getTaskAllocations(task)[0]?.assigneeUserId || '';
-    const primaryAssignee = primaryAssigneeId ? memberMap.get(String(primaryAssigneeId)) : null;
-    const hasLoggedTime = (Array.isArray(task.timeEntries) && task.timeEntries.length > 0) || getTaskActualHours(task) > 0;
-    const deleteDisabledReason = hasLoggedTime
-      ? 'Cannot delete task with logged time'
-      : (!canDeleteTask(task) ? 'Cannot delete this task' : '');
-    const titleEditing = titleEditor?.taskId === task.id;
-    const statusEditing = String(statusEditorTaskId || '') === String(task.id);
-    const statusLabel = getStatusLabel(task.status);
-    const assigneeCellContent = primaryAssignee
-      ? h('div', { className: 'flex items-center' }, [
-        h('span', {
-          key: `${task.id}-${primaryAssignee.id}`,
-          className: 'h-7 w-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-semibold flex items-center justify-center border border-white dark:border-slate-900',
-          title: primaryAssignee.name || primaryAssignee.email || 'Assignee',
-        }, getInitials(primaryAssignee.name || primaryAssignee.email)),
-      ])
-      : h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, 'Unassigned');
-    const actionsMenu = deleteDisabledReason
-      ? h('button', {
-        type: 'button',
-        disabled: true,
-        title: deleteDisabledReason,
-        className: 'p-2 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-300 dark:text-slate-500 shadow-sm cursor-not-allowed inline-flex items-center justify-center',
+  if (!useCustomRows) {
+    tasks.forEach((task) => {
+      const taskExpanded = String(expandedTaskId || '') === String(task.id);
+      const taskHighlighted = highlightTaskId && String(highlightTaskId) === String(task.id);
+      const due = formatDueLabel(task);
+      const summary = clientSummary(task, companyMap, personMap);
+      const primaryAssigneeId = getTaskAllocations(task)[0]?.assigneeUserId || '';
+      const primaryAssignee = primaryAssigneeId ? memberMap.get(String(primaryAssigneeId)) : null;
+      const hasLoggedTime = (Array.isArray(task.timeEntries) && task.timeEntries.length > 0) || getTaskActualHours(task) > 0;
+      const deleteDisabledReason = hasLoggedTime
+        ? 'Cannot delete task with logged time'
+        : (!canDeleteTask(task) ? 'Cannot delete this task' : '');
+      const titleEditing = titleEditor?.taskId === task.id;
+      const statusEditing = String(statusEditorTaskId || '') === String(task.id);
+      const assigneeCellContent = primaryAssignee
+        ? h('div', { className: 'flex items-center' }, [
+          h('span', {
+            key: `${task.id}-${primaryAssignee.id}`,
+            className: 'h-7 w-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-semibold flex items-center justify-center border border-white dark:border-slate-900',
+            title: primaryAssignee.name || primaryAssignee.email || 'Assignee',
+          }, getInitials(primaryAssignee.name || primaryAssignee.email)),
+        ])
+        : h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, 'Unassigned');
+      const actionsMenu = deleteDisabledReason
+        ? h('button', {
+          type: 'button',
+          disabled: true,
+          title: deleteDisabledReason,
+          className: 'p-2 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-300 dark:text-slate-500 shadow-sm cursor-not-allowed inline-flex items-center justify-center',
+        }, [
+          h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, [
+            h('circle', { cx: '12', cy: '5', r: '1.5' }),
+            h('circle', { cx: '12', cy: '12', r: '1.5' }),
+            h('circle', { cx: '12', cy: '19', r: '1.5' }),
+          ]),
+        ])
+        : h(RowActionsMenu, {
+          menuItems: ['Edit', 'Move Task', 'Archive Task', 'Delete'],
+          onSelect: (item) => {
+            if (item === 'Edit') {
+              openQuickTaskDrawer({
+                mode: 'edit',
+                taskId: task.id,
+                onUpdated: (updated) => onTaskUpdate?.(task.id, updated || {}),
+                onDeleted: () => onTaskDelete?.(task.id),
+              });
+            }
+            if (item === 'Move Task') {
+              openTaskReassignDrawer({
+                task: {
+                  ...task,
+                  source: 'quick',
+                  sourceId: task.id,
+                },
+              });
+            }
+            if (item === 'Archive Task') onTaskArchive?.(task.id);
+            if (item === 'Delete') onTaskDelete?.(task.id);
+          },
+        });
+      const actionsCellContent = h('div', {
+        className: 'flex justify-end',
+        onClick: stopRowToggle,
+        onMouseDown: stopRowToggle,
+        onKeyDown: stopRowToggle,
       }, [
-        h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, [
-          h('circle', { cx: '12', cy: '5', r: '1.5' }),
-          h('circle', { cx: '12', cy: '12', r: '1.5' }),
-          h('circle', { cx: '12', cy: '19', r: '1.5' }),
-        ]),
-      ])
-      : h(RowActionsMenu, {
-        menuItems: ['Delete'],
-        onSelect: (item) => {
-          if (item === 'Delete') onTaskDelete?.(task.id);
-        },
-      });
-    const actionsCellContent = h('div', {
-      className: 'flex justify-end',
-      onClick: stopRowToggle,
-      onMouseDown: stopRowToggle,
-      onKeyDown: stopRowToggle,
-    }, [
-      actionsMenu,
-    ]);
+        actionsMenu,
+      ]);
 
-    rows.push(
-      h(TaskSystemRow, {
-        key: task.id,
-        taskId: task.id,
-        expanded: taskExpanded,
-        onToggle: toggleTaskExpanded,
-        colSpan: 9,
-        toggleCellClassName: 'px-3 py-3 align-middle w-[36px] text-sm text-gray-700 dark:text-gray-200',
-        toggleButtonClassName: 'h-7 w-7 rounded-md border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 flex items-center justify-center mx-auto',
-        rowClassName: [
-          'hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer',
-          taskHighlighted ? 'bg-netnet-purple/5 dark:bg-netnet-purple/10' : '',
-        ].join(' ').trim(),
-        expandedRowClassName: taskHighlighted ? 'bg-netnet-purple/5 dark:bg-netnet-purple/10' : 'bg-white dark:bg-slate-900/50',
-        expandedCellClassName: 'px-5 pb-5 pt-1',
-        expandedContent: renderExpandedContent(task),
-        cells: [
-          renderCell(h('div', { className: 'space-y-1 min-w-0' }, [
-            titleEditing
-              ? h('input', {
-                type: 'text',
-                value: titleEditor.value,
-                autoFocus: true,
-                onClick: stopRowToggle,
-                onMouseDown: stopRowToggle,
-                onChange: (event) => setTitleEditor({ taskId: task.id, value: event.target.value || '' }),
-                onBlur: () => saveTitle(task, titleEditor.value),
-                onKeyDown: (event) => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault();
-                    setTitleEditor(null);
-                  }
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    saveTitle(task, titleEditor.value);
-                  }
-                },
-                className: 'h-9 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-900 dark:text-slate-100',
-              })
-              : h('button', {
-                type: 'button',
-                className: 'block w-full text-left text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-netnet-purple dark:hover:text-netnet-purple',
-                onClick: (event) => {
-                  stopRowToggle(event);
-                  setTitleEditor({ taskId: task.id, value: task.title || '' });
-                },
-              }, task.title || 'Untitled task'),
-            h('div', { className: 'flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400' }, [
-              statusEditing
-                ? h('select', {
-                  value: task.status || 'backlog',
+      rows.push(
+        h(TaskSystemRow, {
+          key: task.id,
+          taskId: task.id,
+          expanded: taskExpanded,
+          onToggle: toggleTaskExpanded,
+          colSpan: 9,
+          toggleCellClassName: 'px-3 py-3 align-middle w-[36px] text-sm text-gray-700 dark:text-gray-200',
+          toggleButtonClassName: 'h-7 w-7 rounded-md border border-slate-200 dark:border-white/10 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 flex items-center justify-center mx-auto',
+          rowClassName: [
+            'hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer',
+            taskHighlighted ? 'bg-netnet-purple/5 dark:bg-netnet-purple/10' : '',
+          ].join(' ').trim(),
+          expandedRowClassName: taskHighlighted ? 'bg-netnet-purple/5 dark:bg-netnet-purple/10' : 'bg-white dark:bg-slate-900/50',
+          expandedCellClassName: 'px-5 pb-5 pt-1',
+          expandedContent: renderExpandedContent(task),
+          cells: [
+            renderCell(h('div', { className: 'space-y-1 min-w-0' }, [
+              titleEditing
+                ? h('input', {
+                  type: 'text',
+                  value: titleEditor.value,
                   autoFocus: true,
                   onClick: stopRowToggle,
                   onMouseDown: stopRowToggle,
-                  onChange: (event) => saveStatus(task, event.target.value || 'backlog'),
-                  onBlur: () => setStatusEditorTaskId(null),
+                  onChange: (event) => setTitleEditor({ taskId: task.id, value: event.target.value || '' }),
+                  onBlur: () => saveTitle(task, titleEditor.value),
                   onKeyDown: (event) => {
-                    stopRowToggle(event);
                     if (event.key === 'Escape') {
                       event.preventDefault();
-                      setStatusEditorTaskId(null);
+                      setTitleEditor(null);
+                    }
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      saveTitle(task, titleEditor.value);
                     }
                   },
-                  className: 'h-7 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200',
-                }, TASK_STATUS_OPTIONS.map((option) => (
-                  h('option', { key: option.value, value: option.value }, option.label)
-                )))
+                  className: 'h-9 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm font-semibold text-slate-900 dark:text-slate-100',
+                })
                 : h('button', {
                   type: 'button',
-                  className: 'inline-flex items-center',
+                  className: 'block w-full text-left text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-netnet-purple dark:hover:text-netnet-purple',
                   onClick: (event) => {
                     stopRowToggle(event);
-                    setStatusEditorTaskId(task.id);
+                    setTitleEditor({ taskId: task.id, value: task.title || '' });
                   },
-                  onMouseDown: stopRowToggle,
-                  'aria-label': 'Edit task status',
-                }, [
-                  h('span', { className: `rounded-full px-2 py-0.5 text-[11px] font-semibold ${getStatusToneClass(task.status)}` }, statusLabel),
-                ]),
+                }, task.title || 'Untitled task'),
+              h('div', { className: 'flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400' }, [
+              h(InlineTaskStatusControl, {
+                taskId: task.id,
+                status: task.status || 'backlog',
+                editing: statusEditing,
+                onStartEdit: (nextTaskId) => setStatusEditorTaskId(nextTaskId),
+                onCommit: (nextStatus) => saveStatus(task, nextStatus),
+                onCancel: () => setStatusEditorTaskId(null),
+                onStopPropagation: stopRowToggle,
+              }),
             ]),
           ]), 'w-[22%] min-w-0'),
-          renderCell(h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[240px]' }, task.description || 'Add description'), 'w-[18%] min-w-0 max-w-[240px]'),
-          renderCell(h('div', { className: 'space-y-1 min-w-0 max-w-[200px]' }, [
-            h('div', {
-              className: summary.primary === 'Internal'
-                ? 'inline-flex max-w-full w-fit items-center rounded-full border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-700/60 dark:text-slate-100'
-                : 'text-sm font-medium text-slate-900 dark:text-slate-100 truncate',
-            }, summary.primary),
-            summary.secondary ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate' }, summary.secondary) : null,
-          ]), 'w-[17%] min-w-0 max-w-[200px]'),
-          renderCell(assigneeCellContent, 'w-[8%] min-w-[72px]'),
-          renderCell(h('div', { className: 'text-sm text-slate-700 dark:text-slate-200 truncate' }, serviceTypeLabel(task, serviceTypeMap)), 'w-[13%] min-w-0 max-w-[170px]'),
-          renderCell(h('div', {
-            className: due.tone === 'danger'
-              ? 'text-sm text-rose-600 dark:text-rose-300'
-              : 'text-sm text-slate-500 dark:text-slate-400',
-          }, due.label), 'w-[8%] min-w-[88px]'),
-          renderCell(renderMeter(task), 'w-[14%] min-w-[160px]'),
-          renderCell(actionsCellContent, 'w-[40px] min-w-[40px] text-right'),
-        ],
-      })
-    );
-  });
+            renderCell(h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[240px]' }, task.description || 'Add description'), 'w-[18%] min-w-0 max-w-[240px]'),
+            renderCell(h('div', { className: 'space-y-1 min-w-0 max-w-[200px]' }, [
+              h('div', {
+                className: summary.primary === 'Internal'
+                  ? 'inline-flex max-w-full w-fit items-center rounded-full border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-700/60 dark:text-slate-100'
+                  : 'text-sm font-medium text-slate-900 dark:text-slate-100 truncate',
+              }, summary.primary),
+              summary.secondary ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate' }, summary.secondary) : null,
+            ]), 'w-[17%] min-w-0 max-w-[200px]'),
+            renderCell(assigneeCellContent, 'w-[8%] min-w-[72px]'),
+            renderCell(h('div', { className: 'text-sm text-slate-700 dark:text-slate-200 truncate' }, serviceTypeLabel(task, serviceTypeMap)), 'w-[13%] min-w-0 max-w-[170px]'),
+            renderCell(h('div', {
+              className: due.tone === 'danger'
+                ? 'text-sm text-rose-600 dark:text-rose-300'
+                : 'text-sm text-slate-500 dark:text-slate-400',
+            }, due.label), 'w-[8%] min-w-[88px]'),
+            renderCell(renderMeter(task), 'w-[14%] min-w-[160px]'),
+            renderCell(actionsCellContent, 'w-[40px] min-w-[40px] text-right'),
+          ],
+        })
+      );
+    });
 
-  if (!tasks.length && !draftOpen) {
-    rows.push(h('tr', { key: 'empty-message' }, [
-      h('td', { colSpan: 9, className: 'px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400' }, 'Create your first Quick Task'),
-    ]));
-  }
+    if (!tasks.length && !draftOpen) {
+      rows.push(h('tr', { key: 'empty-message' }, [
+        h('td', { colSpan: 9, className: 'px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400' }, 'Create your first Quick Task'),
+      ]));
+    }
 
-  if (draftOpen) {
-    rows.push(h('tr', { key: 'draft-row', className: 'bg-netnet-purple/[0.04] dark:bg-netnet-purple/[0.08]' }, [
+    if (draftOpen) {
+      rows.push(h('tr', { key: 'draft-row', className: 'bg-netnet-purple/[0.04] dark:bg-netnet-purple/[0.08]' }, [
       h('td', { className: 'px-3 py-4 w-10 align-top text-slate-400' }, '•'),
       h('td', { className: 'px-3 py-4 min-w-0 align-top' }, [
         h('div', { className: 'space-y-2' }, [
@@ -809,7 +856,7 @@ export function QuickTasksExecutionTable({
       h('td', { className: 'px-3 py-4 w-[40px] align-top' }, ''),
     ]));
 
-    rows.push(h('tr', { key: 'draft-details-row', className: 'bg-netnet-purple/[0.04] dark:bg-netnet-purple/[0.08]' }, [
+      rows.push(h('tr', { key: 'draft-details-row', className: 'bg-netnet-purple/[0.04] dark:bg-netnet-purple/[0.08]' }, [
       h('td', { colSpan: 9, className: 'px-3 pb-5 pt-1' }, [
         h('div', { className: 'rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-5 space-y-4' }, [
           h('div', { className: 'space-y-2' }, [
@@ -878,43 +925,66 @@ export function QuickTasksExecutionTable({
           ]),
         ]),
       ]),
-    ]));
-  } else {
-    rows.push(h('tr', { key: 'add-task-row' }, [
-      h('td', { colSpan: 9, className: 'px-3 py-4' }, [
-        h('button', {
-          type: 'button',
-          className: 'text-sm font-semibold text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
-          onClick: openDraft,
-        }, '+ Add Task'),
-      ]),
-    ]));
+      ]));
+    } else {
+      rows.push(h('tr', { key: 'add-task-row' }, [
+        h('td', { colSpan: 9, className: 'px-3 py-4' }, [
+          h('button', {
+            type: 'button',
+            className: 'text-sm font-semibold text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
+            onClick: openDraft,
+          }, '+ Add Task'),
+        ]),
+      ]));
+    }
   }
+
+  const columns = Array.isArray(customColumns) && customColumns.length
+    ? customColumns
+    : [
+      { key: 'toggle', label: '', className: 'px-3 py-3 w-10' },
+      { key: 'task-name', label: 'Task Name', className: 'px-3 py-3 w-[22%]' },
+      { key: 'description', label: 'Description', className: 'px-3 py-3 w-[18%]' },
+      { key: 'client', label: 'Client', className: 'px-3 py-3 w-[17%]' },
+      { key: 'assignee', label: 'Assignee', className: 'px-3 py-3 w-[8%]' },
+      { key: 'service-type', label: 'Service Type', className: 'px-3 py-3 w-[13%]' },
+      { key: 'due-date', label: 'Due Date', className: 'px-3 py-3 w-[8%]' },
+      { key: 'loe', label: 'LOE / Timeline', className: 'px-3 py-3 w-[14%]' },
+      { key: 'actions', label: '', className: 'px-3 py-3 w-[40px] text-right' },
+    ];
+  const renderedRows = useCustomRows
+    ? (customRows.length
+      ? customRows
+      : [
+        h('tr', { key: 'custom-empty-message' }, [
+          h('td', {
+            colSpan: columns.length,
+            className: 'px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400',
+          }, customEmptyMessage || 'No tasks'),
+        ]),
+      ])
+    : rows;
+  const headerStyle = stickyHeader
+    ? {
+      position: 'sticky',
+      top: `${stickyOffsetPx || 0}px`,
+      zIndex: 20,
+    }
+    : undefined;
 
   return h('div', { className: 'space-y-4' }, [
     h('section', { className: 'rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-900/70 shadow-sm' }, [
       h('table', { className: 'w-full table-fixed text-left border-collapse' }, [
           h('thead', {
             className: 'bg-slate-100 dark:bg-slate-900 text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400',
-            style: {
-              position: 'sticky',
-              top: `${stickyOffsetPx || 0}px`,
-              zIndex: 20,
-            },
+            style: headerStyle,
           }, [
-            h('tr', null, [
-              h('th', { className: 'px-3 py-3 w-10' }, ''),
-              h('th', { className: 'px-3 py-3 w-[22%]' }, 'Task Name'),
-              h('th', { className: 'px-3 py-3 w-[18%]' }, 'Description'),
-              h('th', { className: 'px-3 py-3 w-[17%]' }, 'Client'),
-              h('th', { className: 'px-3 py-3 w-[8%]' }, 'Assignee'),
-              h('th', { className: 'px-3 py-3 w-[13%]' }, 'Service Type'),
-              h('th', { className: 'px-3 py-3 w-[8%]' }, 'Due Date'),
-              h('th', { className: 'px-3 py-3 w-[14%]' }, 'LOE / Timeline'),
-              h('th', { className: 'px-3 py-3 w-[40px] text-right' }, ''),
-            ]),
+            h('tr', null, columns.map((column, index) => h('th', {
+              key: column.key || `${column.label || 'column'}-${index}`,
+              className: column.className || 'px-3 py-3',
+            }, column.label || ''))),
           ]),
-          h('tbody', { className: 'divide-y divide-slate-200/80 dark:divide-white/10' }, rows),
+          h('tbody', { className: 'divide-y divide-slate-200/80 dark:divide-white/10' }, renderedRows),
         ]),
     ]),
   ]);

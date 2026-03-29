@@ -5,6 +5,7 @@ import { JobKanbanTab } from './job-kanban-tab.js';
 import { TaskStyleRichTextField } from '../task-style-rich-text-field.js';
 import { loadDeliverableTypeOptions, rememberDeliverableType } from '../deliverable-type-store.js';
 import { TaskSystemRow } from '../../components/tasks/task-system-row.js';
+import { openTaskReassignDrawer } from '../../components/tasks/task-reassign-drawer.js';
 import { RowActionsMenu } from '../../components/performance/primitives.js';
 import { localDateISO, mergeTaskLifecycleFields, TASK_STATUS_OPTIONS } from '../task-execution-utils.js';
 
@@ -1833,18 +1834,38 @@ export function JobTasksExecutionTable({
           'data-col': 'actions',
           onKeyDown: handleKeyNav,
         }, [
-          h('button', {
-            type: 'button',
-            'data-no-row-toggle': 'true',
-            className: 'nn-btn nn-btn--micro',
-            disabled: readOnly || !canOpenDrawer,
-            onMouseDown: (event) => event.stopPropagation(),
-            onClick: (event) => {
-              event.stopPropagation();
-              if (canOpenDrawer) onOpenDrawer(deliverableId, task.id);
-            },
-            title: 'More',
-          }, '⋮'),
+          (readOnly || !canOpenDrawer)
+            ? h('button', {
+              type: 'button',
+              'data-no-row-toggle': 'true',
+              className: 'nn-btn nn-btn--micro',
+              disabled: true,
+              onMouseDown: (event) => event.stopPropagation(),
+              onClick: (event) => event.stopPropagation(),
+              title: 'More',
+            }, '⋮')
+            : h(RowActionsMenu, {
+              menuItems: ['Edit', 'Move Task'],
+              onSelect: (item) => {
+                if (item === 'Edit') {
+                  onOpenDrawer?.(deliverableId, task.id);
+                }
+                if (item === 'Move Task') {
+                  openTaskReassignDrawer({
+                    task: {
+                      ...task,
+                      source: 'job',
+                      sourceId: task.id,
+                      originalTaskRef: {
+                        ...task,
+                        jobId: job?.id || null,
+                        deliverableId: deliverableId || null,
+                      },
+                    },
+                  });
+                }
+              },
+            }),
         ]),
       ],
     })];

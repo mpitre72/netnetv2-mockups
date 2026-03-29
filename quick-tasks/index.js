@@ -1,4 +1,5 @@
 import { SectionHeader } from '../components/layout/SectionHeader.js';
+import { mountSectionPageShell } from '../components/layout/section-page-shell.js';
 import {
   createQuickTask,
   archiveTask,
@@ -12,9 +13,11 @@ import {
 } from './quick-tasks-store.js';
 import { QuickTasksExecutionTable } from './quick-tasks-list.js';
 import { getQuickTasksUIState, setQuickTasksFilters } from './quick-tasks-ui-state.js';
+import { TASK_SYSTEM_UPDATED_EVENT } from '../components/tasks/task-reassignment-store.js';
 
 const { createElement: h } = React;
 const { createRoot } = ReactDOM;
+let removeTaskSystemListener = null;
 
 function parseLocalDate(dateStr) {
   if (!dateStr) return null;
@@ -90,16 +93,10 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
     return;
   }
 
-  container.className = 'h-full w-full';
-  container.innerHTML = `
-    <div class="flex h-full w-full flex-col gap-4">
-      <div id="quick-tasks-header" class="space-y-3 px-4 pt-4"></div>
-      <div id="quick-tasks-body" class="flex-1 space-y-4 px-4 pb-12"></div>
-    </div>
-  `;
-
-  const headerMount = container.querySelector('#quick-tasks-header');
-  const body = container.querySelector('#quick-tasks-body');
+  const { headerMount, bodyMount: body } = mountSectionPageShell(container, {
+    headerId: 'quick-tasks-header',
+    bodyId: 'quick-tasks-body',
+  });
   const headerRoot = createRoot(headerMount);
   let bodyRoot = null;
 
@@ -117,6 +114,13 @@ export function renderQuickTasksPage(container = document.getElementById('app-ma
     tasks = loadQuickTasks();
     renderAll();
   };
+
+  if (removeTaskSystemListener) removeTaskSystemListener();
+  const handleTaskSystemUpdated = () => refresh();
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener(TASK_SYSTEM_UPDATED_EVENT, handleTaskSystemUpdated);
+    removeTaskSystemListener = () => window.removeEventListener(TASK_SYSTEM_UPDATED_EVENT, handleTaskSystemUpdated);
+  }
 
   const ensureCreatedTaskVisible = () => {
     uiState = setQuickTasksFilters({

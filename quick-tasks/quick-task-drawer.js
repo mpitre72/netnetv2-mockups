@@ -1,4 +1,5 @@
 import { TaskStyleRichTextField } from '../jobs/task-style-rich-text-field.js';
+import { TaskDrawerShell } from '../components/tasks/task-drawer-shell.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
 import {
   getCurrentUserId,
@@ -394,34 +395,63 @@ export function QuickTaskDrawerPanel({
   const statusLabel = formatStatusLabel(draft.status);
   const completedLabel = draft.completedAt ? `Completed on ${formatDateLabel(draft.completedAt)}` : '';
 
-  return h(React.Fragment, null, [
-    h('div', {
-      id: 'app-drawer-backdrop',
-      onClick: requestClose,
-    }),
-    h('aside', { id: 'app-drawer', className: 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-0 flex flex-col w-full max-w-md h-full' }, [
-      h('div', { className: 'flex items-start justify-between gap-4 px-5 py-4 border-b border-slate-200 dark:border-white/10' }, [
-        h('div', { className: 'space-y-2 min-w-0' }, [
-          h('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, mode === 'edit' ? 'Edit Quick Task' : 'New Quick Task'),
-          h('div', { className: 'text-lg font-semibold text-slate-900 dark:text-white' }, mode === 'edit' ? (draft.title || 'Quick Task') : 'Create Quick Task'),
-          h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400' }, [
-            h('span', { className: 'inline-flex items-center rounded-full border border-slate-200 dark:border-white/10 px-2 py-1 font-semibold text-slate-600 dark:text-slate-300' }, statusLabel),
-            mode === 'edit'
-              ? h('span', { className: 'inline-flex items-center rounded-full border border-slate-200 dark:border-white/10 px-2 py-1 text-slate-500 dark:text-slate-400' }, `Actual ${formatHours(draft.actualHours || 0)}`)
-              : null,
-            completedLabel
-              ? h('span', { className: 'inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200' }, completedLabel)
-              : null,
-          ]),
+  return h(TaskDrawerShell, {
+    eyebrow: mode === 'edit' ? 'Edit Quick Task' : 'New Quick Task',
+    title: mode === 'edit' ? (draft.title || 'Quick Task') : 'Create Quick Task',
+    badges: [
+      h('span', { key: 'status', className: 'inline-flex items-center rounded-full border border-slate-200 dark:border-white/10 px-2 py-1 font-semibold text-slate-600 dark:text-slate-300' }, statusLabel),
+      mode === 'edit'
+        ? h('span', { key: 'actual', className: 'inline-flex items-center rounded-full border border-slate-200 dark:border-white/10 px-2 py-1 text-slate-500 dark:text-slate-400' }, `Actual ${formatHours(draft.actualHours || 0)}`)
+        : null,
+      completedLabel
+        ? h('span', { key: 'completed', className: 'inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200' }, completedLabel)
+        : null,
+    ].filter(Boolean),
+    onClose: requestClose,
+    footer: [
+      validation.summary
+        ? h('div', { key: 'summary', className: 'text-xs text-slate-500 dark:text-slate-400' }, validation.summary)
+        : h('div', { key: 'summary', className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Quick Tasks save directly into the same persistent store as the list view.'),
+      h('div', { key: 'actions', className: 'flex items-center justify-between gap-3' }, [
+        h('div', { className: 'flex items-center gap-2' }, [
+          mode === 'edit' && !draft.isArchived
+            ? h('button', {
+              type: 'button',
+              className: 'inline-flex items-center justify-center h-9 px-3 rounded-md border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
+              onClick: onArchive,
+            }, 'Archive')
+            : null,
+          mode === 'edit' && canDelete
+            ? h('button', {
+              type: 'button',
+              className: 'inline-flex items-center justify-center h-9 px-3 rounded-md border border-red-200 text-xs font-semibold text-red-600 hover:bg-red-50',
+              onClick: onDelete,
+            }, 'Delete')
+            : null,
         ]),
-        h('button', {
-          type: 'button',
-          className: 'h-9 w-9 rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
-          onClick: requestClose,
-          'aria-label': 'Close Quick Task drawer',
-        }, 'x'),
+        h('div', { className: 'flex items-center gap-2' }, [
+          mode === 'edit'
+            ? h('button', {
+              type: 'button',
+              className: 'inline-flex items-center justify-center h-9 px-3 rounded-md border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
+              onClick: onToggleComplete,
+            }, draft.status === 'completed' ? 'Reopen' : 'Mark Completed')
+            : null,
+          h('button', {
+            type: 'button',
+            className: 'inline-flex items-center justify-center h-9 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
+            onClick: requestClose,
+          }, 'Cancel'),
+          h('button', {
+            type: 'button',
+            className: `inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-semibold ${validation.ready ? 'bg-netnet-purple text-white hover:brightness-110' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'}`,
+            onClick: handleSubmit,
+            disabled: !validation.ready,
+          }, saveLabel),
+        ]),
       ]),
-      h('div', { className: 'flex-1 overflow-y-auto px-5 py-5 space-y-5' }, [
+    ],
+  }, [
         h('div', { className: 'rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/40 p-4 space-y-4' }, [
           h('div', { className: 'text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Task'),
           h('label', { className: 'flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
@@ -582,50 +612,5 @@ export function QuickTaskDrawerPanel({
             }),
           ])
           : null,
-      ]),
-      h('div', { className: 'border-t border-slate-200 dark:border-white/10 px-5 py-4 space-y-3' }, [
-        validation.summary
-          ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, validation.summary)
-          : h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Quick Tasks save directly into the same persistent store as the list view.'),
-        h('div', { className: 'flex items-center justify-between gap-3' }, [
-          h('div', { className: 'flex items-center gap-2' }, [
-            mode === 'edit' && !draft.isArchived
-              ? h('button', {
-                type: 'button',
-                className: 'inline-flex items-center justify-center h-9 px-3 rounded-md border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-                onClick: onArchive,
-              }, 'Archive')
-              : null,
-            mode === 'edit' && canDelete
-              ? h('button', {
-                type: 'button',
-                className: 'inline-flex items-center justify-center h-9 px-3 rounded-md border border-red-200 text-xs font-semibold text-red-600 hover:bg-red-50',
-                onClick: onDelete,
-              }, 'Delete')
-              : null,
-          ]),
-          h('div', { className: 'flex items-center gap-2' }, [
-            mode === 'edit'
-              ? h('button', {
-                type: 'button',
-                className: 'inline-flex items-center justify-center h-9 px-3 rounded-md border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-                onClick: onToggleComplete,
-              }, draft.status === 'completed' ? 'Reopen' : 'Mark Completed')
-              : null,
-            h('button', {
-              type: 'button',
-              className: 'inline-flex items-center justify-center h-9 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-              onClick: requestClose,
-            }, 'Cancel'),
-            h('button', {
-              type: 'button',
-              className: `inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-semibold ${validation.ready ? 'bg-netnet-purple text-white hover:brightness-110' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'}`,
-              onClick: handleSubmit,
-              disabled: !validation.ready,
-            }, saveLabel),
-          ]),
-        ]),
-      ]),
-    ]),
   ]);
 }

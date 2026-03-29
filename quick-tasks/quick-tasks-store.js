@@ -219,11 +219,14 @@ function normalizeStatus(status) {
 function normalizeAllocation(allocation = {}) {
   if (!allocation) return null;
   const loeHours = Number(allocation.loeHours);
+  const hasActualHours = allocation.actualHours !== undefined && allocation.actualHours !== null && allocation.actualHours !== '';
+  const actualHours = hasActualHours ? Number(allocation.actualHours) : null;
   return {
     id: allocation.id || createId('alloc'),
     assigneeUserId: allocation.assigneeUserId || null,
     serviceTypeId: allocation.serviceTypeId || null,
     loeHours: Number.isFinite(loeHours) ? loeHours : null,
+    actualHours: Number.isFinite(actualHours) ? actualHours : null,
   };
 }
 
@@ -402,6 +405,10 @@ function persistTasks(wsId, tasks) {
     .filter(Boolean);
   writeJson(quickTasksKey(wsId), normalized);
   return normalized;
+}
+
+export function replaceAllTasks(tasks = [], wsId = workspaceId()) {
+  return persistTasks(wsId, tasks);
 }
 
 export function loadAllTasks(wsId = workspaceId()) {

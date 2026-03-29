@@ -12,6 +12,7 @@ import { JobPerformanceTab } from './job-performance-tab.js';
 import { JobTasksTab } from './job-tasks-tab.js';
 import { JobChangeOrdersTab } from './job-change-orders-tab.js';
 import { closeJobChatDrawer, openJobChatDrawer } from '../job-chat-drawer.js';
+import { TASK_SYSTEM_UPDATED_EVENT } from '../../components/tasks/task-reassignment-store.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 
@@ -88,6 +89,16 @@ export function JobDetailShell({ jobId, subview, detailSegments = [] }) {
   useEffect(() => {
     setJob(getJobById(jobId));
     setChatMessages(loadJobChatMessages(jobId));
+  }, [jobId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
+    const handleTaskSystemUpdated = () => {
+      setJob(getJobById(jobId));
+      setChatMessages(loadJobChatMessages(jobId));
+    };
+    window.addEventListener(TASK_SYSTEM_UPDATED_EVENT, handleTaskSystemUpdated);
+    return () => window.removeEventListener(TASK_SYSTEM_UPDATED_EVENT, handleTaskSystemUpdated);
   }, [jobId]);
 
   useEffect(() => {

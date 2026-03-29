@@ -14,30 +14,22 @@ function getToday() {
 }
 
 function nextSeq(seq) {
-  if (!seq) return 'A';
-  const chars = seq.toUpperCase().split('');
-  let carry = 1;
-  for (let i = chars.length - 1; i >= 0; i -= 1) {
-    if (!carry) break;
-    const code = chars[i].charCodeAt(0) - 65 + carry;
-    if (code >= 26) {
-      chars[i] = 'A';
-      carry = 1;
-    } else {
-      chars[i] = String.fromCharCode(65 + code);
-      carry = 0;
-    }
+  if (!seq) return 'a';
+  const normalized = String(seq).trim().toLowerCase();
+  const lastChar = normalized[normalized.length - 1] || 'a';
+  if (lastChar === 'z') {
+    return 'a'.repeat(normalized.length + 1);
   }
-  if (carry) chars.unshift('A');
-  return chars.join('');
+  const nextChar = String.fromCharCode(lastChar.charCodeAt(0) + 1);
+  return nextChar.repeat(normalized.length);
 }
 
 function parseBuildInfo(contents) {
   const dateMatch = contents.match(/BUILD_DATE\s*=\s*'(\d{4}-\d{2}-\d{2})'/);
-  const seqMatch = contents.match(/BUILD_SEQ\s*=\s*'([A-Z]+)'/);
+  const seqMatch = contents.match(/BUILD_SEQ\s*=\s*'([A-Za-z]+)'/);
   return {
     date: dateMatch ? dateMatch[1] : null,
-    seq: seqMatch ? seqMatch[1] : null,
+    seq: seqMatch ? seqMatch[1].toLowerCase() : null,
   };
 }
 
@@ -46,18 +38,18 @@ const { date: currentDate, seq: currentSeq } = parseBuildInfo(fileContents);
 const today = getToday();
 
 let nextDate = currentDate || today;
-let nextSequence = currentSeq || 'A';
+let nextSequence = currentSeq || 'a';
 
 if (currentDate !== today) {
   nextDate = today;
-  nextSequence = 'A';
+  nextSequence = 'a';
 } else {
   nextSequence = nextSeq(currentSeq);
 }
 
 const updated = fileContents
   .replace(/BUILD_DATE\s*=\s*'\d{4}-\d{2}-\d{2}'/, `BUILD_DATE = '${nextDate}'`)
-  .replace(/BUILD_SEQ\s*=\s*'[A-Z]+'/, `BUILD_SEQ = '${nextSequence}'`);
+  .replace(/BUILD_SEQ\s*=\s*'[A-Za-z]+'/, `BUILD_SEQ = '${nextSequence}'`);
 
 fs.writeFileSync(buildFile, updated, 'utf8');
 console.log(`[build] ${nextDate}-${nextSequence}`);

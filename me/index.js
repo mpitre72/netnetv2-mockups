@@ -5,6 +5,7 @@ import { renderMeListsPage, getListsHeaderState, setListsSearch, toggleListsPane
 import { renderMyListsHeader, renderMyListsPage } from './my-lists.js';
 import { navigate } from '../router.js';
 import { renderMyPerformancePage } from './performance.js';
+import { renderMyTasksPage } from './tasks.js';
 
 const { createElement: h } = React;
 const { createRoot } = ReactDOM;
@@ -38,6 +39,12 @@ export function renderMePage(page, container = document.getElementById('app-main
     return;
   }
   const activePage = KNOWN_ME_PAGES.includes(page) ? page : 'tasks';
+
+  if (activePage === 'tasks') {
+    renderMyTasksPage(container);
+    return;
+  }
+
   container.classList.remove('flex', 'items-center', 'justify-center', 'h-full');
   container.innerHTML = `
     <div class="w-full h-full flex flex-col gap-4">

@@ -10,7 +10,9 @@ const MY_LISTS_LAST_FOLDER_KEY = 'netnet_my_lists_last_folder_v1';
 export const NETNET_LAST_LIST_ITEM_KEY = 'netnet_my_lists_last_item_v1';
 const MENU_ACTIONS = [
   { key: 'move', label: 'Move to folder…' },
-  { key: 'create-task', label: 'Create Task…' },
+  { key: 'create-task-label', label: 'Create Task →', disabled: true },
+  { key: 'create-quick-task', label: 'Quick Task', indent: true },
+  { key: 'create-job-task', label: 'Job Task', indent: true },
   { key: 'delete', label: 'Delete' },
 ];
 
@@ -403,13 +405,19 @@ function OptionsMenu({ isOpen, onClose, position }) {
   }, MENU_ACTIONS.map(action => {
     const destructive = action.key === 'delete';
     const base = 'w-full text-left px-3 py-2 text-sm';
+    if (action.disabled) {
+      return h('div', {
+        key: action.key,
+        className: `${base} font-semibold text-slate-500 dark:text-white/60 cursor-default`,
+      }, action.label);
+    }
     const palette = destructive
       ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/40'
       : 'text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800';
     return h('button', {
       key: action.key,
       type: 'button',
-      className: `${base} ${palette}`,
+      className: `${base} ${action.indent ? 'pl-6 ' : ''}${palette}`,
       onClick: () => { onClose(action.key); },
     }, action.label);
   }));
@@ -564,7 +572,8 @@ function ItemsList({
                 setOpenMenuId(null);
                 setOpenMenuPos(null);
                 if (action === 'move') onMoveRequest?.(item);
-                if (action === 'create-task') onCreateTask?.(item);
+                if (action === 'create-quick-task') onCreateTask?.(item, 'quick');
+                if (action === 'create-job-task') onCreateTask?.(item, 'job');
                 if (action === 'delete') onDeleteItem?.(item);
               },
             }),
@@ -1015,7 +1024,13 @@ function MyListsLayout() {
     ]);
   };
 
-  const openCreateTaskDrawer = (item) => {
+  const openCreateTaskDrawer = (item, type = 'quick') => {
+    if (type === 'job') {
+      if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+        window.showToast('Job Task create flow coming next.');
+      }
+      return;
+    }
     openQuickTaskDrawer({
       mode: 'create',
       sourceItem: {
@@ -1241,7 +1256,7 @@ function MyListsLayout() {
               setOpenMenuPos,
               isArchiveView: showArchive,
               onMoveRequest: (item) => setMoveModalItem(item),
-              onCreateTask: (item) => openCreateTaskDrawer(item),
+              onCreateTask: (item, type) => openCreateTaskDrawer(item, type),
               onDeleteItem: (item) => deleteItem(item.id),
               editingTitleId,
               titleDraft,

@@ -75,6 +75,20 @@ function localDateISO(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeTimeEntries(entries = []) {
+  if (!Array.isArray(entries)) return [];
+  return entries.map((entry) => ({
+    id: entry?.id || createId('task_time'),
+    date: entry?.date || localDateISO(),
+    hours: Number(entry?.hours) || 0,
+    note: entry?.note || '',
+    createdAt: entry?.createdAt || Date.now(),
+    createdByUserId: entry?.createdByUserId || null,
+    createdByName: entry?.createdByName || 'Net Net',
+    createdVia: entry?.createdVia || 'manual',
+  }));
+}
+
 function getSeedContact(index = 0) {
   const companies = getContactsData();
   const company = Array.isArray(companies) && companies.length > index ? companies[index] : null;
@@ -249,11 +263,14 @@ function normalizeAllocations(allocations = []) {
     .map((allocation) => {
       if (!allocation) return null;
       const loeHours = Number(allocation.loeHours);
+      const hasActualHours = allocation.actualHours !== undefined && allocation.actualHours !== null && allocation.actualHours !== '';
+      const actualHours = hasActualHours ? Number(allocation.actualHours) : null;
       return {
         id: allocation.id || createId('alloc'),
         assigneeUserId: allocation.assigneeUserId || null,
         serviceTypeId: allocation.serviceTypeId || null,
         loeHours: Number.isFinite(loeHours) ? loeHours : null,
+        actualHours: Number.isFinite(actualHours) ? actualHours : null,
       };
     })
     .filter(Boolean);
@@ -286,6 +303,13 @@ function normalizeTasks(tasks = [], { jobId, deliverableId } = {}) {
         completedAt: completedTimestamp,
         cycleKey: task.cycleKey || null,
         allocations: normalizeAllocations(task.allocations || []),
+        timeEntries: normalizeTimeEntries(task.timeEntries || []),
+        createdAt: task.createdAt || null,
+        updatedAt: task.updatedAt || null,
+        createdByUserId: task.createdByUserId || null,
+        createdVia: task.createdVia || 'manual',
+        sourceListItemId: task.sourceListItemId || null,
+        sourceListId: task.sourceListId || null,
       };
     })
     .filter(Boolean);
@@ -795,6 +819,26 @@ export function loadJobs(wsId = workspaceId()) {
     persistJobsStore(wsId, store);
   }
   return normalized;
+}
+
+export function loadJobsStoreSnapshot(wsId = workspaceId()) {
+  const jobs = loadJobs(wsId);
+  const store = ensureJobsSeed(wsId);
+  return {
+    jobs,
+    jobsChatMessages: normalizeChatMessages(store.jobsChatMessages || []),
+  };
+}
+
+export function replaceJobsStore(snapshot = {}, wsId = workspaceId()) {
+  const store = ensureJobsSeed(wsId);
+  store.jobs = Array.isArray(snapshot.jobs) ? snapshot.jobs : [];
+  store.jobsChatMessages = normalizeChatMessages(snapshot.jobsChatMessages || []);
+  persistJobsStore(wsId, store);
+  return {
+    jobs: store.jobs,
+    jobsChatMessages: store.jobsChatMessages,
+  };
 }
 
 export function getJobById(jobId, wsId = workspaceId()) {
