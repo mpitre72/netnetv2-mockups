@@ -3,14 +3,18 @@
 
 export function renderContactsActivityFeed(data, type, mockReportData) {
   const activities = data.activities || [];
-  const sorted = [...activities].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const sorted = [...activities].sort((a, b) => {
+    const dA = a.sortDate || a.date || a.startDate;
+    const dB = b.sortDate || b.date || b.startDate;
+    return new Date(dB) - new Date(dA);
+  });
   const jobItems = (type === 'company' && mockReportData?.jobs)
     ? mockReportData.jobs.map(j => ({ type: 'job', ...j }))
     : [];
 
   const allItems = [...sorted, ...jobItems].sort((a, b) => {
-    const dA = a.date || a.startDate;
-    const dB = b.date || b.startDate;
+    const dA = a.sortDate || a.date || a.startDate;
+    const dB = b.sortDate || b.date || b.startDate;
     return new Date(dB) - new Date(dA);
   });
 
@@ -28,16 +32,23 @@ export function renderContactsActivityFeed(data, type, mockReportData) {
           <button id="add-note-btn" class="px-3 py-1 bg-netnet-purple text-white text-xs font-medium rounded hover:bg-[#6020df]">Add Note</button>
         </div>
       </div>
-      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <div class="flex-1 overflow-y-auto p-4 space-y-0">
         ${allItems.length === 0 ? '<div class="text-center text-sm text-gray-500 mt-4">No activity yet.</div>' : ''}
         ${allItems.map(item => {
           let icon = ''; 
           let content = '';
-          let dateStr = item.date || item.startDate;
+          let dateStr = item.sortDate || item.date || item.startDate;
+          let timestampLabel = item.timestampLabel || item.date || item.startDate;
           
           if (item.type === 'note') {
-            icon = `<div class="w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center text-yellow-600 dark:text-yellow-400"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>`;
-            content = `<div class="text-sm text-gray-800 dark:text-gray-200">${item.text}</div><div class="text-xs text-gray-400 mt-1">Note by ${item.user}</div>`;
+            icon = `<div class="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/25 flex items-center justify-center text-amber-700 dark:text-amber-300"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>`;
+            content = `<div class="text-sm text-gray-900 dark:text-gray-100">${item.text}</div><div class="text-xs text-gray-400 mt-1">Note by ${item.user}</div>`;
+          } else if (item.type === 'task') {
+            icon = `<div class="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>`;
+            content = `<div class="font-medium text-sm text-gray-900 dark:text-white">${item.title || 'Task update'}</div><div class="text-sm text-gray-500 dark:text-gray-400">${item.text || ''}</div>`;
+          } else if (item.type === 'system') {
+            icon = `<div class="w-8 h-8 rounded-full bg-slate-200/70 dark:bg-slate-700/50 flex items-center justify-center text-slate-400 dark:text-slate-400"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></div>`;
+            content = `<div class="font-medium text-sm text-gray-800 dark:text-gray-200">${item.title || 'System event'}</div><div class="text-sm text-gray-500 dark:text-gray-400">${item.text || ''}</div><div class="text-xs text-gray-400 mt-1">System</div>`;
           } else if (item.type === 'email') {
             icon = `<div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>`;
             content = `<div class="font-medium text-sm text-gray-900 dark:text-white">${item.subject}</div><div class="text-sm text-gray-500 dark:text-gray-400 truncate">${item.snippet}</div>`;
@@ -50,12 +61,12 @@ export function renderContactsActivityFeed(data, type, mockReportData) {
           }
           
           return `
-            <div class="flex gap-3">
-              <div class="flex-shrink-0 pt-1">${icon}</div>
-              <div class="flex-1 pb-4 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                <div class="flex justify-between items-start">
-                  <div class="flex-1">${content}</div>
-                  <span class="text-[10px] text-gray-400 whitespace-nowrap ml-2">${dateStr}</span>
+            <div class="flex gap-3 py-3 first:pt-0 last:pb-0">
+              <div class="flex-shrink-0 pt-0.5">${icon}</div>
+              <div class="min-w-0 flex-1 border-b border-gray-100 dark:border-gray-800 last:border-0 pb-3">
+                <div class="flex justify-between items-start gap-3">
+                  <div class="min-w-0 flex-1 pr-3">${content}</div>
+                  <span class="w-[72px] flex-shrink-0 pt-0.5 text-right text-[10px] text-gray-400 whitespace-nowrap">${timestampLabel}</span>
                 </div>
               </div>
             </div>

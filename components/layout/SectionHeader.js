@@ -1,3 +1,5 @@
+import { navigate } from '../../router.js';
+
 const { createElement: h, useState, useEffect } = React;
 
 const VIDEO_HELP_ICONS = {
@@ -44,6 +46,7 @@ function VideoHelpIcon({ isActive = false, onClick }) {
 
 export function SectionHeader({
   title,
+  breadcrumbs = null,
   showHelpIcon = false,
   switcherOptions,
   switcherValue,
@@ -299,6 +302,66 @@ export function SectionHeader({
   const resolvedRightActions = rightActions || actions;
   const secondaryVisible = showSecondaryRow !== false;
 
+  const normalizeBreadcrumbPath = (path) => {
+    if (!path) return null;
+    if (String(path).startsWith('#')) return path;
+    if (String(path).startsWith('/app/')) return `#${path}`;
+    if (String(path).startsWith('/')) return `#/app${path}`;
+    return path;
+  };
+
+  const renderBreadcrumbs = () => {
+    if (!Array.isArray(breadcrumbs) || !breadcrumbs.length) {
+      return h('h1', { className: 'text-2xl font-semibold text-slate-900 dark:text-white leading-tight' }, title);
+    }
+
+    const items = [];
+    breadcrumbs.forEach((crumb, index) => {
+      const isLast = index === breadcrumbs.length - 1;
+      const normalizedPath = normalizeBreadcrumbPath(crumb?.path);
+      const isClickable = !isLast && (normalizedPath || typeof crumb?.onClick === 'function');
+      const crumbClassName = isLast
+        ? 'text-2xl font-semibold text-slate-900 dark:text-white leading-tight'
+        : [
+            'text-sm font-medium text-slate-500 dark:text-white/70',
+            isClickable ? 'cursor-pointer transition-colors hover:text-slate-900 dark:hover:text-white hover:underline underline-offset-4' : '',
+          ].join(' ').trim();
+
+      items.push(
+        isClickable
+          ? h('button', {
+              key: `crumb-${index}`,
+              type: 'button',
+              className: crumbClassName,
+              onClick: () => {
+                if (typeof crumb?.onClick === 'function') {
+                  crumb.onClick();
+                  return;
+                }
+                navigate(normalizedPath);
+              },
+            }, crumb?.label || '')
+          : h('span', {
+              key: `crumb-${index}`,
+              className: crumbClassName,
+            }, crumb?.label || '')
+      );
+
+      if (!isLast) {
+        items.push(h('span', {
+          key: `divider-${index}`,
+          className: 'text-slate-400 dark:text-white/50',
+          'aria-hidden': 'true',
+        }, '>'));
+      }
+    });
+
+    return h('nav', {
+      className: 'flex min-w-0 flex-wrap items-center gap-2',
+      'aria-label': 'Breadcrumb',
+    }, items);
+  };
+
   return h(
     'div',
     { className: `w-full flex flex-col gap-3 ${className}` },
@@ -309,7 +372,7 @@ export function SectionHeader({
         { className: 'flex items-center gap-3 section-header-top' },
         [
           showHelpIcon ? h(VideoHelpIcon, { isActive: helpActive, onClick: openHelp }) : null,
-          h('h1', { className: 'text-2xl font-semibold text-slate-900 dark:text-white leading-tight' }, title),
+          renderBreadcrumbs(),
         ].filter(Boolean)
       ),
       // Bottom row: left actions | switcher | search | right actions

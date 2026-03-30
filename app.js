@@ -138,7 +138,7 @@ function renderRoute(route) {
   } else if (route.name === 'jobs') {
     renderJobsPage(main);
   } else if (route.name === 'sales') {
-    renderSalesPage(main);
+    renderSalesPage(main, route);
   } else if (route.name === 'quick') {
     renderQuickTasksPage(main);
   } else if (route.name === 'chat') {
@@ -186,7 +186,7 @@ function mountApp() {
       profile: (type, id) => renderRoute({ name: type, id }),
       me: (page) => renderRoute({ name: 'me', page }),
       jobs: () => renderRoute({ name: 'jobs' }),
-      sales: () => renderRoute({ name: 'sales' }),
+      sales: (route) => renderRoute(route || { name: 'sales' }),
       quick: () => renderRoute({ name: 'quick' }),
       chat: () => renderRoute({ name: 'chat' }),
       performance: () => renderRoute({ name: 'performance' }),

@@ -7,8 +7,8 @@ export function mountSectionPageShell(container, {
   container.className = 'h-full w-full';
   container.innerHTML = `
     <div class="flex h-full w-full flex-col gap-4">
-      <div id="${headerId}" class="space-y-3 px-4 pt-4"></div>
-      <div id="${bodyId}" class="flex-1 space-y-4 px-4 pb-12"></div>
+      <div id="${headerId}" class="nn-content-container space-y-3 pt-4"></div>
+      <div id="${bodyId}" class="nn-content-container flex-1 space-y-4 pb-12"></div>
     </div>
   `;
 

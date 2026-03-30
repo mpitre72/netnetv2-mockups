@@ -21,6 +21,15 @@
   background-color: #FFFFFF;
 }
 
+.nn-content-container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+}
+
 html.dark #app-main {
   background-color: var(--color-bg-app, #020617);
 }

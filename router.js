@@ -82,6 +82,9 @@ function parseRoute(hash) {
   const mePerf = h.startsWith('#/app/me/performance');
   const meTasks = h.startsWith('#/app/me') || h === '#/app/me' || h === '#/app/me/';
   const jobs = h.startsWith('#/app/jobs');
+  const salesNew = /^#\/app\/sales\/new\/?$/.test(h);
+  const salesEdit = h.match(/^#\/app\/sales\/([^/?#]+)\/edit\/?$/);
+  const salesDetail = h.match(/^#\/app\/sales\/([^/?#]+)\/?$/);
   const sales = h.startsWith('#/app/sales');
   const quick = h.startsWith('#/app/quick-tasks');
   const chat = h.startsWith('#/app/chat');
@@ -118,6 +121,9 @@ function parseRoute(hash) {
   if (mePerf) return { name: 'me', page: 'performance' };
   if (meTasks) return { name: 'me', page: 'tasks' };
   if (jobs) return { name: 'jobs' };
+  if (salesNew) return { name: 'sales', mode: 'new' };
+  if (salesEdit) return { name: 'sales', mode: 'edit', id: salesEdit[1] };
+  if (salesDetail) return { name: 'sales', id: salesDetail[1] };
   if (sales) return { name: 'sales' };
   if (quick) return { name: 'quick' };
   if (chat) return { name: 'chat' };
@@ -204,7 +210,7 @@ function handleRoute(renderers) {
   } else if (route.name === 'jobs') {
     renderers.jobs();
   } else if (route.name === 'sales') {
-    renderers.sales();
+    renderers.sales(route);
   } else if (route.name === 'quick') {
     renderers.quick();
   } else if (route.name === 'chat') {
