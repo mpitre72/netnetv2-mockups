@@ -1,7 +1,6 @@
 import { SectionHeader } from '../components/layout/SectionHeader.js';
 import { mountSectionPageShell } from '../components/layout/section-page-shell.js';
 import { TextInput } from '../components/forms/text-input.js';
-import { SelectInput } from '../components/forms/select-input.js';
 import { PrimaryButton } from '../components/buttons/primary-button.js';
 import { RowActionsMenu } from '../components/performance/primitives.js';
 import { QuickTasksExecutionTable } from '../quick-tasks/quick-tasks-list.js';
@@ -9,6 +8,7 @@ import { loadTeamMembers } from '../quick-tasks/quick-tasks-store.js';
 import { renderAvatar, getDisplayName } from '../quick-tasks/quick-tasks-helpers.js';
 import { navigate } from '../router.js';
 import { mockSalesOpportunities } from '../data/mock-sales.js';
+import { SalesSummaryStrip } from './sales-summary-strip.js';
 import { renderOpportunityDetailPage } from './opportunity-detail.js';
 import { renderOpportunityFormPage } from './opportunity-form.js';
 
@@ -36,6 +36,39 @@ const STATUS_OPTIONS = [
   { value: 'won', label: 'Won' },
   { value: 'lost', label: 'Lost' },
 ];
+
+function CompoundFilterControl({ label, id, value, onChange, options = [], widthClass = 'w-[154px]' }) {
+  const selected = options.find((option) => String(option.value) === String(value)) || options[0] || { label: '' };
+
+  return h('div', { className: `${widthClass} flex-none`.trim() }, [
+    h('div', {
+      className: 'relative flex h-11 items-center rounded-md border border-slate-200 bg-white px-3 pr-9 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200',
+    }, [
+      h('div', { className: 'pointer-events-none flex min-w-0 items-center gap-1.5' }, [
+        h('span', { className: 'shrink-0 text-slate-500 dark:text-slate-400' }, `${label}:`),
+        h('span', { className: 'truncate font-medium text-slate-700 dark:text-slate-200' }, selected.label),
+      ]),
+      h('span', {
+        className: 'pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500',
+        'aria-hidden': 'true',
+      }, [
+        h('svg', { viewBox: '0 0 20 20', className: 'h-4 w-4', fill: 'currentColor' }, [
+          h('path', { d: 'M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.512a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z' }),
+        ]),
+      ]),
+      h('select', {
+        id,
+        value,
+        onChange,
+        className: 'absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0',
+        'aria-label': `${label} filter`,
+      }, options.map((option) => h('option', {
+        key: option.value,
+        value: option.value,
+      }, option.label))),
+    ]),
+  ]);
+}
 
 function SalesColumnLabel({ children }) {
   return h('span', { className: 'font-semibold tracking-[0.01em] text-slate-700 dark:text-slate-200' }, children);
@@ -215,10 +248,10 @@ function SalesIndexScreen() {
 
   return h('div', { className: 'space-y-0' }, [
     h('div', {
-      id: 'sales-sticky-filters',
-      className: 'sticky top-0 z-30 -mx-4 mb-0 px-4 py-3 bg-[#f8fafc] dark:bg-[#020617] border-b border-slate-200/80 dark:border-white/10',
+      id: 'sales-sticky-group',
+      className: 'sticky top-0 z-30 -mx-4 mb-0 px-4 bg-[#f8fafc] dark:bg-[#020617] border-b border-slate-200/80 dark:border-white/10',
     }, [
-      h('div', { className: 'flex w-full flex-wrap items-center gap-2' }, [
+      h('div', { className: 'flex w-full flex-wrap items-center gap-2 py-3' }, [
         h('div', { className: 'min-w-[220px] flex-1' }, [
           h(TextInput, {
             id: 'sales-search',
@@ -230,50 +263,42 @@ function SalesIndexScreen() {
             'aria-label': 'Search opportunities',
           }),
         ]),
-        h('div', { className: 'w-[140px] flex-none' }, [
-          h(SelectInput, {
-            id: 'sales-clarity-filter',
-            value: clarity,
-            onChange: (event) => setClarity(event.target.value),
-            className: '!bg-white !text-slate-700 !border-slate-200 dark:!bg-slate-900 dark:!text-slate-200 dark:!border-white/10',
-            'aria-label': 'Clarity filter',
-            options: CLARITY_OPTIONS,
-          }),
-        ]),
-        h('div', { className: 'w-[140px] flex-none' }, [
-          h(SelectInput, {
-            id: 'sales-type-filter',
-            value: type,
-            onChange: (event) => setType(event.target.value),
-            className: '!bg-white !text-slate-700 !border-slate-200 dark:!bg-slate-900 dark:!text-slate-200 dark:!border-white/10',
-            'aria-label': 'Type filter',
-            options: TYPE_OPTIONS,
-          }),
-        ]),
-        h('div', { className: 'w-[140px] flex-none' }, [
-          h(SelectInput, {
-            id: 'sales-status-filter',
-            value: status,
-            onChange: (event) => setStatus(event.target.value),
-            className: '!bg-white !text-slate-700 !border-slate-200 dark:!bg-slate-900 dark:!text-slate-200 dark:!border-white/10',
-            'aria-label': 'Status filter',
-            options: STATUS_OPTIONS,
-          }),
-        ]),
-        h('div', { className: 'w-[168px] flex-none' }, [
-          h(SelectInput, {
-            id: 'sales-owner-filter',
-            value: owner,
-            onChange: (event) => setOwner(event.target.value),
-            className: '!bg-white !text-slate-700 !border-slate-200 dark:!bg-slate-900 dark:!text-slate-200 dark:!border-white/10',
-            'aria-label': 'Owner filter',
-            options: ownerOptions,
-          }),
-        ]),
+        h(CompoundFilterControl, {
+          label: 'Clarity',
+          id: 'sales-clarity-filter',
+          value: clarity,
+          onChange: (event) => setClarity(event.target.value),
+          options: CLARITY_OPTIONS,
+        }),
+        h(CompoundFilterControl, {
+          label: 'Type',
+          id: 'sales-type-filter',
+          value: type,
+          onChange: (event) => setType(event.target.value),
+          options: TYPE_OPTIONS,
+        }),
+        h(CompoundFilterControl, {
+          label: 'Status',
+          id: 'sales-status-filter',
+          value: status,
+          onChange: (event) => setStatus(event.target.value),
+          options: STATUS_OPTIONS,
+        }),
+        h(CompoundFilterControl, {
+          label: 'Owner',
+          id: 'sales-owner-filter',
+          value: owner,
+          onChange: (event) => setOwner(event.target.value),
+          options: ownerOptions,
+          widthClass: 'w-[168px]',
+        }),
         h(PrimaryButton, {
           className: 'flex-none whitespace-nowrap',
           onClick: () => navigate('#/app/sales/new'),
         }, '+ New Opportunity'),
+      ]),
+      h('div', { className: 'pb-3' }, [
+        h(SalesSummaryStrip, { opportunities: filteredOpportunities, members }),
       ]),
     ]),
     h(SalesTable, { opportunities: filteredOpportunities, members }),
