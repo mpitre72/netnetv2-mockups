@@ -17,7 +17,6 @@ import {
 import { renderMiniMeters } from './quick-tasks-helpers.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
 import { openSingleDatePickerPopover } from './quick-task-detail.js';
-import { openQuickTaskDrawer } from './quick-task-detail.js';
 import { openTaskReassignDrawer } from '../components/tasks/task-reassign-drawer.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
@@ -127,7 +126,7 @@ function personMapFrom(companies = [], individuals = []) {
 function serviceTypeLabel(task, serviceTypeMap) {
   const ids = getTaskServiceTypeIds(task);
   if (!ids.length) return 'Unassigned';
-  return ids.map((id) => serviceTypeMap.get(String(id))?.name || 'Service').join(', ');
+  return serviceTypeMap.get(String(ids[0]))?.name || 'Service';
 }
 
 function clientSummary(task, companyMap, personMap) {
@@ -412,6 +411,10 @@ export function QuickTasksExecutionTable({
     }
   };
 
+  const openExpandedTask = (taskId) => {
+    setExpandedTaskId(String(taskId));
+  };
+
   const renderExpandedContent = (task) => {
     const allocationList = getTaskAllocations(task);
     const descriptionValue = descriptionEditor?.taskId === task.id
@@ -439,7 +442,7 @@ export function QuickTasksExecutionTable({
       });
     };
 
-    return h('div', { className: 'rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 space-y-3' }, [
+    return h('div', { className: 'rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 space-y-4' }, [
       h(TaskStyleRichTextField, {
         label: 'Description',
         value: descriptionValue,
@@ -459,7 +462,79 @@ export function QuickTasksExecutionTable({
         },
         footerText: 'Enter to save · Esc to cancel',
       }),
-      h('div', { className: 'grid gap-3 xl:grid-cols-4' }, [
+      h('div', { className: 'space-y-2' }, [
+        h('div', { className: 'text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Context'),
+        h('div', { className: 'flex flex-wrap items-center gap-3' }, [
+          h('div', { className: 'inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1 self-start' }, [
+            ['client', 'Client'],
+            ['internal', 'Internal'],
+          ].map(([value, label]) => h('button', {
+            key: value,
+            type: 'button',
+            className: `px-3 py-1 rounded-full text-sm font-semibold ${context.type === value ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}`,
+            onClick: (event) => {
+              event.stopPropagation();
+              onTaskUpdate?.(task.id, {
+                context: value === 'internal'
+                  ? { type: 'internal', companyId: null, personId: null }
+                  : {
+                    type: 'client',
+                    companyId: context.companyId || companies[0]?.id || null,
+                    personId: context.personId,
+                  },
+              });
+            },
+          }, label))),
+          context.type === 'client'
+            ? h(React.Fragment, null, [
+              h('label', { className: 'flex min-w-[220px] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
+                h('span', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Company'),
+                h('select', {
+                  value: context.companyId || '',
+                  onClick: stopRowToggle,
+                  onMouseDown: stopRowToggle,
+                  onChange: (event) => {
+                    const companyId = event.target.value || null;
+                    onTaskUpdate?.(task.id, {
+                      context: {
+                        type: 'client',
+                        companyId,
+                        personId: companyId ? context.personId : null,
+                      },
+                    });
+                  },
+                  className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm',
+                }, [
+                  h('option', { value: '' }, 'Select company'),
+                  ...companies.map((company) => h('option', { key: company.id, value: company.id }, company.name || 'Company')),
+                ]),
+              ]),
+              h('label', { className: 'flex min-w-[220px] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
+                h('span', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Person'),
+                h('select', {
+                  value: context.personId || '',
+                  onClick: stopRowToggle,
+                  onMouseDown: stopRowToggle,
+                  onChange: (event) => {
+                    onTaskUpdate?.(task.id, {
+                      context: {
+                        type: 'client',
+                        companyId: context.companyId,
+                        personId: event.target.value || null,
+                      },
+                    });
+                  },
+                  className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm',
+                }, [
+                  h('option', { value: '' }, 'Optional person'),
+                  ...personChoices.map((person) => h('option', { key: person.id, value: person.id }, person.name || 'Person')),
+                ]),
+              ]),
+            ])
+            : null,
+        ]),
+      ]),
+      h('div', { className: 'grid gap-3 xl:grid-cols-3' }, [
         h('label', { className: 'flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
           h('span', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Assignee'),
           h('select', {
@@ -506,93 +581,6 @@ export function QuickTasksExecutionTable({
             className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm',
           }),
         ]),
-        h('label', { className: 'flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
-          h('span', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Due Date'),
-          h('button', {
-            type: 'button',
-            onClick: stopRowToggle,
-            onMouseDown: stopRowToggle,
-            className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60',
-            onClick: (event) => {
-              stopRowToggle(event);
-              openSingleDatePickerPopover({
-                anchorEl: event.currentTarget,
-                value: task.dueDate || '',
-                onSelect: (next) => onTaskUpdate?.(task.id, { dueDate: next || null }),
-                onClear: () => onTaskUpdate?.(task.id, { dueDate: null }),
-              });
-            },
-          }, formatPickerButtonLabel(task.dueDate)),
-        ]),
-      ]),
-      h('div', { className: 'flex flex-wrap items-center gap-3' }, [
-        h('div', { className: 'inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-1 self-start' }, [
-          ['client', 'Client'],
-          ['internal', 'Internal'],
-        ].map(([value, label]) => h('button', {
-          key: value,
-          type: 'button',
-          className: `px-3 py-1 rounded-full text-sm font-semibold ${context.type === value ? 'bg-white dark:bg-slate-700 shadow border border-slate-200 dark:border-white/10' : 'text-slate-600 dark:text-white/70'}`,
-          onClick: (event) => {
-            event.stopPropagation();
-            onTaskUpdate?.(task.id, {
-              context: value === 'internal'
-                ? { type: 'internal', companyId: null, personId: null }
-                : {
-                  type: 'client',
-                  companyId: context.companyId || companies[0]?.id || null,
-                  personId: context.personId,
-                },
-            });
-          },
-        }, label))),
-        context.type === 'client'
-          ? h(React.Fragment, null, [
-            h('label', { className: 'flex min-w-[220px] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
-              h('span', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Company'),
-              h('select', {
-                value: context.companyId || '',
-                onClick: stopRowToggle,
-                onMouseDown: stopRowToggle,
-                onChange: (event) => {
-                  const companyId = event.target.value || null;
-                  onTaskUpdate?.(task.id, {
-                    context: {
-                      type: 'client',
-                      companyId,
-                      personId: companyId ? context.personId : null,
-                    },
-                  });
-                },
-                className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm',
-              }, [
-                h('option', { value: '' }, 'Select company'),
-                ...companies.map((company) => h('option', { key: company.id, value: company.id }, company.name || 'Company')),
-              ]),
-            ]),
-            h('label', { className: 'flex min-w-[220px] flex-1 flex-col gap-1 text-sm text-slate-700 dark:text-slate-200' }, [
-              h('span', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Person'),
-              h('select', {
-                value: context.personId || '',
-                onClick: stopRowToggle,
-                onMouseDown: stopRowToggle,
-                onChange: (event) => {
-                  onTaskUpdate?.(task.id, {
-                    context: {
-                      type: 'client',
-                      companyId: context.companyId,
-                      personId: event.target.value || null,
-                    },
-                  });
-                },
-                className: 'h-10 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm',
-              }, [
-                h('option', { value: '' }, 'Optional person'),
-                ...personChoices.map((person) => h('option', { key: person.id, value: person.id }, person.name || 'Person')),
-              ]),
-            ]),
-          ])
-          : null,
       ]),
     ]);
   };
@@ -639,14 +627,7 @@ export function QuickTasksExecutionTable({
         : h(RowActionsMenu, {
           menuItems: ['Edit', 'Move Task', 'Archive Task', 'Delete'],
           onSelect: (item) => {
-            if (item === 'Edit') {
-              openQuickTaskDrawer({
-                mode: 'edit',
-                taskId: task.id,
-                onUpdated: (updated) => onTaskUpdate?.(task.id, updated || {}),
-                onDeleted: () => onTaskDelete?.(task.id),
-              });
-            }
+            if (item === 'Edit') openExpandedTask(task.id);
             if (item === 'Move Task') {
               openTaskReassignDrawer({
                 task: {
@@ -728,21 +709,62 @@ export function QuickTasksExecutionTable({
               }),
             ]),
           ]), 'w-[22%] min-w-0'),
-            renderCell(h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[240px]' }, task.description || 'Add description'), 'w-[18%] min-w-0 max-w-[240px]'),
-            renderCell(h('div', { className: 'space-y-1 min-w-0 max-w-[200px]' }, [
+            renderCell(h('button', {
+              type: 'button',
+              className: 'block w-full truncate whitespace-nowrap overflow-hidden text-ellipsis text-left text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
+              onClick: (event) => {
+                stopRowToggle(event);
+                openExpandedTask(task.id);
+                setDescriptionEditor({ taskId: task.id, value: task.description || '' });
+              },
+            }, task.description || 'Add description'), 'w-[18%] min-w-0 max-w-[240px]'),
+            renderCell(h('button', {
+              type: 'button',
+              className: 'block w-full text-left',
+              onClick: (event) => {
+                stopRowToggle(event);
+                openExpandedTask(task.id);
+              },
+            }, h('div', { className: 'space-y-1 min-w-0 max-w-[200px]' }, [
               h('div', {
                 className: summary.primary === 'Internal'
                   ? 'inline-flex max-w-full w-fit items-center rounded-full border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-700/60 dark:text-slate-100'
                   : 'text-sm font-medium text-slate-900 dark:text-slate-100 truncate',
               }, summary.primary),
               summary.secondary ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400 truncate' }, summary.secondary) : null,
-            ]), 'w-[17%] min-w-0 max-w-[200px]'),
-            renderCell(assigneeCellContent, 'w-[8%] min-w-[72px]'),
-            renderCell(h('div', { className: 'text-sm text-slate-700 dark:text-slate-200 truncate' }, serviceTypeLabel(task, serviceTypeMap)), 'w-[13%] min-w-0 max-w-[170px]'),
-            renderCell(h('div', {
+            ])), 'w-[17%] min-w-0 max-w-[200px]'),
+            renderCell(h('button', {
+              type: 'button',
+              className: 'block w-full text-left',
+              title: primaryAssignee?.name || primaryAssignee?.email || 'Assignee',
+              onClick: (event) => {
+                stopRowToggle(event);
+                openExpandedTask(task.id);
+              },
+            }, assigneeCellContent), 'w-[8%] min-w-[72px]'),
+            renderCell(h('button', {
+              type: 'button',
+              className: 'block w-full truncate text-left text-sm text-slate-700 dark:text-slate-200 hover:text-netnet-purple dark:hover:text-netnet-purple',
+              title: serviceTypeLabel(task, serviceTypeMap),
+              onClick: (event) => {
+                stopRowToggle(event);
+                openExpandedTask(task.id);
+              },
+            }, serviceTypeLabel(task, serviceTypeMap)), 'w-[13%] min-w-0 max-w-[170px]'),
+            renderCell(h('button', {
+              type: 'button',
               className: due.tone === 'danger'
-                ? 'text-sm text-rose-600 dark:text-rose-300'
-                : 'text-sm text-slate-500 dark:text-slate-400',
+                ? 'text-sm text-rose-600 dark:text-rose-300 hover:text-rose-500'
+                : 'text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
+              onClick: (event) => {
+                stopRowToggle(event);
+                openSingleDatePickerPopover({
+                  anchorEl: event.currentTarget,
+                  value: task.dueDate || '',
+                  onSelect: (next) => onTaskUpdate?.(task.id, { dueDate: next || null }),
+                  onClear: () => onTaskUpdate?.(task.id, { dueDate: null }),
+                });
+              },
             }, due.label), 'w-[8%] min-w-[88px]'),
             renderCell(renderMeter(task), 'w-[14%] min-w-[160px]'),
             renderCell(actionsCellContent, 'w-[40px] min-w-[40px] text-right'),
@@ -775,7 +797,11 @@ export function QuickTasksExecutionTable({
         ]),
       ]),
       h('td', { className: 'px-3 py-4 min-w-0 align-top' }, [
-        h('div', { className: 'text-xs text-slate-400 dark:text-slate-500' }, 'Description below'),
+        h('button', {
+          type: 'button',
+          className: 'w-full text-left text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300',
+          onClick: openDraft,
+        }, draft.description ? 'Description added' : 'Add description below'),
       ]),
       h('td', { className: 'px-3 py-4 min-w-0 align-top' }, [
         h('div', { className: 'space-y-2' }, [
@@ -945,7 +971,7 @@ export function QuickTasksExecutionTable({
       { key: 'toggle', label: '', className: 'px-3 py-3 w-10' },
       { key: 'task-name', label: 'Task Name', className: 'px-3 py-3 w-[22%]' },
       { key: 'description', label: 'Description', className: 'px-3 py-3 w-[18%]' },
-      { key: 'client', label: 'Client', className: 'px-3 py-3 w-[17%]' },
+      { key: 'context', label: 'Context', className: 'px-3 py-3 w-[17%]' },
       { key: 'assignee', label: 'Assignee', className: 'px-3 py-3 w-[8%]' },
       { key: 'service-type', label: 'Service Type', className: 'px-3 py-3 w-[13%]' },
       { key: 'due-date', label: 'Due Date', className: 'px-3 py-3 w-[8%]' },

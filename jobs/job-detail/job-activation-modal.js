@@ -1,6 +1,7 @@
 import { getJobNumber } from '../job-number-utils.js';
+import { openSingleDatePickerPopover } from '../../quick-tasks/quick-task-detail.js';
 
-const { createElement: h, useEffect, useMemo, useState } = React;
+const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -45,6 +46,16 @@ function formatDateLabel(dateStr) {
   const date = parseISO(dateStr);
   if (!date) return dateStr;
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function formatDateInputLabel(dateStr) {
+  const date = parseISO(dateStr);
+  if (!date) return 'Select date';
+  return new Intl.DateTimeFormat('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  }).format(date);
 }
 
 function sumDeliverableHours(deliverable) {
@@ -151,15 +162,60 @@ export function JobActivationModal({
     return current < today ? today : current;
   }, [job?.startDate, today]);
   const [startDate, setStartDate] = useState(initialStartDate);
+  const datePickerCleanupRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setStartDate(initialStartDate);
   }, [isOpen, initialStartDate]);
 
+  useEffect(() => {
+    if (isOpen) return undefined;
+    if (datePickerCleanupRef.current) {
+      datePickerCleanupRef.current();
+      datePickerCleanupRef.current = null;
+    }
+    return undefined;
+  }, [isOpen]);
+
+  useEffect(() => () => {
+    if (datePickerCleanupRef.current) {
+      datePickerCleanupRef.current();
+      datePickerCleanupRef.current = null;
+    }
+  }, []);
+
+  const closeDatePicker = () => {
+    if (!datePickerCleanupRef.current) return;
+    datePickerCleanupRef.current();
+    datePickerCleanupRef.current = null;
+  };
+
+  const closeModal = () => {
+    closeDatePicker();
+    if (typeof onClose === 'function') onClose();
+  };
+
+  const openStartDatePicker = (anchorEl) => {
+    if (!anchorEl) return;
+    closeDatePicker();
+    datePickerCleanupRef.current = openSingleDatePickerPopover({
+      anchorEl,
+      value: startDate || initialStartDate || today,
+      onSelect: (next) => setStartDate(next || ''),
+      onClear: () => setStartDate(''),
+      onClose: () => {
+        datePickerCleanupRef.current = null;
+      },
+    });
+  };
+
+  const parsedStartDate = parseISO(startDate);
+  const isValidStartDate = !!parsedStartDate && startDate >= today;
+
   const review = useMemo(
-    () => buildActivationReview(job, startDate, today),
-    [job, startDate, today]
+    () => buildActivationReview(job, isValidStartDate ? startDate : initialStartDate, today),
+    [job, startDate, isValidStartDate, initialStartDate, today]
   );
 
   if (!isOpen || !job) return null;
@@ -168,7 +224,7 @@ export function JobActivationModal({
   const jobNumber = getJobNumber(job);
 
   return h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center px-4' }, [
-    h('div', { className: 'absolute inset-0 bg-black/40', onClick: () => onClose && onClose() }),
+    h('div', { className: 'absolute inset-0 bg-black/40', onClick: closeModal }),
     h('div', { className: 'relative z-10 w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-5' }, [
       h('div', { className: 'flex items-start justify-between gap-4' }, [
         h('div', { className: 'space-y-1' }, [
@@ -178,7 +234,7 @@ export function JobActivationModal({
         h('button', {
           type: 'button',
           className: 'h-9 w-9 rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
-          onClick: () => onClose && onClose(),
+          onClick: closeModal,
           'aria-label': 'Close',
         }, '×'),
       ]),
@@ -189,14 +245,40 @@ export function JobActivationModal({
       ]),
       h('div', { className: 'space-y-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 p-4' }, [
         h('div', { className: 'text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Start Date'),
-        h('input', {
-          type: 'date',
-          value: startDate,
-          min: today,
-          onChange: (event) => setStartDate(event.target.value || today),
-          className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200',
-        }),
-        review.shiftApplied
+        h('button', {
+          type: 'button',
+          className: [
+            'flex h-10 w-full items-center justify-between rounded-md border bg-white px-3 text-left text-sm transition-colors',
+            'dark:bg-slate-900',
+            isValidStartDate
+              ? 'border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-slate-800/60'
+              : 'border-rose-300 text-slate-700 hover:bg-rose-50/40 dark:border-rose-400/40 dark:text-slate-200 dark:hover:bg-rose-500/10',
+          ].join(' '),
+          onClick: (event) => openStartDatePicker(event.currentTarget),
+          'aria-label': 'Choose job start date',
+        }, [
+          h('span', { className: parsedStartDate ? '' : 'text-slate-400 dark:text-slate-500' }, formatDateInputLabel(startDate)),
+          h('span', { className: 'ml-3 text-slate-400 dark:text-slate-500' }, [
+            h('svg', {
+              viewBox: '0 0 24 24',
+              fill: 'none',
+              stroke: 'currentColor',
+              strokeWidth: '1.8',
+              className: 'h-4 w-4',
+              'aria-hidden': 'true',
+            }, [
+              h('rect', { x: '3', y: '4', width: '18', height: '17', rx: '2' }),
+              h('line', { x1: '8', y1: '2.5', x2: '8', y2: '6.5' }),
+              h('line', { x1: '16', y1: '2.5', x2: '16', y2: '6.5' }),
+              h('line', { x1: '3', y1: '9', x2: '21', y2: '9' }),
+            ]),
+          ]),
+        ]),
+        !startDate
+          ? h('div', { className: 'text-xs text-rose-600 dark:text-rose-300' }, 'Start date is required before activation.')
+          : !isValidStartDate
+            ? h('div', { className: 'text-xs text-rose-600 dark:text-rose-300' }, 'Start date must be today or later.')
+            : review.shiftApplied
           ? h('div', { className: 'text-xs text-amber-600 dark:text-amber-200' }, `Original start date was in the past. Dates will shift forward from ${formatDateLabel(review.baseStartDate)} to ${formatDateLabel(review.activationStartDate)}.`)
           : isProject && review.deltaDays > 0
             ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `Timeline dates will shift forward ${review.deltaDays} day${review.deltaDays === 1 ? '' : 's'} to start on ${formatDateLabel(review.activationStartDate)}.`)
@@ -214,12 +296,15 @@ export function JobActivationModal({
         h('button', {
           type: 'button',
           className: 'inline-flex items-center justify-center h-9 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-          onClick: () => onClose && onClose(),
+          onClick: closeModal,
         }, 'Cancel'),
         h('button', {
           type: 'button',
-          className: 'inline-flex items-center justify-center h-9 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110',
+          className: `inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-semibold transition ${isValidStartDate ? 'bg-netnet-purple text-white hover:brightness-110' : 'cursor-not-allowed bg-slate-300 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`,
+          disabled: !isValidStartDate,
           onClick: () => {
+            if (!isValidStartDate) return;
+            closeDatePicker();
             if (typeof onConfirm === 'function') onConfirm(review.updates);
           },
         }, 'Activate Job'),

@@ -1,4 +1,5 @@
 import { RowActionsMenu } from '../components/performance/primitives.js';
+import { isDeliverableVisibleInCycle } from './retainer-cycle-utils.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
@@ -81,11 +82,14 @@ export function syncRowsWithServiceTypes(rows = [], serviceTypeIds = []) {
 export function createPlanStateFromJob(job, fallbackServiceTypeIds = [], options = {}) {
   const cycleKey = options.cycleKey || null;
   const serviceTypes = options.serviceTypes || [];
+  const visibleDeliverables = job?.kind === 'retainer' && cycleKey
+    ? (job?.deliverables || []).filter((deliverable) => isDeliverableVisibleInCycle(deliverable, cycleKey))
+    : (job?.deliverables || []);
   const jobTypeIds = Array.isArray(job?.serviceTypeIds) ? job.serviceTypeIds.filter(Boolean) : [];
-  const poolTypeIds = collectPoolTypeIds(job?.deliverables || [], job?.kind === 'retainer' ? cycleKey : null);
+  const poolTypeIds = collectPoolTypeIds(visibleDeliverables || [], job?.kind === 'retainer' ? cycleKey : null);
   const serviceTypeIds = [...new Set([...jobTypeIds, ...poolTypeIds, ...(fallbackServiceTypeIds || [])].filter(Boolean))];
-  const rows = Array.isArray(job?.deliverables) && job.deliverables.length
-    ? job.deliverables.map((deliverable) => {
+  const rows = Array.isArray(visibleDeliverables) && visibleDeliverables.length
+    ? visibleDeliverables.map((deliverable) => {
       const pools = {};
       const poolSource = job?.kind === 'retainer' && cycleKey
         ? (deliverable?.poolsByCycle?.[cycleKey] || [])

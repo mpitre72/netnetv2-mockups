@@ -6,6 +6,13 @@ import {
   getTaskStartTimestamp,
   normalizeTaskLifecycleStatus,
 } from './task-execution-utils.js';
+import {
+  applyChangeOrder,
+  ensurePlanBaselines,
+  normalizeChangeOrderRecord,
+  normalizePlanSnapshotRecord,
+  revertChangeOrder,
+} from './change-order-scope-utils.js';
 
 const VALID_KINDS = new Set(['project', 'retainer']);
 const VALID_STATUSES = new Set(['pending', 'active', 'completed', 'archived']);
@@ -179,6 +186,17 @@ function normalizePlan(plan = {}) {
   };
 }
 
+function normalizePlanByCycle(planByCycle = {}) {
+  if (!planByCycle || typeof planByCycle !== 'object') return {};
+  return Object.keys(planByCycle).reduce((acc, key) => {
+    const normalized = normalizePlan(planByCycle[key] || {});
+    if (normalized.rows.length || normalized.serviceTypeIds.length) {
+      acc[String(key)] = normalized;
+    }
+    return acc;
+  }, {});
+}
+
 function normalizeDeliverableDetailsMap(details = {}) {
   if (!details || typeof details !== 'object') return {};
   return Object.keys(details).reduce((acc, key) => {
@@ -233,25 +251,15 @@ function normalizeChangeOrderChanges(changes = []) {
     .filter(Boolean);
 }
 
-function normalizeChangeOrders(changeOrders = []) {
+function normalizeChangeOrders(changeOrders = [], { jobId = null, kind = 'project', effectiveMonth = null } = {}) {
   if (!Array.isArray(changeOrders)) return [];
   return changeOrders
     .map((changeOrder) => {
       if (!changeOrder || typeof changeOrder !== 'object') return null;
-      const status = changeOrder.status === 'applied'
-        ? 'applied'
-        : changeOrder.status === 'approved'
-          ? 'approved'
-          : 'draft';
+      const normalized = normalizeChangeOrderRecord(changeOrder, kind, effectiveMonth);
       return {
-        id: changeOrder.id || createId('co'),
-        name: String(changeOrder.name || '').trim() || 'Change Order',
-        status,
-        createdAt: changeOrder.createdAt || new Date().toISOString(),
-        appliedAt: status === 'applied' ? (changeOrder.appliedAt || null) : null,
-        notes: String(changeOrder.notes || ''),
-        impactHours: Math.round((Number(changeOrder.impactHours) || 0) * 100) / 100,
-        changes: normalizeChangeOrderChanges(changeOrder.changes || []),
+        ...normalized,
+        jobId: normalized.jobId || (jobId ? String(jobId) : null),
       };
     })
     .filter(Boolean);
@@ -358,6 +366,8 @@ function normalizeDeliverables(deliverables = [], jobId) {
         dependencyDeliverableIds: Array.isArray(deliverable.dependencyDeliverableIds)
           ? deliverable.dependencyDeliverableIds.map((id) => String(id)).filter(Boolean)
           : [],
+        createdByChangeOrderId: deliverable?.createdByChangeOrderId ? String(deliverable.createdByChangeOrderId) : null,
+        createdCycleKey: deliverable?.createdCycleKey ? String(deliverable.createdCycleKey) : null,
         poolsByCycle: normalizePoolsByCycle(deliverable.poolsByCycle || {}),
         pools: normalizePools(deliverable.pools || []),
         tasks: normalizeTasks(deliverable.tasks || [], { jobId, deliverableId }),
@@ -808,9 +818,11 @@ function normalizeJobLifecycle(job) {
 export function loadJobs(wsId = workspaceId()) {
   const store = ensureJobsSeed(wsId);
   const list = store.jobs || [];
+  const serviceTypes = loadServiceTypes(wsId).filter((type) => type.active);
   let changed = false;
   const normalized = list.map((job) => {
-    const next = normalizeJobLifecycle(job);
+    let next = normalizeJobLifecycle(job);
+    next = ensurePlanBaselines(next, { serviceTypes });
     if (next !== job) changed = true;
     return next;
   });
@@ -859,7 +871,9 @@ export function createJob(payload = {}, wsId = workspaceId()) {
   const archivedAt = payload.archivedAt || null;
   const archivedByUserId = payload.archivedByUserId || null;
   const normalizedPlan = normalizePlan(payload.plan || {});
-  const job = {
+  const normalizedOriginalPlanSnapshot = normalizePlanSnapshotRecord(payload.originalPlanSnapshot || null, kind);
+  const normalizedCurrentPlanSnapshot = normalizePlanSnapshotRecord(payload.currentPlanSnapshot || null, kind);
+  let job = {
     id: jobId,
     name: String(payload.name || '').trim(),
     jobNumber: normalizeJobNumber(payload.jobNumber),
@@ -885,13 +899,21 @@ export function createJob(payload = {}, wsId = workspaceId()) {
     targetEndDate: kind === 'project' ? (payload.targetEndDate || null) : null,
     currentCycleKey: kind === 'retainer' ? (payload.currentCycleKey || defaultCycleKey) : null,
     plan: normalizedPlan,
+    originalPlan: normalizePlan(payload.originalPlan || {}),
+    originalPlanByCycle: normalizePlanByCycle(payload.originalPlanByCycle || {}),
+    originalPlanSnapshot: normalizedOriginalPlanSnapshot,
+    currentPlanSnapshot: normalizedCurrentPlanSnapshot,
     deliverableDetailsById: normalizeDeliverableDetailsMap(payload.deliverableDetailsById || {}),
     timeline: normalizeTimeline(payload.timeline || {
       startDate: payload.startDate || null,
       endDate: kind === 'project' ? (payload.targetEndDate || null) : null,
       zoomValue: 62,
     }),
-    changeOrders: normalizeChangeOrders(payload.changeOrders || []),
+    changeOrders: normalizeChangeOrders(payload.changeOrders || [], {
+      jobId,
+      kind,
+      effectiveMonth: payload.currentCycleKey || defaultCycleKey,
+    }),
     lastNonArchivedStatus: normalizeLifecycleStatus(payload.lastNonArchivedStatus),
     archivedAt,
     archivedByUserId,
@@ -900,6 +922,9 @@ export function createJob(payload = {}, wsId = workspaceId()) {
     deliverables: normalizeDeliverables(payload.deliverables || [], jobId),
     unassignedTasks: normalizeTasks(payload.unassignedTasks || [], { jobId, deliverableId: null }),
   };
+  // Deliverables remain persistent job records; snapshots only capture plan baselines
+  // and must not trigger render-time deliverable reconstruction.
+  job = ensurePlanBaselines(job, { serviceTypes: loadServiceTypes(wsId).filter((type) => type.active) });
   list.unshift(job);
   store.jobs = list;
   persistJobsStore(wsId, store);
@@ -1003,13 +1028,17 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
       ? updates.currentCycleKey
       : (current.currentCycleKey || null),
     plan: nextPlan,
+    originalPlan: updates.originalPlan !== undefined
+      ? normalizePlan(updates.originalPlan || {})
+      : normalizePlan(current.originalPlan || {}),
+    originalPlanByCycle: updates.originalPlanByCycle !== undefined
+      ? normalizePlanByCycle(updates.originalPlanByCycle || {})
+      : normalizePlanByCycle(current.originalPlanByCycle || {}),
     deliverableDetailsById: updates.deliverableDetailsById !== undefined
       ? normalizeDeliverableDetailsMap(updates.deliverableDetailsById || {})
       : normalizeDeliverableDetailsMap(current.deliverableDetailsById || {}),
     timeline: nextTimeline,
-    changeOrders: updates.changeOrders !== undefined
-      ? normalizeChangeOrders(updates.changeOrders || [])
-      : normalizeChangeOrders(current.changeOrders || []),
+    changeOrders: current.changeOrders || [],
     lastNonArchivedStatus,
     archivedAt,
     archivedByUserId,
@@ -1026,10 +1055,30 @@ export function updateJob(jobId, updates = {}, wsId = workspaceId()) {
   if (nextKind !== 'retainer') {
     next.currentCycleKey = null;
   }
-  list[idx] = next;
+  next.originalPlanSnapshot = updates.originalPlanSnapshot !== undefined
+    ? normalizePlanSnapshotRecord(updates.originalPlanSnapshot || null, nextKind)
+    : normalizePlanSnapshotRecord(current.originalPlanSnapshot || null, nextKind);
+  next.currentPlanSnapshot = updates.currentPlanSnapshot !== undefined
+    ? normalizePlanSnapshotRecord(updates.currentPlanSnapshot || null, nextKind)
+    : normalizePlanSnapshotRecord(current.currentPlanSnapshot || null, nextKind);
+  next.changeOrders = updates.changeOrders !== undefined
+    ? normalizeChangeOrders(updates.changeOrders || [], {
+      jobId: current.id,
+      kind: nextKind,
+      effectiveMonth: updates.currentCycleKey || current.currentCycleKey || null,
+    })
+    : normalizeChangeOrders(current.changeOrders || [], {
+      jobId: current.id,
+      kind: nextKind,
+      effectiveMonth: next.currentCycleKey || current.currentCycleKey || null,
+    });
+
+  const serviceTypes = loadServiceTypes(wsId).filter((type) => type.active);
+  const scoped = ensurePlanBaselines(next, { serviceTypes });
+  list[idx] = scoped;
   store.jobs = list;
   persistJobsStore(wsId, store);
-  return next;
+  return scoped;
 }
 
 export function updateDeliverable(jobId, deliverableId, patch = {}, wsId = workspaceId()) {
@@ -1042,6 +1091,36 @@ export function updateDeliverable(jobId, deliverableId, patch = {}, wsId = works
       : deliverable
   ));
   return updateJob(jobId, { deliverables: nextDeliverables }, wsId);
+}
+
+export function applyJobChangeOrder(jobId, changeOrderId, wsId = workspaceId()) {
+  if (!jobId || !changeOrderId) return null;
+  const current = getJobById(jobId, wsId);
+  if (!current) return null;
+  const serviceTypes = loadServiceTypes(wsId).filter((type) => type.active);
+  const baselineReady = ensurePlanBaselines(current, { serviceTypes });
+  const next = applyChangeOrder(baselineReady, changeOrderId);
+  if (!next || next === baselineReady) return current;
+  return updateJob(jobId, {
+    changeOrders: next.changeOrders,
+    originalPlanSnapshot: next.originalPlanSnapshot,
+    currentPlanSnapshot: next.currentPlanSnapshot,
+  }, wsId);
+}
+
+export function revertJobChangeOrder(jobId, changeOrderId, wsId = workspaceId()) {
+  if (!jobId || !changeOrderId) return null;
+  const current = getJobById(jobId, wsId);
+  if (!current) return null;
+  const serviceTypes = loadServiceTypes(wsId).filter((type) => type.active);
+  const baselineReady = ensurePlanBaselines(current, { serviceTypes });
+  const next = revertChangeOrder(baselineReady, changeOrderId);
+  if (!next || next === baselineReady) return current;
+  return updateJob(jobId, {
+    changeOrders: next.changeOrders,
+    originalPlanSnapshot: next.originalPlanSnapshot,
+    currentPlanSnapshot: next.currentPlanSnapshot,
+  }, wsId);
 }
 
 export function loadJobChatMessages(jobId, wsId = workspaceId()) {
@@ -1169,6 +1248,11 @@ export function duplicateJob(jobId, wsId = workspaceId()) {
     archivedByUserId: null,
     completedAt: null,
     completedByUserId: null,
+    changeOrders: [],
+    originalPlan: {},
+    originalPlanByCycle: {},
+    originalPlanSnapshot: null,
+    currentPlanSnapshot: null,
     deliverables: duplicatedDeliverables,
     plan: duplicatedPlan,
     deliverableDetailsById: duplicatedDeliverableDetails,

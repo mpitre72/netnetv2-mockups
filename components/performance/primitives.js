@@ -306,7 +306,7 @@ export function StackedMeter({ title, effort, timeline, completed = false, dataD
   );
 }
 
-export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu, menuItems } = {}) {
+export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu, menuItems, triggerTabIndex } = {}) {
   const btnRef = useRef(null);
   const menuRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -384,6 +384,7 @@ export function RowActionsMenu({ onSelect, dataDemoButton, dataDemoMenu, menuIte
         type: 'button',
         'aria-haspopup': 'menu',
         'aria-expanded': open,
+        tabIndex: triggerTabIndex,
         'data-demo': dataDemoButton,
         className: 'p-2 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition',
         onClick: () => { open ? setOpen(false) : openMenu(); },

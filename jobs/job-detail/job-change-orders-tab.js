@@ -1,19 +1,28 @@
 import { loadServiceTypes } from '../../quick-tasks/quick-tasks-store.js';
 import { navigate } from '../../router.js';
-import { createPlanStateFromJob } from '../jobs-plan-grid.js';
+import { getJobCycleKey, setJobCycleKey } from '../jobs-ui-state.js';
+import { buildDeliverablesFromPlan } from '../jobs-plan-grid.js';
+import {
+  formatCycleLabel,
+  getCurrentCycleKey,
+  isDeliverableVisibleInCycle,
+  shiftCycleKey,
+} from '../retainer-cycle-utils.js';
+import {
+  applyChangeOrder,
+  getApplicableChangeOrders,
+  getCurrentPlanState,
+  normalizeChangeOrderScopeFields,
+  normalizeChangeOrderRecord,
+  revertChangeOrder,
+} from '../change-order-scope-utils.js';
+import { RetainerMonthSwitcher } from './retainer-month-switcher.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 const CHANGE_ORDER_FLOW_STORAGE_PREFIX = 'netnet_change_order_flow_v1';
 
 function createId(prefix) {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function localDateISO(date = new Date()) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function formatDateLabel(value) {
@@ -38,14 +47,27 @@ function formatHours(value) {
 }
 
 function formatImpact(value) {
-  return `+${formatHours(value)} hrs`;
+  const hours = roundHours(value);
+  const prefix = hours > 0 ? '+' : '';
+  return `${prefix}${formatHours(hours)} hrs`;
+}
+
+function buildRetainerApplyMonthOptions(selectedMonth) {
+  const baseMonth = String(selectedMonth || '').trim() || getCurrentCycleKey();
+  return Array.from({ length: 7 }, (_, index) => {
+    const value = shiftCycleKey(baseMonth, index);
+    return {
+      value,
+      label: formatCycleLabel(value),
+    };
+  });
 }
 
 function normalizeHoursMap(map = {}) {
   if (!map || typeof map !== 'object') return {};
   return Object.keys(map).reduce((acc, key) => {
     const value = roundHours(map[key]);
-    if (value > 0) acc[String(key)] = value;
+    if (value !== 0) acc[String(key)] = value;
     return acc;
   }, {});
 }
@@ -73,11 +95,27 @@ function getNextChangeOrderName(changeOrders = []) {
   return `CO-${Date.now()}`;
 }
 
-function createEmptyExistingChange(job) {
+function getVisibleDeliverables(job, cycleKey = null) {
+  const deliverables = Array.isArray(job?.deliverables) ? job.deliverables : [];
+  if (job?.kind !== 'retainer') return deliverables;
+  return deliverables.filter((deliverable) => isDeliverableVisibleInCycle(deliverable, cycleKey));
+}
+
+function getDeliverableServiceTypeIds(job, deliverable, cycleKey = null) {
+  if (!deliverable) return [];
+  const pools = job?.kind === 'retainer' && cycleKey
+    ? (deliverable?.poolsByCycle?.[cycleKey] || deliverable?.pools || [])
+    : (deliverable?.pools || []);
+  return [...new Set((pools || [])
+    .filter((pool) => Number(pool?.estimatedHours) > 0 && pool?.serviceTypeId)
+    .map((pool) => String(pool.serviceTypeId)))];
+}
+
+function createEmptyExistingChange() {
   return {
     id: createId('cochg'),
     kind: 'existing',
-    deliverableId: String(job?.deliverables?.[0]?.id || ''),
+    deliverableId: '',
     serviceTypeHours: {},
   };
 }
@@ -93,128 +131,59 @@ function createEmptyNewDeliverableChange() {
   };
 }
 
-function createChangeOrderDraft(job, changeOrders = []) {
-  return {
+function createChangeOrderDraft(job, changeOrders = [], cycleKey = null, serviceTypes = []) {
+  const scope = normalizeChangeOrderScopeFields({}, job?.kind, cycleKey || job?.currentCycleKey || null);
+  return normalizeChangeOrderRecord({
     id: createId('co'),
     name: getNextChangeOrderName(changeOrders),
     status: 'draft',
+    scopeMode: scope.scopeMode,
+    effectiveMonth: scope.cycleKey,
     createdAt: new Date().toISOString(),
     appliedAt: null,
     notes: '',
     impactHours: 0,
     changes: [],
-  };
+    items: [],
+  }, job?.kind, scope.cycleKey);
 }
 
 function cloneChangeOrder(changeOrder) {
   return JSON.parse(JSON.stringify(changeOrder || null));
 }
 
-function getChangeServiceTypeIds(job, change) {
-  if (!change) return [];
-  if (change.kind === 'existing') {
-    const deliverable = (job?.deliverables || []).find((item) => String(item.id) === String(change.deliverableId));
-    const poolIds = (deliverable?.pools || [])
-      .filter((pool) => Number(pool?.estimatedHours) > 0)
-      .map((pool) => String(pool.serviceTypeId));
-    if (poolIds.length) return [...new Set(poolIds)];
-  }
-  return [...new Set((job?.serviceTypeIds || []).map((id) => String(id)).filter(Boolean))];
-}
-
 function getReviewableChanges(changeOrder) {
   return (changeOrder?.changes || []).filter((change) => {
     if (!change) return false;
     const impact = sumChangeImpact(change);
-    if (change.kind === 'existing') return !!change.deliverableId && impact > 0;
-    return impact > 0;
+    const hasMetadata = !!String(change?.name || '').trim()
+      || Number.isFinite(Number(change?.orderIndex))
+      || !!change?.remove;
+    if (change.kind === 'existing') return !!change.deliverableId && (impact !== 0 || hasMetadata);
+    return !!String(change?.name || '').trim() && impact !== 0;
   });
 }
 
-function applyHoursToPools(pools = [], serviceTypeHours = {}, direction = 1) {
-  const next = (pools || []).map((pool) => ({ ...pool }));
-  Object.entries(normalizeHoursMap(serviceTypeHours)).forEach(([serviceTypeId, hours]) => {
-    const idx = next.findIndex((pool) => String(pool.serviceTypeId) === String(serviceTypeId));
-    if (idx >= 0) {
-      next[idx] = {
-        ...next[idx],
-        estimatedHours: Math.max(0, roundHours((Number(next[idx].estimatedHours) || 0) + (direction * hours))),
-      };
-      return;
+function getChangeValidation(change, job, cycleKey = null) {
+  if (!change) return { valid: false, message: 'Change item is missing.' };
+  if (change.kind === 'existing') {
+    const deliverable = getVisibleDeliverables(job, cycleKey)
+      .find((item) => String(item?.id || '') === String(change?.deliverableId || ''));
+    if (!deliverable) {
+      return { valid: false, message: 'Select an existing deliverable.' };
     }
-    if (direction > 0) {
-      next.push({ serviceTypeId, estimatedHours: roundHours(hours) });
+    if (sumChangeImpact(change) <= 0) {
+      return { valid: false, message: 'Enter hours for at least one service type.' };
     }
-  });
-  return next.filter((pool) => Number(pool?.estimatedHours) > 0);
-}
-
-function cloneDeliverables(deliverables = []) {
-  return (deliverables || []).map((deliverable) => ({
-    ...deliverable,
-    pools: (deliverable?.pools || []).map((pool) => ({ ...pool })),
-    poolsByCycle: Object.keys(deliverable?.poolsByCycle || {}).reduce((acc, key) => {
-      acc[key] = (deliverable.poolsByCycle[key] || []).map((pool) => ({ ...pool }));
-      return acc;
-    }, {}),
-    tasks: Array.isArray(deliverable?.tasks) ? deliverable.tasks : [],
-  }));
-}
-
-function updateDeliverableHours(deliverable, serviceTypeHours, cycleKey = null, direction = 1) {
-  const nextDeliverable = {
-    ...deliverable,
-    pools: applyHoursToPools(deliverable?.pools || [], serviceTypeHours, direction),
-  };
-  if (cycleKey) {
-    const currentCyclePools = (deliverable?.poolsByCycle || {})[cycleKey] || deliverable?.pools || [];
-    nextDeliverable.poolsByCycle = {
-      ...(deliverable?.poolsByCycle || {}),
-      [cycleKey]: applyHoursToPools(currentCyclePools, serviceTypeHours, direction),
-    };
+    return { valid: true, message: '' };
   }
-  return nextDeliverable;
-}
-
-function createDeliverableFromChange(change, job, deliverableId, cycleKey = null) {
-  const serviceTypeHours = normalizeHoursMap(change.serviceTypeHours || {});
-  const pools = Object.keys(serviceTypeHours).map((serviceTypeId) => ({
-    serviceTypeId,
-    estimatedHours: serviceTypeHours[serviceTypeId],
-  }));
-  const deliverable = {
-    id: deliverableId,
-    name: String(change.name || '').trim() || 'New Deliverable',
-    status: 'backlog',
-    description: String(change.description || ''),
-    internalNotes: String(change.internalNotes || ''),
-    deliverableType: '',
-    durationValue: '',
-    durationUnit: 'days',
-    dueDate: null,
-    dependencyDeliverableIds: [],
-    pools,
-    tasks: [],
-  };
-  if (job?.kind === 'retainer' && cycleKey) {
-    deliverable.poolsByCycle = { [cycleKey]: pools.map((pool) => ({ ...pool })) };
+  if (!String(change?.name || '').trim()) {
+    return { valid: false, message: 'Enter a deliverable name.' };
   }
-  return deliverable;
-}
-
-function buildNextPlan(jobLike, serviceTypes) {
-  const serviceTypeIds = Array.isArray(jobLike?.serviceTypeIds) ? jobLike.serviceTypeIds : [];
-  const nextPlan = createPlanStateFromJob(jobLike, serviceTypeIds, {
-    serviceTypes,
-    cycleKey: jobLike?.kind === 'retainer' ? jobLike?.currentCycleKey || null : null,
-  });
-  return {
-    ...nextPlan,
-    serviceTypeNames: {
-      ...((jobLike?.plan && jobLike.plan.serviceTypeNames) || {}),
-      ...(nextPlan.serviceTypeNames || {}),
-    },
-  };
+  if (sumChangeImpact(change) <= 0) {
+    return { valid: false, message: 'Enter hours for at least one service type.' };
+  }
+  return { valid: true, message: '' };
 }
 
 function upsertChangeOrder(changeOrders = [], changeOrder) {
@@ -227,98 +196,101 @@ function upsertChangeOrder(changeOrders = [], changeOrder) {
   return [changeOrder, ...next];
 }
 
-function applyChangeOrderToJob(job, changeOrder, serviceTypes) {
-  const cycleKey = job?.kind === 'retainer' ? (job?.currentCycleKey || localDateISO().slice(0, 7)) : null;
-  const nextDeliverables = cloneDeliverables(job?.deliverables || []);
-  const nextDetails = { ...(job?.deliverableDetailsById || {}) };
-  const nextServiceTypeIds = new Set((job?.serviceTypeIds || []).map((id) => String(id)));
-  const appliedChanges = getReviewableChanges(changeOrder).map((change) => {
-    const serviceTypeHours = normalizeHoursMap(change.serviceTypeHours || {});
-    Object.keys(serviceTypeHours).forEach((serviceTypeId) => nextServiceTypeIds.add(String(serviceTypeId)));
-    if (change.kind === 'existing') {
-      const index = nextDeliverables.findIndex((item) => String(item.id) === String(change.deliverableId));
-      if (index >= 0) {
-        nextDeliverables[index] = updateDeliverableHours(nextDeliverables[index], serviceTypeHours, cycleKey, 1);
-      }
-      return {
-        ...change,
-        deliverableId: String(change.deliverableId),
-        serviceTypeHours,
-      };
-    }
-    const createdDeliverableId = change.createdDeliverableId || createId('del');
-    const createdDeliverable = createDeliverableFromChange(change, job, createdDeliverableId, cycleKey);
-    nextDeliverables.push(createdDeliverable);
-    nextDetails[String(createdDeliverableId)] = {
-      description: String(change.description || ''),
-      durationValue: '',
-      durationUnit: 'days',
-      dependencyRowId: '',
-      internalNotes: String(change.internalNotes || ''),
-      deliverableType: '',
-    };
-    return {
-      ...change,
-      createdDeliverableId,
-      serviceTypeHours,
-    };
-  });
-
-  const nextChangeOrder = {
-    ...cloneChangeOrder(changeOrder),
-    status: 'applied',
-    appliedAt: new Date().toISOString(),
-    impactHours: sumChangeOrderImpact({ changes: appliedChanges }),
-    changes: appliedChanges,
-  };
-  const nextJobLike = {
-    ...job,
-    deliverables: nextDeliverables,
-    serviceTypeIds: [...nextServiceTypeIds],
-    plan: job?.plan || {},
-  };
-
+function createEmptyDeliverableDetails() {
   return {
-    deliverables: nextDeliverables,
-    deliverableDetailsById: nextDetails,
-    serviceTypeIds: [...nextServiceTypeIds],
-    plan: buildNextPlan(nextJobLike, serviceTypes),
-    changeOrders: upsertChangeOrder(job?.changeOrders || [], nextChangeOrder),
+    description: '',
+    durationValue: '',
+    durationUnit: 'days',
+    dependencyRowId: '',
+    internalNotes: '',
+    deliverableType: '',
   };
 }
 
-function revertAppliedChangeOrder(job, changeOrder, serviceTypes) {
-  const cycleKey = job?.kind === 'retainer' ? (job?.currentCycleKey || localDateISO().slice(0, 7)) : null;
-  let nextDeliverables = cloneDeliverables(job?.deliverables || []);
-  const nextDetails = { ...(job?.deliverableDetailsById || {}) };
+function shouldKeepRetainerDeliverableAfterCycleRemoval(deliverable, cycleKey) {
+  if (!deliverable) return false;
+  const remainingPoolsByCycle = Object.keys(deliverable?.poolsByCycle || {}).reduce((acc, key) => {
+    if (String(key) === String(cycleKey)) return acc;
+    const pools = Array.isArray(deliverable.poolsByCycle[key]) ? deliverable.poolsByCycle[key] : [];
+    if (pools.length) acc[key] = pools;
+    return acc;
+  }, {});
+  const hasOtherCyclePools = Object.keys(remainingPoolsByCycle).length > 0;
+  const hasGlobalPools = Array.isArray(deliverable?.pools) && deliverable.pools.length > 0 && !Object.keys(deliverable?.poolsByCycle || {}).length;
+  const hasTasks = Array.isArray(deliverable?.tasks) && deliverable.tasks.length > 0;
+  return hasOtherCyclePools || hasGlobalPools || hasTasks;
+}
 
-  (changeOrder?.changes || []).forEach((change) => {
-    const serviceTypeHours = normalizeHoursMap(change.serviceTypeHours || {});
-    if (change.kind === 'existing') {
-      const index = nextDeliverables.findIndex((item) => String(item.id) === String(change.deliverableId));
-      if (index >= 0) {
-        nextDeliverables[index] = updateDeliverableHours(nextDeliverables[index], serviceTypeHours, cycleKey, -1);
-      }
+function buildDeliverableDetailsById(plan, deliverables = [], existingDetails = {}) {
+  const detailsByDeliverableId = new Map(
+    (deliverables || []).map((deliverable) => [String(deliverable.id), {
+      description: String(deliverable?.description || ''),
+      durationValue: String(deliverable?.durationValue || ''),
+      durationUnit: deliverable?.durationUnit || 'days',
+      dependencyRowId: String((deliverable?.dependencyDeliverableIds || [])[0] || ''),
+      internalNotes: String(deliverable?.internalNotes || ''),
+      deliverableType: String(deliverable?.deliverableType || ''),
+    }])
+  );
+  return (plan?.rows || []).reduce((acc, row) => {
+    const key = String(row?.id || '');
+    if (!key) return acc;
+    acc[key] = existingDetails?.[key]
+      ? { ...(existingDetails[key] || {}) }
+      : (detailsByDeliverableId.get(key) || createEmptyDeliverableDetails());
+    return acc;
+  }, {});
+}
+
+function materializeDeliverablesFromPlan(job, plan, cycleKey = null) {
+  const existingDeliverables = Array.isArray(job?.deliverables) ? job.deliverables : [];
+  if (job?.kind !== 'retainer') {
+    return buildDeliverablesFromPlan(plan, existingDeliverables, { jobKind: job?.kind });
+  }
+
+  const builtCycleDeliverables = buildDeliverablesFromPlan(plan, existingDeliverables, {
+    jobKind: 'retainer',
+    cycleKey,
+  });
+  const builtById = new Map(builtCycleDeliverables.map((deliverable) => [String(deliverable.id), deliverable]));
+  const nextDeliverables = [...builtCycleDeliverables];
+
+  existingDeliverables.forEach((deliverable) => {
+    const key = String(deliverable?.id || '');
+    if (!key || builtById.has(key)) return;
+    if (!isDeliverableVisibleInCycle(deliverable, cycleKey)) {
+      nextDeliverables.push(deliverable);
       return;
     }
-    const createdId = String(change.createdDeliverableId || '');
-    if (!createdId) return;
-    nextDeliverables = nextDeliverables.filter((item) => String(item.id) !== createdId);
-    delete nextDetails[createdId];
+    if (!shouldKeepRetainerDeliverableAfterCycleRemoval(deliverable, cycleKey)) return;
+    const nextPoolsByCycle = Object.keys(deliverable?.poolsByCycle || {}).reduce((acc, monthKey) => {
+      if (String(monthKey) === String(cycleKey)) return acc;
+      const pools = Array.isArray(deliverable.poolsByCycle[monthKey]) ? deliverable.poolsByCycle[monthKey] : [];
+      if (pools.length) acc[monthKey] = pools.map((pool) => ({ ...pool }));
+      return acc;
+    }, {});
+    nextDeliverables.push({
+      ...deliverable,
+      createdCycleKey: String(deliverable?.createdCycleKey || '') === String(cycleKey) ? null : (deliverable?.createdCycleKey || null),
+      poolsByCycle: nextPoolsByCycle,
+    });
   });
 
-  const nextChangeOrders = (job?.changeOrders || []).filter((item) => String(item.id) !== String(changeOrder.id));
-  const nextJobLike = {
-    ...job,
-    deliverables: nextDeliverables,
-    plan: job?.plan || {},
-  };
+  return nextDeliverables;
+}
 
+function materializeJobFromCurrentPlan(job, serviceTypes = [], cycleKey = null) {
+  const activeCycleKey = job?.kind === 'retainer' ? (cycleKey || job?.currentCycleKey || getCurrentCycleKey()) : null;
+  const currentPlan = getCurrentPlanState(job, {
+    cycleKey: activeCycleKey,
+    serviceTypes,
+  });
+  const deliverables = materializeDeliverablesFromPlan(job, currentPlan, activeCycleKey);
   return {
-    deliverables: nextDeliverables,
-    deliverableDetailsById: nextDetails,
-    plan: buildNextPlan(nextJobLike, serviceTypes),
-    changeOrders: nextChangeOrders,
+    ...job,
+    plan: currentPlan,
+    deliverables,
+    deliverableDetailsById: buildDeliverableDetailsById(currentPlan, deliverables, job?.deliverableDetailsById || {}),
   };
 }
 
@@ -397,58 +369,137 @@ function modalStepPill(label, active, complete, clickable = false, onClick = nul
 }
 
 export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeOrderId = null }) {
-  const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
-  const serviceTypeMap = useMemo(
-    () => new Map((serviceTypes || []).map((type) => [String(type.id), type])),
-    [serviceTypes]
+  const allServiceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
+  const isRetainer = job?.kind === 'retainer';
+  const [selectedMonth, setSelectedMonth] = useState(() => (
+    isRetainer && job?.id ? (getJobCycleKey(job.id) || job.currentCycleKey || getCurrentCycleKey()) : null
+  ));
+
+  useEffect(() => {
+    if (!job || job.kind !== 'retainer') {
+      setSelectedMonth(null);
+      return;
+    }
+    setSelectedMonth(getJobCycleKey(job.id) || job.currentCycleKey || getCurrentCycleKey());
+  }, [job?.id, job?.kind, job?.currentCycleKey]);
+
+  const activeCycleKey = isRetainer ? (selectedMonth || getCurrentCycleKey()) : null;
+  const scopedPlanState = useMemo(
+    () => getCurrentPlanState(job, { cycleKey: activeCycleKey, serviceTypes: allServiceTypes }),
+    [job, activeCycleKey, allServiceTypes]
   );
-  const changeOrders = Array.isArray(job?.changeOrders) ? job.changeOrders : [];
+  const allowedServiceTypeIds = useMemo(
+    () => [...new Set([
+      ...((job?.serviceTypeIds || []).map((id) => String(id)).filter(Boolean)),
+      ...((scopedPlanState?.serviceTypeIds || []).map((id) => String(id)).filter(Boolean)),
+    ])],
+    [job?.serviceTypeIds, scopedPlanState]
+  );
+  const serviceTypes = useMemo(() => {
+    const knownTypesById = new Map((allServiceTypes || []).map((type) => [String(type.id), type]));
+    return allowedServiceTypeIds
+      .map((id) => knownTypesById.get(String(id)))
+      .filter(Boolean);
+  }, [allServiceTypes, allowedServiceTypeIds]);
+  const serviceTypeMap = useMemo(
+    () => new Map((allServiceTypes || []).map((type) => [String(type.id), type])),
+    [allServiceTypes]
+  );
+  const allChangeOrders = Array.isArray(job?.changeOrders) ? job.changeOrders : [];
+  const changeOrders = useMemo(() => {
+    return isRetainer
+      ? allChangeOrders.filter((changeOrder) => getApplicableChangeOrders(job, { cycleKey: activeCycleKey, status: null }).some((item) => String(item.id) === String(changeOrder.id)))
+      : allChangeOrders;
+  }, [job, isRetainer, activeCycleKey, allChangeOrders]);
   const appliedCount = changeOrders.filter((item) => item.status === 'applied').length;
   const existingChangeOrder = useMemo(
-    () => (changeOrderId ? changeOrders.find((item) => String(item.id) === String(changeOrderId)) || null : null),
-    [changeOrders, changeOrderId]
+    () => (changeOrderId ? allChangeOrders.find((item) => String(item.id) === String(changeOrderId)) || null : null),
+    [allChangeOrders, changeOrderId]
   );
 
   const [draft, setDraft] = useState(null);
   const [step, setStep] = useState(1);
   const [applyConfirmText, setApplyConfirmText] = useState('');
+  const [applyEffectiveStartMonth, setApplyEffectiveStartMonth] = useState(() => (
+    isRetainer ? (selectedMonth || getCurrentCycleKey()) : ''
+  ));
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [pendingChange, setPendingChange] = useState(null);
+  const [pendingFocusTarget, setPendingFocusTarget] = useState(null);
   const applyModalRef = useRef(null);
   const applyConfirmInputRef = useRef(null);
+
+  const setCycle = (nextKey) => {
+    if (!job || !isRetainer || !nextKey) return;
+    setSelectedMonth(nextKey);
+    setJobCycleKey(job.id, nextKey);
+  };
+
+  useEffect(() => {
+    if (!isRetainer || !existingChangeOrder?.cycleKey) return;
+    if (String(existingChangeOrder.cycleKey) === String(activeCycleKey || '')) return;
+    setCycle(existingChangeOrder.cycleKey);
+  }, [isRetainer, existingChangeOrder?.cycleKey, activeCycleKey]);
 
   useEffect(() => {
     if (!changeOrderId) {
       setDraft(null);
       setStep(1);
       setApplyConfirmText('');
+      setApplyEffectiveStartMonth(isRetainer ? (selectedMonth || getCurrentCycleKey()) : '');
       setShowApplyModal(false);
+      setPendingChange(null);
+      setPendingFocusTarget(null);
       return;
     }
     const cached = loadFlowState(job?.id, changeOrderId);
     if (cached?.draft) {
-      setDraft(cached.draft);
+      setDraft(normalizeChangeOrderRecord(
+        {
+          ...cached.draft,
+          items: [],
+        },
+        job?.kind,
+        cached?.draft?.cycleKey || activeCycleKey
+      ));
       setStep(Math.max(1, Math.min(4, Number(cached.step) || 1)));
       setApplyConfirmText(String(cached.applyConfirmText || ''));
+      setApplyEffectiveStartMonth(String(cached.applyEffectiveStartMonth || cached?.draft?.effectiveStartMonth || cached?.draft?.effectiveMonth || activeCycleKey || getCurrentCycleKey()));
       setShowApplyModal(false);
+      setPendingChange(cached?.pendingChange ? { ...cached.pendingChange } : null);
+      setPendingFocusTarget(null);
       return;
     }
     if (existingChangeOrder) {
-      setDraft(cloneChangeOrder(existingChangeOrder));
+      setDraft(normalizeChangeOrderRecord(
+        {
+          ...cloneChangeOrder(existingChangeOrder),
+          items: [],
+        },
+        job?.kind,
+        activeCycleKey || existingChangeOrder?.cycleKey || job?.currentCycleKey || null
+      ));
       setStep(existingChangeOrder.status === 'applied' ? 4 : 1);
       setApplyConfirmText('');
+      setApplyEffectiveStartMonth(String(existingChangeOrder?.effectiveStartMonth || existingChangeOrder?.effectiveMonth || activeCycleKey || getCurrentCycleKey()));
       setShowApplyModal(false);
+      setPendingChange(null);
+      setPendingFocusTarget(null);
       return;
     }
     const nextDraft = {
-      ...createChangeOrderDraft(job, changeOrders),
+      ...createChangeOrderDraft(job, allChangeOrders, activeCycleKey, serviceTypes),
       id: String(changeOrderId),
     };
     setDraft(nextDraft);
     setStep(1);
     setApplyConfirmText('');
+    setApplyEffectiveStartMonth(isRetainer ? (activeCycleKey || getCurrentCycleKey()) : '');
     setShowApplyModal(false);
-  }, [changeOrderId, existingChangeOrder, job, changeOrders]);
+    setPendingChange(null);
+    setPendingFocusTarget(null);
+  }, [changeOrderId, existingChangeOrder, job, allChangeOrders, activeCycleKey, serviceTypes]);
 
   useEffect(() => {
     if (!job?.id || !changeOrderId || !draft) return;
@@ -456,19 +507,39 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
       draft,
       step,
       applyConfirmText,
+      applyEffectiveStartMonth,
+      pendingChange,
     });
-  }, [job?.id, changeOrderId, draft, step, applyConfirmText]);
+  }, [job?.id, changeOrderId, draft, step, applyConfirmText, applyEffectiveStartMonth, pendingChange]);
 
   const draftReadOnly = !!draft && (readOnly || draft.status === 'applied');
   const reviewableChanges = draft ? getReviewableChanges(draft) : [];
+  const changeValidations = useMemo(
+    () => (draft?.changes || []).reduce((acc, change) => {
+      acc[String(change?.id || '')] = getChangeValidation(change, job, activeCycleKey);
+      return acc;
+    }, {}),
+    [draft?.changes, job, activeCycleKey]
+  );
+  const hasStep2Changes = !!(draft?.changes || []).length;
+  const allDraftChangesValid = hasStep2Changes && (draft?.changes || []).every((change) => (
+    changeValidations[String(change?.id || '')]?.valid
+  ));
   const draftImpactHours = draft ? sumChangeOrderImpact({ changes: reviewableChanges }) : 0;
   const canOpenApply = !draftReadOnly && reviewableChanges.length > 0;
-  const canApply = canOpenApply && String(applyConfirmText || '').trim().toUpperCase() === 'APPLY';
+  const retainerApplyMonthOptions = useMemo(
+    () => (isRetainer ? buildRetainerApplyMonthOptions(activeCycleKey || getCurrentCycleKey()) : []),
+    [isRetainer, activeCycleKey]
+  );
+  const hasValidApplyStartMonth = !isRetainer || retainerApplyMonthOptions.some((option) => String(option.value) === String(applyEffectiveStartMonth || ''));
+  const canApply = canOpenApply
+    && hasValidApplyStartMonth
+    && String(applyConfirmText || '').trim().toUpperCase() === 'APPLY';
   const isStepReady = (stepIndex) => {
     if (draftReadOnly) return true;
     if (stepIndex === 1) return true;
-    if (stepIndex === 2) return reviewableChanges.length > 0;
-    if (stepIndex === 3) return reviewableChanges.length > 0;
+    if (stepIndex === 2) return hasStep2Changes && allDraftChangesValid;
+    if (stepIndex === 3) return hasStep2Changes && allDraftChangesValid && reviewableChanges.length > 0;
     if (stepIndex === 4) return canApply;
     return false;
   };
@@ -485,7 +556,6 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
     setStep(targetStep);
   };
   const currentStepCanContinue = isStepReady(step);
-
   useEffect(() => {
     if (!showApplyModal) return undefined;
     const onKeyDown = (event) => {
@@ -517,15 +587,40 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [showApplyModal]);
 
+  useEffect(() => {
+    if (!isRetainer) return;
+    if (showApplyModal) {
+      setShowApplyModal(false);
+      setApplyConfirmText('');
+    }
+    setApplyEffectiveStartMonth(String(activeCycleKey || getCurrentCycleKey()));
+  }, [activeCycleKey, isRetainer]);
+
+  useEffect(() => {
+    if (!pendingFocusTarget) return;
+    window.requestAnimationFrame(() => {
+      const node = document.querySelector(`[data-change-focus="${pendingFocusTarget}"]`);
+      if (node?.focus) {
+        node.focus();
+        if (typeof node.setSelectionRange === 'function') {
+          const value = String(node.value || '');
+          node.setSelectionRange(value.length, value.length);
+        }
+      }
+      setPendingFocusTarget(null);
+    });
+  }, [pendingFocusTarget, draft, pendingChange]);
+
   const backToList = () => navigate(`#/app/jobs/${job.id}/change-orders`);
 
   const openNewChangeOrder = () => {
     const nextId = createId('co');
-    const nextDraft = { ...createChangeOrderDraft(job, changeOrders), id: nextId };
+    const nextDraft = { ...createChangeOrderDraft(job, allChangeOrders, activeCycleKey, serviceTypes), id: nextId };
     saveFlowState(job.id, nextId, {
       draft: nextDraft,
       step: 1,
       applyConfirmText: '',
+      pendingChange: null,
     });
     navigate(`#/app/jobs/${job.id}/change-orders/${nextId}`);
   };
@@ -538,62 +633,123 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
     setDraft((current) => ({ ...(current || {}), ...(patch || {}) }));
   };
 
+  const startPendingChange = (kind) => {
+    if (draftReadOnly) return;
+    const nextPending = kind === 'existing'
+      ? createEmptyExistingChange()
+      : createEmptyNewDeliverableChange();
+    setPendingChange(nextPending);
+    setPendingFocusTarget(kind === 'existing'
+      ? `pending-deliverable-${nextPending.id}`
+      : `pending-name-${nextPending.id}`);
+  };
+
+  const clearPendingChange = () => {
+    setPendingChange(null);
+    setPendingFocusTarget(null);
+  };
+
+  const commitPendingChange = (patch = {}, focusTarget = null) => {
+    if (!pendingChange) return;
+    const committedChange = {
+      ...pendingChange,
+      ...(patch || {}),
+    };
+    setDraft((current) => (
+      current
+        ? {
+          ...current,
+          changes: [
+            ...(current?.changes || []),
+            committedChange,
+          ],
+        }
+        : current
+    ));
+    setPendingChange(null);
+    if (focusTarget) {
+      setPendingFocusTarget(
+        focusTarget.replace('__CHANGE_ID__', committedChange.id)
+      );
+    }
+  };
+
   const updateDraftChange = (changeId, patch) => {
-    setDraft((current) => ({
-      ...(current || {}),
-      changes: (current?.changes || []).map((change) => (
-        String(change.id) === String(changeId)
-          ? { ...change, ...(patch || {}) }
-          : change
-      )),
-    }));
+    setDraft((current) => (
+      current
+        ? {
+          ...current,
+          changes: (current?.changes || []).map((change) => (
+            String(change?.id || '') === String(changeId)
+              ? { ...change, ...(patch || {}) }
+              : change
+          )),
+        }
+        : current
+    ));
   };
 
   const updateDraftChangeServiceHours = (changeId, serviceTypeId, rawValue) => {
-    setDraft((current) => ({
-      ...(current || {}),
-      changes: (current?.changes || []).map((change) => {
-        if (String(change.id) !== String(changeId)) return change;
-        const nextHours = { ...(change?.serviceTypeHours || {}) };
-        const trimmed = String(rawValue || '').trim();
-        if (!trimmed) {
-          delete nextHours[String(serviceTypeId)];
-        } else {
-          const value = roundHours(trimmed);
-          if (value > 0) nextHours[String(serviceTypeId)] = value;
+    setDraft((current) => (
+      current
+        ? {
+          ...current,
+          changes: (current?.changes || []).map((change) => {
+            if (String(change?.id || '') !== String(changeId)) return change;
+            const nextHours = { ...(change?.serviceTypeHours || {}) };
+            const trimmed = String(rawValue || '').trim();
+            if (!trimmed) {
+              delete nextHours[String(serviceTypeId)];
+            } else {
+              const value = roundHours(trimmed);
+              if (value > 0) nextHours[String(serviceTypeId)] = value;
+            }
+            return {
+              ...change,
+              serviceTypeHours: nextHours,
+            };
+          }),
         }
-        return { ...change, serviceTypeHours: nextHours };
-      }),
-    }));
+        : current
+    ));
   };
 
   const addDraftChange = (kind) => {
-    setDraft((current) => ({
-      ...(current || {}),
-      changes: [
-        ...(current?.changes || []),
-        kind === 'existing' ? createEmptyExistingChange(job) : createEmptyNewDeliverableChange(),
-      ],
-    }));
+    setDraft((current) => (
+      current
+        ? {
+          ...current,
+          changes: [
+            ...(current?.changes || []),
+            kind === 'existing'
+              ? createEmptyExistingChange()
+              : createEmptyNewDeliverableChange(),
+          ],
+        }
+        : current
+    ));
   };
 
   const removeDraftChange = (changeId) => {
-    setDraft((current) => ({
-      ...(current || {}),
-      changes: (current?.changes || []).filter((change) => String(change.id) !== String(changeId)),
-    }));
+    setDraft((current) => (
+      current
+        ? {
+          ...current,
+          changes: (current?.changes || []).filter((change) => String(change?.id || '') !== String(changeId)),
+        }
+        : current
+    ));
   };
 
   const persistDraft = () => {
     if (!draft || typeof onJobUpdate !== 'function') return;
-    const nextDraft = {
+    const nextDraft = normalizeChangeOrderRecord({
       ...cloneChangeOrder(draft),
+      items: [],
       status: 'draft',
       appliedAt: null,
-      impactHours: roundHours(draftImpactHours),
-      changes: draft.changes || [],
-    };
-    onJobUpdate({ changeOrders: upsertChangeOrder(changeOrders, nextDraft) });
+    }, job?.kind, draft?.cycleKey || activeCycleKey);
+    onJobUpdate({ changeOrders: upsertChangeOrder(allChangeOrders, nextDraft) });
     clearFlowState(job.id, nextDraft.id);
     window?.showToast?.('Change order saved as draft.');
     backToList();
@@ -601,7 +757,18 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
 
   const applyDraft = () => {
     if (!draft || !reviewableChanges.length || typeof onJobUpdate !== 'function') return;
-    const next = applyChangeOrderToJob(job, { ...draft, changes: reviewableChanges }, serviceTypes);
+    const nextDraft = normalizeChangeOrderRecord({
+      ...cloneChangeOrder(draft),
+      ...(isRetainer ? { effectiveStartMonth: applyEffectiveStartMonth || activeCycleKey || getCurrentCycleKey() } : {}),
+      items: [],
+      status: 'draft',
+      appliedAt: null,
+    }, job?.kind, draft?.cycleKey || activeCycleKey);
+    const appliedJob = applyChangeOrder({
+      ...job,
+      changeOrders: upsertChangeOrder(allChangeOrders, nextDraft),
+    }, nextDraft.id);
+    const next = materializeJobFromCurrentPlan(appliedJob, serviceTypes, nextDraft.cycleKey || activeCycleKey);
     onJobUpdate(next);
     clearFlowState(job.id, draft.id);
     setShowApplyModal(false);
@@ -613,30 +780,48 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
   const deleteChangeOrder = (changeOrder) => {
     if (!changeOrder || typeof onJobUpdate !== 'function') return;
     if (changeOrder.status === 'applied') {
-      const reverted = revertAppliedChangeOrder(job, changeOrder, serviceTypes);
+      const revertedJob = revertChangeOrder({
+        ...job,
+        changeOrders: allChangeOrders,
+      }, changeOrder.id);
+      const reverted = materializeJobFromCurrentPlan(
+        revertedJob,
+        serviceTypes,
+        changeOrder?.cycleKey || activeCycleKey
+      );
       onJobUpdate(reverted);
       clearFlowState(job.id, changeOrder.id);
       window?.showToast?.('Applied change order removed and reverted.');
       return;
     }
     onJobUpdate({
-      changeOrders: (changeOrders || []).filter((item) => String(item.id) !== String(changeOrder.id)),
+      changeOrders: (allChangeOrders || []).filter((item) => String(item.id) !== String(changeOrder.id)),
     });
     clearFlowState(job.id, changeOrder.id);
     window?.showToast?.('Draft change order deleted.');
   };
 
-  const renderServiceTypeGrid = (change) => {
-    const serviceTypeIds = getChangeServiceTypeIds(job, change);
+  const visibleDeliverables = getVisibleDeliverables(job, activeCycleKey);
+
+  const renderServiceTypeGrid = (change, options = {}) => {
+    const isPending = !!options.isPending;
+    const selectedDeliverable = change?.kind === 'existing'
+      ? visibleDeliverables.find((deliverable) => String(deliverable?.id || '') === String(change?.deliverableId || ''))
+      : null;
+    const serviceTypeIds = change?.kind === 'existing'
+      ? getDeliverableServiceTypeIds(job, selectedDeliverable, activeCycleKey)
+      : (serviceTypes || []).map((type) => String(type.id)).filter(Boolean);
     return h('div', { className: 'space-y-3' }, [
-      h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Add work by service type using the same LOE structure as the original plan.'),
+      h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, change?.kind === 'existing'
+        ? 'Add hours by service type using the selected deliverable pools.'
+        : 'Define the hours for this new deliverable by service type.'),
       h('div', { className: 'overflow-hidden rounded-2xl border border-slate-200/80 dark:border-white/10' }, [
         h('div', {
           className: 'grid gap-3 border-b border-slate-200/80 bg-slate-100/80 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-400',
           style: { gridTemplateColumns: '1fr 120px' },
         }, [
           h('div', null, 'Service Type'),
-          h('div', { className: 'text-right' }, 'Added Hours'),
+          h('div', { className: 'text-right' }, 'Hours'),
         ]),
         serviceTypeIds.length
           ? serviceTypeIds.map((serviceTypeId) => h('div', {
@@ -652,51 +837,103 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
               value: change?.serviceTypeHours?.[String(serviceTypeId)] ?? '',
               disabled: draftReadOnly,
               placeholder: '0',
-              onChange: (event) => updateDraftChangeServiceHours(change.id, serviceTypeId, event.target.value),
+              'data-change-focus': `${isPending ? 'pending' : 'committed'}-hours-${change.id}-${serviceTypeId}`,
+              onChange: (event) => {
+                if (isPending) {
+                  const rawValue = event.target.value;
+                  const trimmed = String(rawValue || '').trim();
+                  if (!trimmed) {
+                    setPendingChange((current) => current ? {
+                      ...current,
+                      serviceTypeHours: {
+                        ...(current?.serviceTypeHours || {}),
+                        [String(serviceTypeId)]: '',
+                      },
+                    } : current);
+                    return;
+                  }
+                  const value = roundHours(rawValue);
+                  commitPendingChange({
+                    serviceTypeHours: {
+                      ...(change?.serviceTypeHours || {}),
+                      [String(serviceTypeId)]: value,
+                    },
+                  }, `committed-hours-__CHANGE_ID__-${serviceTypeId}`);
+                  return;
+                }
+                updateDraftChangeServiceHours(change.id, serviceTypeId, event.target.value);
+              },
               className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-3 text-right text-sm text-slate-700 dark:text-slate-100',
             }),
           ]))
-          : h('div', { className: 'px-4 py-3 text-sm text-slate-500 dark:text-slate-400' }, 'No service types available yet.'),
+          : h('div', { className: 'px-4 py-3 text-sm text-slate-500 dark:text-slate-400' }, change?.kind === 'existing'
+            ? 'Select a deliverable with available service types.'
+            : 'No service types are available yet.'),
       ]),
     ]);
   };
 
-  const renderChangeSection = (change, index) => {
-    const isExisting = change.kind === 'existing';
-    const deliverableOptions = (job?.deliverables || []).map((deliverable) => (
-      h('option', { key: deliverable.id, value: deliverable.id }, deliverable.name || 'Deliverable')
-    ));
-
+  const renderChangeSection = (change, index, options = {}) => {
+    const isExisting = change?.kind === 'existing';
+    const isPending = !!options.isPending;
+    const validation = isPending
+      ? { valid: true, message: '' }
+      : (changeValidations[String(change?.id || '')] || { valid: true, message: '' });
     return h('div', {
       key: change.id,
-      className: `space-y-4 ${index > 0 ? 'border-t border-slate-200/80 pt-6 dark:border-white/10' : ''}`,
+      className: `space-y-4 rounded-2xl border p-5 ${isPending
+        ? 'border-netnet-purple/40 bg-netnet-purple/5 dark:border-netnet-purple/50 dark:bg-netnet-purple/10'
+        : 'border-slate-200/80 bg-white/80 dark:border-white/10 dark:bg-slate-900/40'}`,
     }, [
       h('div', { className: 'flex items-start justify-between gap-3' }, [
         h('div', { className: 'space-y-1' }, [
           h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, isExisting ? 'Add to Existing Deliverable' : 'Add New Deliverable'),
           h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, isExisting
             ? 'Select a deliverable and add hours by service type.'
-            : 'Create a new deliverable with its own LOE and details.'),
+            : 'Create a new deliverable with its own service type hours.'),
+          isPending
+            ? h('div', { className: 'text-[11px] font-semibold uppercase tracking-[0.16em] text-netnet-purple' }, 'Pending')
+            : null,
         ]),
         draftReadOnly
           ? null
           : h('button', {
             type: 'button',
             className: 'text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white',
-            onClick: () => removeDraftChange(change.id),
-          }, 'Remove'),
+            onClick: () => (isPending ? clearPendingChange() : removeDraftChange(change.id)),
+          }, isPending ? 'Cancel' : 'Remove'),
       ]),
       isExisting
         ? h('div', { className: 'space-y-2' }, [
           h('div', { className: 'text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Deliverable'),
           h('select', {
-            value: change.deliverableId || '',
+            value: change?.deliverableId || '',
             disabled: draftReadOnly,
-            onChange: (event) => updateDraftChange(change.id, { deliverableId: event.target.value || '' }),
+            'data-change-focus': `${isPending ? 'pending' : 'committed'}-deliverable-${change.id}`,
+            onChange: (event) => {
+              const nextValue = event.target.value || '';
+              if (isPending) {
+                if (!nextValue) {
+                  setPendingChange((current) => current ? { ...current, deliverableId: '', serviceTypeHours: {} } : current);
+                  return;
+                }
+                commitPendingChange({
+                  deliverableId: nextValue,
+                  serviceTypeHours: {},
+                }, 'committed-deliverable-__CHANGE_ID__');
+                return;
+              }
+              updateDraftChange(change.id, {
+                deliverableId: nextValue,
+                serviceTypeHours: {},
+              });
+            },
             className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-3 text-sm text-slate-700 dark:text-slate-100',
           }, [
             h('option', { value: '' }, 'Select deliverable'),
-            ...deliverableOptions,
+            ...visibleDeliverables.map((deliverable) => (
+              h('option', { key: deliverable.id, value: deliverable.id }, deliverable.name || 'Deliverable')
+            )),
           ]),
         ])
         : h('div', { className: 'grid gap-4 md:grid-cols-2' }, [
@@ -704,10 +941,22 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
             h('div', { className: 'text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Deliverable Name'),
             h('input', {
               type: 'text',
-              value: change.name || '',
+              value: change?.name || '',
               disabled: draftReadOnly,
+              'data-change-focus': `${isPending ? 'pending' : 'committed'}-name-${change.id}`,
               placeholder: 'New deliverable name',
-              onChange: (event) => updateDraftChange(change.id, { name: event.target.value }),
+              onChange: (event) => {
+                const nextValue = event.target.value;
+                if (isPending) {
+                  if (!String(nextValue || '').trim()) {
+                    setPendingChange((current) => current ? { ...current, name: nextValue } : current);
+                    return;
+                  }
+                  commitPendingChange({ name: nextValue }, 'committed-name-__CHANGE_ID__');
+                  return;
+                }
+                updateDraftChange(change.id, { name: nextValue });
+              },
               className: 'h-10 w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-3 text-sm text-slate-700 dark:text-slate-100',
             }),
           ]),
@@ -715,10 +964,12 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
             h('div', { className: 'text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Description'),
             h('textarea', {
               rows: 4,
-              value: change.description || '',
+              value: change?.description || '',
               disabled: draftReadOnly,
               placeholder: 'Deliverable description',
-              onChange: (event) => updateDraftChange(change.id, { description: event.target.value }),
+              onChange: (event) => (isPending
+                ? setPendingChange((current) => current ? { ...current, description: event.target.value } : current)
+                : updateDraftChange(change.id, { description: event.target.value })),
               className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-700 dark:text-slate-100',
             }),
           ]),
@@ -726,23 +977,31 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
             h('div', { className: 'text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Details'),
             h('textarea', {
               rows: 4,
-              value: change.internalNotes || '',
+              value: change?.internalNotes || '',
               disabled: draftReadOnly,
               placeholder: 'Internal notes',
-              onChange: (event) => updateDraftChange(change.id, { internalNotes: event.target.value }),
+              onChange: (event) => (isPending
+                ? setPendingChange((current) => current ? { ...current, internalNotes: event.target.value } : current)
+                : updateDraftChange(change.id, { internalNotes: event.target.value })),
               className: 'w-full rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-700 dark:text-slate-100',
             }),
           ]),
         ]),
-      renderServiceTypeGrid(change),
+      renderServiceTypeGrid(change, { isPending }),
+      !validation.valid
+        ? h('div', { className: 'rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200' }, validation.message)
+        : null,
     ]);
   };
 
   const renderReviewList = () => (
     reviewableChanges.length
       ? h('div', { className: 'space-y-5' }, reviewableChanges.map((change, index) => {
+        const existingDeliverable = change.kind === 'existing'
+          ? (job?.deliverables || []).find((item) => String(item.id) === String(change.deliverableId))
+          : null;
         const title = change.kind === 'existing'
-          ? ((job?.deliverables || []).find((item) => String(item.id) === String(change.deliverableId))?.name || 'Deliverable')
+          ? (String(change.name || '').trim() || existingDeliverable?.name || 'Deliverable')
           : String(change.name || '').trim() || 'New Deliverable';
         const serviceEntries = Object.entries(normalizeHoursMap(change.serviceTypeHours || {}));
         return h('div', {
@@ -750,12 +1009,21 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
           className: `${index > 0 ? 'border-t border-slate-200/80 pt-5 dark:border-white/10' : ''} space-y-2`,
         }, [
           h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, change.kind === 'existing' ? title : `New Deliverable: ${title}`),
+          change.kind === 'existing' && existingDeliverable?.name && String(change.name || '').trim() && String(change.name || '').trim() !== String(existingDeliverable.name || '').trim()
+            ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `Renamed from ${existingDeliverable.name}`)
+            : null,
+          change.remove
+            ? h('div', { className: 'text-sm text-rose-600 dark:text-rose-300' }, 'Removed from current plan')
+            : null,
+          !change.remove && Number.isFinite(Number(change.orderIndex))
+            ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `Row position ${Number(change.orderIndex) + 1}`)
+            : null,
           serviceEntries.map(([serviceTypeId, hours]) => h('div', {
             key: `${change.id}-${serviceTypeId}`,
             className: 'flex items-center justify-between gap-3 text-sm text-slate-600 dark:text-slate-300',
           }, [
             h('span', null, serviceTypeMap.get(String(serviceTypeId))?.name || 'Service Type'),
-            h('span', { className: 'font-semibold text-slate-900 dark:text-white' }, `+${formatHours(hours)} hrs`),
+            h('span', { className: 'font-semibold text-slate-900 dark:text-white' }, formatImpact(hours)),
           ])),
         ]);
       }))
@@ -796,17 +1064,28 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
           : h('div', { className: 'flex flex-wrap gap-2' }, [
             h('button', {
               type: 'button',
-              className: 'inline-flex items-center justify-center h-10 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-              onClick: () => addDraftChange('existing'),
+              className: `inline-flex items-center justify-center h-10 px-4 rounded-md border text-sm font-semibold ${
+                pendingChange?.kind === 'existing'
+                  ? 'border-netnet-purple bg-netnet-purple/10 text-netnet-purple'
+                  : 'border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`,
+              onClick: () => startPendingChange('existing'),
             }, 'Add to Existing Deliverable'),
             h('button', {
               type: 'button',
-              className: 'inline-flex items-center justify-center h-10 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-              onClick: () => addDraftChange('new_deliverable'),
+              className: `inline-flex items-center justify-center h-10 px-4 rounded-md border text-sm font-semibold ${
+                pendingChange?.kind === 'new_deliverable'
+                  ? 'border-netnet-purple bg-netnet-purple/10 text-netnet-purple'
+                  : 'border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`,
+              onClick: () => startPendingChange('new_deliverable'),
             }, 'Add New Deliverable'),
           ]),
-        draft?.changes?.length
-          ? h('div', { className: 'space-y-6' }, draft.changes.map(renderChangeSection))
+        (draft?.changes?.length || pendingChange)
+          ? h('div', { className: 'space-y-4' }, [
+            ...(draft?.changes || []).map(renderChangeSection),
+            pendingChange ? renderChangeSection(pendingChange, (draft?.changes || []).length, { isPending: true }) : null,
+          ].filter(Boolean))
           : h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Choose a change type to begin building this change order.'),
       ]);
     }
@@ -814,16 +1093,16 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
       return h('div', { className: 'space-y-6' }, [
         h('div', { className: 'space-y-2' }, [
           h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, 'Summary of changes'),
-          h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Review the original scope against the additive change before applying it.'),
+          h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Review the current plan against the working plan before applying this change order.'),
         ]),
         renderReviewList(),
         h('div', { className: 'grid gap-4 border-t border-slate-200/80 pt-5 dark:border-white/10 md:grid-cols-3' }, [
           h('div', { className: 'space-y-1' }, [
-            h('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Original Deliverables'),
-            h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, `${job?.deliverables?.length || 0}`),
+            h('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Current Deliverables'),
+            h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, `${visibleDeliverables.length || 0}`),
           ]),
           h('div', { className: 'space-y-1' }, [
-            h('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Added Work'),
+            h('div', { className: 'text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Plan Delta'),
             h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, formatImpact(draftImpactHours)),
           ]),
           h('div', { className: 'space-y-1' }, [
@@ -853,14 +1132,23 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
     h('div', { className: 'flex flex-wrap items-start justify-between gap-3' }, [
       h('div', { className: 'space-y-1' }, [
         h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Change Orders'),
-        h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Track additive job changes without overwriting the original plan.'),
+        h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'Track structured plan updates without overwriting the original plan.'),
       ]),
-      h('button', {
-        type: 'button',
-        className: 'inline-flex items-center justify-center h-10 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110 disabled:opacity-60',
-        disabled: readOnly,
-        onClick: openNewChangeOrder,
-      }, '+ New Change Order'),
+      h('div', { className: 'flex flex-wrap items-center gap-3' }, [
+        isRetainer
+          ? h(RetainerMonthSwitcher, {
+            cycleKey: activeCycleKey,
+            onChange: setCycle,
+            ariaLabel: 'Selected change order month',
+          })
+          : null,
+        h('button', {
+          type: 'button',
+          className: 'inline-flex items-center justify-center h-10 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110 disabled:opacity-60',
+          disabled: readOnly,
+          onClick: openNewChangeOrder,
+        }, '+ New Change Order'),
+      ].filter(Boolean)),
     ]),
     h('div', { className: 'rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 overflow-hidden' }, [
       h('div', {
@@ -970,11 +1258,20 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
         ]),
         h('div', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, draft.name || 'Change Order'),
       ]),
-      h('button', {
-        type: 'button',
-        className: 'inline-flex items-center justify-center h-10 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
-        onClick: backToList,
-      }, 'Back to Change Orders'),
+      h('div', { className: 'flex flex-wrap items-center justify-end gap-3' }, [
+        isRetainer
+          ? h(RetainerMonthSwitcher, {
+            cycleKey: activeCycleKey,
+            onChange: setCycle,
+            ariaLabel: 'Selected change order month',
+          })
+          : null,
+        h('button', {
+          type: 'button',
+          className: 'inline-flex items-center justify-center h-10 px-4 rounded-md border border-slate-200 dark:border-white/10 text-sm font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800',
+          onClick: backToList,
+        }, 'Back to Change Orders'),
+      ].filter(Boolean)),
     ]),
     h('section', { className: 'overflow-hidden rounded-[32px] border border-slate-200/80 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-950/90' }, [
       h('div', { className: 'border-b border-slate-200/70 px-5 py-4 dark:border-white/10 md:px-6' }, [
@@ -1001,9 +1298,9 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
               h('div', { className: 'max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300 md:text-base' }, step === 1
                 ? 'Name this change order and capture any helpful context.'
                 : step === 2
-                  ? 'Add scope to existing deliverables or define brand new deliverables.'
+                  ? 'Add to existing deliverables or create brand new deliverables as separate change items.'
                   : step === 3
-                    ? 'Compare the added work against the current plan before you apply it.'
+                    ? 'Review the plan delta against the current plan before you apply it.'
                     : 'Applying will visibly update the job scope and keep the change order auditable.'),
             ]),
           ]),
@@ -1014,7 +1311,9 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
         h('div', { className: 'flex flex-wrap items-center justify-between gap-3' }, [
           h('div', { className: 'text-sm text-slate-500 dark:text-slate-400' }, draftReadOnly
             ? 'Applied change orders are read-only in this flow.'
-            : `Total Impact ${formatImpact(draftImpactHours)}`),
+            : step === 2
+              ? `${draft?.changes?.length || 0} change item${(draft?.changes?.length || 0) === 1 ? '' : 's'} in this change order.`
+              : `Total Impact ${formatImpact(draftImpactHours)}`),
           h('div', { className: 'flex flex-wrap items-center justify-end gap-2' }, [
             h('button', {
               type: 'button',
@@ -1053,6 +1352,7 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
                 className: 'inline-flex items-center justify-center h-10 px-4 rounded-md bg-netnet-purple text-white text-sm font-semibold hover:brightness-110 disabled:opacity-50',
                 onClick: () => {
                   setApplyConfirmText('');
+                  setApplyEffectiveStartMonth(String(activeCycleKey || getCurrentCycleKey()));
                   setShowApplyModal(true);
                 },
               }, 'Apply Change Order')
@@ -1078,6 +1378,18 @@ export function JobChangeOrdersTab({ job, onJobUpdate, readOnly = false, changeO
             h('div', { id: 'apply-change-order-title', className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Apply Change Order'),
             h('p', { className: 'text-sm text-slate-500 dark:text-slate-400' }, 'This will update the job scope and cannot be undone without removing the change order.'),
           ]),
+          isRetainer
+            ? h('div', { className: 'space-y-2' }, [
+              h('div', { className: 'text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'When does this Change Order take effect?'),
+              h('select', {
+                value: applyEffectiveStartMonth || '',
+                onChange: (event) => setApplyEffectiveStartMonth(event.target.value || ''),
+                className: 'w-full rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-white',
+              }, retainerApplyMonthOptions.map((option) => (
+                h('option', { key: option.value, value: option.value }, option.label)
+              ))),
+            ])
+            : null,
           h('div', { className: 'space-y-2' }, [
             h('div', { className: 'text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400' }, 'Type APPLY to confirm'),
             h('input', {

@@ -2,7 +2,7 @@ import { getActiveWorkspace } from '../app-shell/app-helpers.js';
 import { SectionHeader } from '../components/layout/SectionHeader.js';
 import { mountCompanyLookup } from '../contacts/company-lookup.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
-import { JobPlanEditor, buildDeliverablesFromPlan, createPlanStateFromJob, sumRowHours, syncRowsWithServiceTypes } from './jobs-plan-grid.js';
+import { JobPlanEditor, buildDeliverablesFromPlan, sumRowHours, syncRowsWithServiceTypes } from './jobs-plan-grid.js';
 import { mountPersonLookup } from '../contacts/person-lookup.js';
 import { openSingleDatePickerPopover } from '../quick-tasks/quick-task-detail.js';
 import { loadServiceTypes, loadTeamMembers } from '../quick-tasks/quick-tasks-store.js';
@@ -12,6 +12,11 @@ import { JobActivationModal } from './job-detail/job-activation-modal.js';
 import { getJobNumber } from './job-number-utils.js';
 import { TaskStyleRichTextField } from './task-style-rich-text-field.js';
 import { loadDeliverableTypeOptions, rememberDeliverableType } from './deliverable-type-store.js';
+import {
+  ensurePlanBaselines,
+  getCurrentPlanState,
+  getWorkingPlanState,
+} from './change-order-scope-utils.js';
 
 const { createElement: h, useEffect, useMemo, useRef, useState } = React;
 
@@ -412,43 +417,35 @@ function buildDraftFromJob(job, serviceTypes = []) {
   const cycleKey = job.kind === 'retainer'
     ? (job.currentCycleKey || todayISO().slice(0, 7))
     : null;
-  const fallbackPlan = createPlanStateFromJob(job, job.serviceTypeIds || [], {
-    cycleKey,
-    serviceTypes,
-  });
-  const persistedPlan = normalizePlanState(job.plan, fallbackPlan.serviceTypeIds);
-  const mergedServiceTypeIds = persistedPlan.serviceTypeIds.length
-    ? persistedPlan.serviceTypeIds
-    : fallbackPlan.serviceTypeIds;
-  const mergedPlan = normalizePlanState({
-    serviceTypeIds: mergedServiceTypeIds,
-    serviceTypeNames: {
-      ...(fallbackPlan.serviceTypeNames || {}),
-      ...(persistedPlan.serviceTypeNames || {}),
-    },
-    rows: persistedPlan.rows.length ? persistedPlan.rows : fallbackPlan.rows,
-  }, mergedServiceTypeIds);
+  const planAwareJob = ensurePlanBaselines(job, { cycleKey, serviceTypes });
+  const sourcePlan = isLockedPlanningStatus(planAwareJob?.status)
+    ? getCurrentPlanState(planAwareJob, { cycleKey, serviceTypes })
+    : getWorkingPlanState(planAwareJob, { cycleKey, serviceTypes });
+  const selectedServiceTypeIds = Array.isArray(sourcePlan?.serviceTypeIds) && sourcePlan.serviceTypeIds.length
+    ? sourcePlan.serviceTypeIds
+    : (Array.isArray(planAwareJob?.serviceTypeIds) ? planAwareJob.serviceTypeIds : []);
+  const mergedPlan = normalizePlanState(sourcePlan, selectedServiceTypeIds);
   return normalizeDraft({
-    name: job.name || '',
-    jobNumber: job.jobNumber || getJobNumber(job) || '1138',
-    kind: job.kind || 'project',
-    isInternal: !!job.isInternal,
-    companyId: job.companyId || '',
-    personId: job.personId || '',
-    jobLeadUserId: job.jobLeadUserId || '',
-    teamUserIds: Array.isArray(job.teamUserIds) ? job.teamUserIds : [],
-    selectedServiceTypeIds: Array.isArray(job.serviceTypeIds) ? job.serviceTypeIds : [],
-    billingStructure: job.billingStructure || 'month_to_month',
-    billingDurationMonths: job.billingDurationMonths ?? null,
-    startDate: job.startDate || null,
-    targetEndDate: job.kind === 'project'
-      ? (job.targetEndDate || job.timeline?.endDate || null)
+    name: planAwareJob.name || '',
+    jobNumber: planAwareJob.jobNumber || getJobNumber(planAwareJob) || '1138',
+    kind: planAwareJob.kind || 'project',
+    isInternal: !!planAwareJob.isInternal,
+    companyId: planAwareJob.companyId || '',
+    personId: planAwareJob.personId || '',
+    jobLeadUserId: planAwareJob.jobLeadUserId || '',
+    teamUserIds: Array.isArray(planAwareJob.teamUserIds) ? planAwareJob.teamUserIds : [],
+    selectedServiceTypeIds,
+    billingStructure: planAwareJob.billingStructure || 'month_to_month',
+    billingDurationMonths: planAwareJob.billingDurationMonths ?? null,
+    startDate: planAwareJob.startDate || null,
+    targetEndDate: planAwareJob.kind === 'project'
+      ? (planAwareJob.targetEndDate || planAwareJob.timeline?.endDate || null)
       : null,
-    timelineZoomValue: job.timeline?.zoomValue ?? job.timelineZoomValue ?? 62,
+    timelineZoomValue: planAwareJob.timeline?.zoomValue ?? planAwareJob.timelineZoomValue ?? 62,
     plan: mergedPlan,
-    deliverableDetailsById: Object.keys(job.deliverableDetailsById || {}).length
-      ? job.deliverableDetailsById
-      : buildDeliverableDetailsFromJob(job),
+    deliverableDetailsById: Object.keys(planAwareJob.deliverableDetailsById || {}).length
+      ? planAwareJob.deliverableDetailsById
+      : buildDeliverableDetailsFromJob(planAwareJob),
   });
 }
 
@@ -672,6 +669,10 @@ function formatDateDisplay(iso) {
 
 function formatDraftKind(kind) {
   return kind === 'retainer' ? 'Retainer' : 'Project';
+}
+
+function isLockedPlanningStatus(status) {
+  return status === 'active' || status === 'completed' || status === 'archived';
 }
 
 function formatDraftClientLabel({ draft, companies = [], individuals = [] }) {
@@ -988,7 +989,7 @@ function SummaryStepBody({ draft, onDraftChange, companies = [], individuals = [
   ]);
 }
 
-function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyHeaderOffset = 0, jobStatus = 'pending' }) {
+function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyHeaderOffset = 0, jobStatus = 'pending', readOnly = false }) {
   const selectedServiceTypeIds = buildSelectedServiceTypeIds(draft.selectedServiceTypeIds);
   const [detailsRowId, setDetailsRowId] = useState(null);
   const [deliverableTypeOptions, setDeliverableTypeOptions] = useState(() => loadDeliverableTypeOptions());
@@ -1142,7 +1143,8 @@ function DeliverablesStepBody({ draft, onDraftChange, serviceTypes = [], stickyH
       allowServiceTypeCreate: true,
       serviceTypeActionLabel: '+ Add Service Type',
       onAddServiceType: handleAddServiceType,
-      headerActions: historyButtons,
+      headerActions: readOnly ? null : historyButtons,
+      readOnly,
       stickyHeaderOffset,
       showRowDetailsAction: true,
       activeRowDetailsId: detailsRowId,
@@ -2072,6 +2074,7 @@ function StepScreen({
   individuals,
   members,
   serviceTypes,
+  readOnly = false,
   stickyHeaderOffset = 0,
   jobStatus = 'pending',
   onBack,
@@ -2093,6 +2096,7 @@ function StepScreen({
         onDraftChange,
         serviceTypes,
         stickyHeaderOffset,
+        readOnly,
       })
     : step.index === 3
         ? h(TimelineStepBody, {
@@ -2166,7 +2170,7 @@ export function JobCreateStepperRoot({
   useEffect(() => {
     const nextDraft = isEditingJob ? buildDraftFromJob(job, serviceTypes) : loadDraft(wsId);
     setDraft(nextDraft);
-  }, [isEditingJob, job?.id, wsId, serviceTypes]);
+  }, [isEditingJob, job, wsId, serviceTypes]);
 
   useEffect(() => {
     if (!visibleSteps.some((item) => item.index === step)) {
@@ -2193,17 +2197,25 @@ export function JobCreateStepperRoot({
 
   const updateDraft = (updater) => {
     setDraft((current) => {
+      if (readOnly) return current;
       const next = typeof updater === 'function' ? updater(current) : { ...current, ...(updater || {}) };
       return isEditingJob ? normalizeDraft(next) : persistDraft(next, wsId);
     });
   };
 
   const commitDraft = (overrides = {}) => {
+    if (readOnly) return null;
     const payload = buildDraftJobPayload(draft, job);
-    const finalPayload = {
+    let finalPayload = {
       ...payload,
       ...(overrides || {}),
     };
+    if (isLockedPlanningStatus(finalPayload?.status)) {
+      finalPayload = ensurePlanBaselines(finalPayload, {
+        cycleKey: finalPayload?.currentCycleKey || job?.currentCycleKey || null,
+        serviceTypes,
+      });
+    }
     console.log('COMMIT DRAFT payload:', finalPayload);
     const savedJob = saveJob(finalPayload, wsId);
     console.log('COMMIT DRAFT saved:', savedJob);
@@ -2251,7 +2263,7 @@ export function JobCreateStepperRoot({
   };
 
   const activationPreviewJob = useMemo(() => buildDraftJobPayload(draft, job), [draft, job]);
-  const stepFourActions = activeStep?.id === 'netnet'
+  const stepFourActions = !readOnly && activeStep?.id === 'netnet'
     ? h('div', { className: 'flex items-center justify-between gap-3' }, [
       h('button', {
         type: 'button',
@@ -2314,6 +2326,7 @@ export function JobCreateStepperRoot({
         individuals,
         members,
         serviceTypes,
+        readOnly,
         stickyHeaderOffset: stickyHeaderHeight,
         jobStatus: job?.status || 'pending',
         onBack: handleBack,

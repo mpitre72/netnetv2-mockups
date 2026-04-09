@@ -35,7 +35,51 @@ export function formatCycleLabelShort(cycleKey) {
 }
 
 export function getTaskCycleKey(task, fallbackCycleKey) {
+  if (isRecurringTemplateTask(task)) return null;
   return task?.cycleKey || fallbackCycleKey || null;
+}
+
+export function isRecurringTemplateTask(task) {
+  return !!(task?.isRecurring && task?.recurringTemplateId && !task?.cycleKey);
+}
+
+function cloneTemplateAllocations(task) {
+  return (Array.isArray(task?.allocations) ? task.allocations : []).map((allocation) => ({
+    ...allocation,
+    actualHours: null,
+  }));
+}
+
+export function deriveRecurringDueDate(baseDueDate, cycleKey) {
+  if (!baseDueDate || !cycleKey) return null;
+  const [yearStr, monthStr] = String(cycleKey || '').split('-');
+  const [, , dayStr] = String(baseDueDate || '').split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!year || !month || !day) return null;
+  const lastDay = new Date(year, month, 0).getDate();
+  const safeDay = Math.min(day, lastDay);
+  return `${yearStr}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+}
+
+export function createRecurringInstanceFromTemplate(template, cycleKey) {
+  if (!template || !cycleKey) return null;
+  return {
+    ...template,
+    id: `task_${Math.random().toString(36).slice(2, 9)}`,
+    cycleKey,
+    dueDate: deriveRecurringDueDate(template.dueDate, cycleKey),
+    status: 'backlog',
+    startedAt: null,
+    startTimestamp: null,
+    completedAt: null,
+    completedTimestamp: null,
+    actualHours: null,
+    timeEntries: [],
+    allocations: cloneTemplateAllocations(template),
+    isDraft: false,
+  };
 }
 
 export function getPoolsForCycle(deliverable, cycleKey) {
@@ -44,34 +88,42 @@ export function getPoolsForCycle(deliverable, cycleKey) {
   return Array.isArray(poolsByCycle[cycleKey]) ? poolsByCycle[cycleKey] : (deliverable.pools || []);
 }
 
+export function isDeliverableVisibleInCycle(deliverable, cycleKey) {
+  if (!deliverable || !cycleKey) return true;
+  const cyclePools = deliverable?.poolsByCycle?.[cycleKey];
+  if (Array.isArray(cyclePools) && cyclePools.length) return true;
+
+  const tasks = Array.isArray(deliverable?.tasks) ? deliverable.tasks : [];
+  const hasCycleTask = tasks.some((task) => (
+    !isRecurringTemplateTask(task)
+    && String(getTaskCycleKey(task, cycleKey) || '') === String(cycleKey)
+  ));
+  if (hasCycleTask) return true;
+
+  const hasExplicitCyclePools = Object.keys(deliverable?.poolsByCycle || {}).length > 0;
+  if (deliverable?.createdCycleKey) {
+    return String(deliverable.createdCycleKey) === String(cycleKey);
+  }
+  if (hasExplicitCyclePools) return false;
+
+  return Array.isArray(deliverable?.pools) && deliverable.pools.length > 0;
+}
+
 export function ensureRecurringInstances(job, cycleKey) {
   if (!job || job.kind !== 'retainer' || !cycleKey) return { deliverables: job?.deliverables || [], changed: false };
   let changed = false;
   const deliverables = (job.deliverables || []).map((deliverable) => {
     const tasks = Array.isArray(deliverable.tasks) ? [...deliverable.tasks] : [];
-    const recurring = tasks.filter((task) => task.isRecurring && task.recurringTemplateId);
-    if (!recurring.length) return deliverable;
-    const byTemplate = new Map();
-    recurring.forEach((task) => {
-      const key = String(task.recurringTemplateId);
-      const existing = byTemplate.get(key);
-      if (!existing || String(existing.cycleKey || '') < String(task.cycleKey || '')) {
-        byTemplate.set(key, task);
-      }
-    });
-    byTemplate.forEach((template) => {
+    const templates = tasks.filter((task) => isRecurringTemplateTask(task));
+    if (!templates.length) return deliverable;
+    templates.forEach((template) => {
       const already = tasks.some((task) => (
         task.recurringTemplateId === template.recurringTemplateId
         && String(task.cycleKey || '') === String(cycleKey)
       ));
       if (already) return;
-      const clone = {
-        ...template,
-        id: `task_${Math.random().toString(36).slice(2, 9)}`,
-        cycleKey,
-        status: 'backlog',
-        completedAt: null,
-      };
+      const clone = createRecurringInstanceFromTemplate(template, cycleKey);
+      if (!clone) return;
       tasks.unshift(clone);
       changed = true;
     });

@@ -1,7 +1,16 @@
 import { PerfCard, PerfSectionTitle } from '../../components/performance/primitives.js';
 import { loadServiceTypes } from '../../quick-tasks/quick-tasks-store.js';
+import { getJobCycleKey, setJobCycleKey } from '../jobs-ui-state.js';
+import {
+  getCurrentCycleKey,
+  getTaskCycleKey,
+  isDeliverableVisibleInCycle,
+  isRecurringTemplateTask,
+} from '../retainer-cycle-utils.js';
+import { getApplicableChangeOrders, getOriginalPlanRowsById } from '../change-order-scope-utils.js';
+import { RetainerMonthSwitcher } from './retainer-month-switcher.js';
 
-const { createElement: h, useMemo } = React;
+const { createElement: h, useEffect, useMemo, useState } = React;
 
 function roundHours(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -62,10 +71,12 @@ function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj || {}, key);
 }
 
-function getDeliverablePlanPools(job, deliverable) {
-  if (job?.kind === 'retainer' && job?.currentCycleKey) {
-    const cyclePools = deliverable?.poolsByCycle?.[job.currentCycleKey];
-    if (Array.isArray(cyclePools) && cyclePools.length) return cyclePools;
+function getDeliverablePlanPools(job, deliverable, cycleKey = null) {
+  if (job?.kind === 'retainer' && cycleKey) {
+    if (!isDeliverableVisibleInCycle(deliverable, cycleKey)) return [];
+    const cyclePools = deliverable?.poolsByCycle?.[cycleKey];
+    if (Array.isArray(cyclePools)) return cyclePools;
+    if (Object.keys(deliverable?.poolsByCycle || {}).length || deliverable?.createdCycleKey) return [];
   }
   return Array.isArray(deliverable?.pools) ? deliverable.pools : [];
 }
@@ -90,19 +101,36 @@ function getActualHoursMapFromPools(pools = []) {
   }, {});
 }
 
-function getTaskActualHours(task) {
+function isDateInCycle(dateValue, cycleKey) {
+  return !!(dateValue && cycleKey && String(dateValue).startsWith(`${cycleKey}-`));
+}
+
+function isTaskInCycle(task, cycleKey, isRetainer = false) {
+  if (isRecurringTemplateTask(task)) return false;
+  if (!isRetainer || !cycleKey) return true;
+  return String(getTaskCycleKey(task, cycleKey) || '') === String(cycleKey);
+}
+
+function getTaskActualHours(task, { cycleKey = null, isRetainer = false } = {}) {
   if (!task) return 0;
-  if (Number.isFinite(task.actualHours)) return Number(task.actualHours) || 0;
   if (Array.isArray(task.timeEntries)) {
-    return task.timeEntries.reduce((sum, entry) => sum + (Number(entry?.hours) || 0), 0);
+    return task.timeEntries.reduce((sum, entry) => {
+      if (isRetainer && cycleKey && !isDateInCycle(entry?.date, cycleKey)) return sum;
+      return sum + (Number(entry?.hours) || 0);
+    }, 0);
+  }
+  if (Number.isFinite(task.actualHours)) {
+    return isTaskInCycle(task, cycleKey, isRetainer) ? (Number(task.actualHours) || 0) : 0;
   }
   if (Array.isArray(task.allocations)) {
+    if (isRetainer && cycleKey && !isTaskInCycle(task, cycleKey, isRetainer)) return 0;
     return task.allocations.reduce((sum, alloc) => sum + (Number(alloc?.actualHours) || 0), 0);
   }
   return 0;
 }
 
-function getTaskActualByServiceType(task) {
+function getTaskActualByServiceType(task, { cycleKey = null, isRetainer = false } = {}) {
+  if (isRetainer && cycleKey && !isTaskInCycle(task, cycleKey, isRetainer)) return {};
   const allocations = Array.isArray(task?.allocations) ? task.allocations : [];
   const byServiceType = {};
   let hasAllocationActuals = false;
@@ -118,7 +146,7 @@ function getTaskActualByServiceType(task) {
 
   if (hasAllocationActuals) return byServiceType;
 
-  const taskActual = roundHours(getTaskActualHours(task));
+  const taskActual = roundHours(getTaskActualHours(task, { cycleKey, isRetainer }));
   const uniqueServiceTypeIds = [...new Set(
     allocations.map((allocation) => String(allocation?.serviceTypeId || '')).filter(Boolean)
   )];
@@ -128,56 +156,23 @@ function getTaskActualByServiceType(task) {
   return byServiceType;
 }
 
-function getDeliverableActualByServiceType(job, deliverable) {
-  const pools = getDeliverablePlanPools(job, deliverable);
+function getDeliverableActualByServiceType(job, deliverable, cycleKey = null) {
+  const pools = getDeliverablePlanPools(job, deliverable, cycleKey);
   const hasPoolActuals = (pools || []).some((pool) => hasOwn(pool, 'actualHours'));
   if (hasPoolActuals) return getActualHoursMapFromPools(pools);
 
+  const isRetainer = job?.kind === 'retainer';
   return (deliverable?.tasks || []).reduce((acc, task) => {
-    addHoursToMap(acc, getTaskActualByServiceType(task));
+    addHoursToMap(acc, getTaskActualByServiceType(task, { cycleKey, isRetainer }));
     return acc;
   }, {});
 }
 
-function getUnassignedActualByServiceType(tasks = []) {
+function getUnassignedActualByServiceType(tasks = [], { cycleKey = null, isRetainer = false } = {}) {
   return (tasks || []).reduce((acc, task) => {
-    addHoursToMap(acc, getTaskActualByServiceType(task));
+    addHoursToMap(acc, getTaskActualByServiceType(task, { cycleKey, isRetainer }));
     return acc;
   }, {});
-}
-
-function getAppliedChangeOrders(job) {
-  return (job?.changeOrders || []).filter((changeOrder) => changeOrder?.status === 'applied');
-}
-
-function reconstructOriginalDeliverables(job) {
-  const deliverablesById = new Map(
-    (job?.deliverables || []).map((deliverable) => {
-      const id = String(deliverable.id);
-      return [id, {
-        id,
-        name: deliverable.name || 'Deliverable',
-        pools: { ...getEstimatedHoursMapFromPools(getDeliverablePlanPools(job, deliverable)) },
-      }];
-    })
-  );
-
-  getAppliedChangeOrders(job).forEach((changeOrder) => {
-    (changeOrder?.changes || []).forEach((change) => {
-      const serviceTypeHours = change?.serviceTypeHours || {};
-      if (change?.kind === 'existing') {
-        const deliverableId = String(change.deliverableId || '');
-        const target = deliverablesById.get(deliverableId);
-        if (!target) return;
-        subtractHoursFromMap(target.pools, serviceTypeHours);
-        return;
-      }
-      const createdDeliverableId = String(change?.createdDeliverableId || '');
-      if (createdDeliverableId) deliverablesById.delete(createdDeliverableId);
-    });
-  });
-
-  return deliverablesById;
 }
 
 function hybridDeliveryStorageKey(jobId) {
@@ -484,7 +479,22 @@ function DataRow({ gridTemplateColumns, children, muted = false, footer = false 
 
 export function JobPerformanceTab({ job }) {
   const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
+  const isRetainer = job?.kind === 'retainer';
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    if (!job || job.kind !== 'retainer') return null;
+    return getJobCycleKey(job.id) || job.currentCycleKey || getCurrentCycleKey();
+  });
   const hybridDeliveryMap = loadHybridDeliveryMap(job?.id);
+
+  useEffect(() => {
+    if (!job || job.kind !== 'retainer') {
+      setSelectedMonth(null);
+      return;
+    }
+    setSelectedMonth(getJobCycleKey(job.id) || job.currentCycleKey || getCurrentCycleKey());
+  }, [job?.id, job?.kind, job?.currentCycleKey]);
+
+  const activeCycleKey = isRetainer ? (selectedMonth || getCurrentCycleKey()) : null;
 
   const serviceTypeNameMap = useMemo(() => {
     const map = new Map();
@@ -514,17 +524,22 @@ export function JobPerformanceTab({ job }) {
         variancePct: 0,
         topHybridServiceInsight: '',
         hasHybridData: false,
+        hasMonthActivity: false,
       };
     }
 
-    const originalDeliverablesById = reconstructOriginalDeliverables(job);
+    const originalDeliverablesById = getOriginalPlanRowsById(job, serviceTypes, { cycleKey: activeCycleKey });
     const hybridByService = {};
     const hybridNotesByService = {};
-    const deliverableRows = (job.deliverables || []).map((deliverable) => {
-      const tasks = Array.isArray(deliverable?.tasks) ? deliverable.tasks : [];
-      const currentPlanMap = getEstimatedHoursMapFromPools(getDeliverablePlanPools(job, deliverable));
+    const deliverableRows = (job.deliverables || [])
+      .filter((deliverable) => !isRetainer || isDeliverableVisibleInCycle(deliverable, activeCycleKey))
+      .map((deliverable) => {
+      const tasks = (Array.isArray(deliverable?.tasks) ? deliverable.tasks : []).filter((task) => (
+        isTaskInCycle(task, activeCycleKey, isRetainer)
+      ));
+      const currentPlanMap = getEstimatedHoursMapFromPools(getDeliverablePlanPools(job, deliverable, activeCycleKey));
       const originalPlanMap = originalDeliverablesById.get(String(deliverable.id))?.pools || {};
-      const actualMap = getDeliverableActualByServiceType(job, deliverable);
+      const actualMap = getDeliverableActualByServiceType(job, deliverable, activeCycleKey);
       const hybridEntry = normalizeHybridDeliveryEntry(hybridDeliveryMap?.[String(deliverable.id)] || {});
       const hybridMap = getHybridHoursMap(hybridEntry);
       const aiHours = sumHybridHours(hybridEntry);
@@ -565,16 +580,19 @@ export function JobPerformanceTab({ job }) {
         varianceHours,
         variancePct: variancePercent(actual, currentPlan),
       };
-    });
+      });
 
-    const unassignedActualMap = getUnassignedActualByServiceType(job.unassignedTasks || []);
+    const unassignedTasksForCycle = (job.unassignedTasks || []).filter((task) => (
+      isTaskInCycle(task, activeCycleKey, isRetainer)
+    ));
+    const unassignedActualMap = getUnassignedActualByServiceType(unassignedTasksForCycle, { cycleKey: activeCycleKey, isRetainer });
     const unassignedActual = sumHoursMap(unassignedActualMap);
-    if (unassignedActual > 0) {
+    if (unassignedActual > 0 || unassignedTasksForCycle.length) {
       deliverableRows.push({
         id: 'unassigned',
         name: 'General Job Tasks',
         dueDate: null,
-        tasks: job.unassignedTasks || [],
+        tasks: unassignedTasksForCycle,
         currentPlanMap: {},
         originalPlanMap: {},
         actualMap: unassignedActualMap,
@@ -584,7 +602,7 @@ export function JobPerformanceTab({ job }) {
         aiHours: 0,
         leverageRatio: null,
         hybridTooltip: '',
-        executionContext: getExecutionContext(job.unassignedTasks || [], unassignedActual),
+        executionContext: getExecutionContext(unassignedTasksForCycle, unassignedActual),
         dueTiming: getDueTiming(null),
         varianceHours: roundHours(unassignedActual),
         variancePct: Infinity,
@@ -646,9 +664,10 @@ export function JobPerformanceTab({ job }) {
     const aiHours = roundHours(sumHoursMap(hybridByService));
     const effectiveOutputHours = roundHours(actualHours + aiHours);
     const varianceHours = roundHours(actualHours - currentPlanHours);
+    const hasMonthActivity = deliverableRows.some((row) => row.actual > 0);
 
     return {
-      appliedChangeOrders: getAppliedChangeOrders(job),
+      appliedChangeOrders: getApplicableChangeOrders(job, { cycleKey: activeCycleKey, status: 'applied' }),
       deliverableRows,
       serviceRows,
       originalPlanHours,
@@ -663,8 +682,9 @@ export function JobPerformanceTab({ job }) {
       variancePct: variancePercent(actualHours, currentPlanHours),
       topHybridServiceInsight: getTopHybridServiceInsight(serviceRows),
       hasHybridData: aiHours > 0,
+      hasMonthActivity,
     };
-  }, [job, serviceTypeNameMap, hybridDeliveryMap]);
+  }, [job, serviceTypeNameMap, hybridDeliveryMap, activeCycleKey, isRetainer]);
 
   if (!job) return null;
 
@@ -684,6 +704,7 @@ export function JobPerformanceTab({ job }) {
     variancePct,
     topHybridServiceInsight,
     hasHybridData,
+    hasMonthActivity,
   } = metrics;
 
   const hasAppliedChangeOrders = appliedChangeOrders.length > 0;
@@ -706,11 +727,21 @@ export function JobPerformanceTab({ job }) {
       h(PerfSectionTitle, {
         title: 'Performance',
         subtitle: 'Execution vs approved scope',
-        rightSlot: h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, (
-          hasAppliedChangeOrders
-            ? `${appliedChangeOrders.length} applied change ${appliedChangeOrders.length === 1 ? 'order' : 'orders'} · ${formatHours(scopeDeltaHours, { signed: true })} scope movement`
-            : 'No applied change orders'
-        )),
+        rightSlot: h('div', { className: 'flex flex-wrap items-center justify-end gap-3' }, [
+          isRetainer ? h(RetainerMonthSwitcher, {
+            cycleKey: activeCycleKey,
+            onChange: (nextKey) => {
+              setSelectedMonth(nextKey);
+              if (job?.id) setJobCycleKey(job.id, nextKey);
+            },
+            ariaLabel: 'Selected month',
+          }) : null,
+          h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, (
+            hasAppliedChangeOrders
+              ? `${appliedChangeOrders.length} applied change ${appliedChangeOrders.length === 1 ? 'order' : 'orders'} · ${formatHours(scopeDeltaHours, { signed: true })} scope movement`
+              : 'No applied change orders'
+          )),
+        ].filter(Boolean)),
       }),
       h('div', { className: `mt-5 grid gap-4 sm:grid-cols-2 ${hasAppliedChangeOrders ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}` }, (
         hasAppliedChangeOrders
@@ -779,6 +810,9 @@ export function JobPerformanceTab({ job }) {
           h('div', { className: 'text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400' }, `Variance ${formatHours(varianceHours, { signed: true })} · ${formatVariancePercent(variancePct)}`),
         ]),
         h(UsageMeter, { actual: actualHours, plan: currentPlanHours, aiHours }),
+        isRetainer && !hasMonthActivity
+          ? h('div', { className: 'mt-3 text-[11px] text-slate-500 dark:text-slate-400' }, 'No activity this month')
+          : null,
         hasHybridData
           ? h('div', { className: 'mt-3 space-y-1' }, [
             h('div', { className: 'text-xs tabular-nums text-slate-500 dark:text-slate-400' }, [

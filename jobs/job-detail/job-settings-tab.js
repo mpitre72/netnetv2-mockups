@@ -6,6 +6,7 @@ import { isJobNumberFormatValid, setJobNumberOverride } from '../jobs-ui-state.j
 import { JobTaskDrawer } from '../job-task-drawer.js';
 import { mergeTaskLifecycleFields } from '../task-execution-utils.js';
 import { JobActivationModal } from './job-activation-modal.js';
+import { ensurePlanBaselines } from '../change-order-scope-utils.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 const CURRENT_USER_ID = 'currentUser';
@@ -110,7 +111,23 @@ export function JobSettingsTab({
 
   const handleActivate = (activationUpdates) => {
     if (typeof onJobUpdate !== 'function' || readOnly) return;
-    onJobUpdate({ ...(activationUpdates || {}), status: 'active' });
+    const nextJob = ensurePlanBaselines({
+      ...job,
+      ...(activationUpdates || {}),
+      status: 'active',
+    }, {
+      cycleKey: job?.currentCycleKey || null,
+      serviceTypes,
+    });
+    onJobUpdate({
+      ...(activationUpdates || {}),
+      status: 'active',
+      originalPlanSnapshot: nextJob?.originalPlanSnapshot || null,
+      currentPlanSnapshot: nextJob?.currentPlanSnapshot || null,
+      originalPlan: nextJob?.originalPlan || {},
+      originalPlanByCycle: nextJob?.originalPlanByCycle || {},
+      changeOrders: nextJob?.changeOrders || job?.changeOrders || [],
+    });
     window?.showToast?.('Job activated');
     setShowActivation(false);
   };

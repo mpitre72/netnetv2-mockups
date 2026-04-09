@@ -11,38 +11,32 @@ import {
 } from '../jobs-ui-state.js';
 import { JobKanbanTab } from './job-kanban-tab.js';
 import { JobTasksExecutionTable } from './job-tasks-table.js';
+import { RetainerMonthSwitcher } from './retainer-month-switcher.js';
 import {
   ensureRecurringInstances,
-  formatCycleLabel,
-  formatCycleLabelShort,
   getCurrentCycleKey,
   getPoolsForCycle,
+  isRecurringTemplateTask,
+  isDeliverableVisibleInCycle,
   getTaskCycleKey,
-  shiftCycleKey,
 } from '../retainer-cycle-utils.js';
 import { mergeTaskLifecycleFields } from '../task-execution-utils.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 
-function isCycleEarlier(taskCycleKey, currentCycleKey) {
-  if (!taskCycleKey || !currentCycleKey) return false;
-  return String(taskCycleKey) < String(currentCycleKey);
-}
-
 function getTaskMeta(task, activeCycleKey, isRetainer) {
+  if (isRecurringTemplateTask(task)) {
+    return { show: false, carryover: false, plannedLabel: null };
+  }
   if (!isRetainer || !activeCycleKey) {
     return { show: true, carryover: false, plannedLabel: null };
   }
   const taskCycleKey = getTaskCycleKey(task, activeCycleKey);
-  const isCurrent = taskCycleKey === activeCycleKey;
-  if (isCurrent) {
-    return { show: true, carryover: false, plannedLabel: null };
-  }
-  const isCarryover = !task.isRecurring && task.status !== 'completed' && isCycleEarlier(task.cycleKey, activeCycleKey);
-  if (isCarryover) {
-    return { show: true, carryover: true, plannedLabel: formatCycleLabelShort(task.cycleKey) };
-  }
-  return { show: false, carryover: false, plannedLabel: null };
+  return {
+    show: String(taskCycleKey || '') === String(activeCycleKey),
+    carryover: false,
+    plannedLabel: null,
+  };
 }
 
 export function JobTasksTab({
@@ -96,16 +90,10 @@ export function JobTasksTab({
   if (!job) return null;
 
   const activeCycleKey = isRetainer ? (cycleKey || getCurrentCycleKey()) : null;
-  const cycleLabel = activeCycleKey ? formatCycleLabel(activeCycleKey) : '';
-  const cycleLabelText = cycleLabel || activeCycleKey || '';
   const setCycle = (nextKey) => {
     if (!job || !isRetainer || !nextKey) return;
     setCycleKey(nextKey);
     setJobCycleKey(job.id, nextKey);
-  };
-  const shiftCycle = (delta) => {
-    if (!activeCycleKey) return;
-    setCycle(shiftCycleKey(activeCycleKey, delta));
   };
 
   const teamIds = Array.isArray(job.teamUserIds) ? job.teamUserIds : [];
@@ -119,7 +107,9 @@ export function JobTasksTab({
   }
 
   const taskMetaMap = new Map();
-  const deliverablesForTable = (job.deliverables || []).map((deliverable) => {
+  const deliverablesForTable = (job.deliverables || [])
+    .filter((deliverable) => !isRetainer || isDeliverableVisibleInCycle(deliverable, activeCycleKey))
+    .map((deliverable) => {
     const effectivePools = isRetainer && activeCycleKey
       ? getPoolsForCycle(deliverable, activeCycleKey)
       : (deliverable.pools || []);
@@ -128,8 +118,8 @@ export function JobTasksTab({
       if (meta.show) taskMetaMap.set(task.id, meta);
       return meta.show;
     });
-    return { ...deliverable, tasks, effectivePools };
-  });
+      return { ...deliverable, tasks, effectivePools };
+    });
   const unassignedTasks = (job.unassignedTasks || []).filter((task) => {
     const meta = getTaskMeta(task, activeCycleKey, isRetainer);
     if (meta.show) taskMetaMap.set(task.id, meta);
@@ -171,8 +161,9 @@ export function JobTasksTab({
     setJobTasksViewMode(job.id, mode);
   };
 
-  const viewToggle = h(ViewToggleGroup, {
-    value: viewMode,
+  const resolvedViewMode = isRetainer ? 'list' : viewMode;
+  const viewToggle = !isRetainer ? h(ViewToggleGroup, {
+    value: resolvedViewMode,
     options: [
       {
         value: 'list',
@@ -195,25 +186,12 @@ export function JobTasksTab({
       },
     ],
     onChange: toggleView,
-  });
-
-  const cycleSelector = isRetainer ? h('div', {
-    className: 'inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2 py-1',
-  }, [
-    h('button', {
-      type: 'button',
-      className: 'h-8 w-8 rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
-      onClick: () => shiftCycle(-1),
-      'aria-label': 'Previous month',
-    }, '<'),
-    h('span', { className: 'text-sm font-semibold text-slate-700 dark:text-slate-200 px-2' }, cycleLabelText || 'Month'),
-    h('button', {
-      type: 'button',
-      className: 'h-8 w-8 rounded-full border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white',
-      onClick: () => shiftCycle(1),
-      'aria-label': 'Next month',
-    }, '>'),
-  ]) : null;
+  }) : null;
+  const cycleSelector = isRetainer ? h(RetainerMonthSwitcher, {
+    cycleKey: activeCycleKey,
+    onChange: setCycle,
+    ariaLabel: 'Selected month',
+  }) : null;
 
   const kanbanTaskFilter = isRetainer && activeCycleKey
     ? (task) => getTaskMeta(task, activeCycleKey, isRetainer).show
@@ -222,14 +200,14 @@ export function JobTasksTab({
   return h('div', { className: 'space-y-4 pb-12' }, [
     h('div', { className: 'flex flex-wrap items-center justify-between gap-3' }, [
       h('div', { className: 'space-y-1' }, [
-        h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Tasks'),
+      h('div', { className: 'text-base font-semibold text-slate-900 dark:text-white' }, 'Tasks'),
       ]),
       h('div', { className: 'flex flex-wrap items-center gap-3' }, [
         viewToggle,
         cycleSelector,
       ].filter(Boolean)),
     ]),
-    viewMode === 'kanban'
+    resolvedViewMode === 'kanban'
       ? h(JobKanbanTab, {
         job,
         onJobUpdate,
@@ -247,15 +225,15 @@ export function JobTasksTab({
         assigneeOptions,
         chatIndicators: chatIndicatorMaps,
         onOpenChat,
-        onOpenDrawer: openDrawer,
+        onOpenDrawer: isRetainer ? null : openDrawer,
         onJobUpdate,
         readOnly,
         cycleKey: activeCycleKey,
-        taskMetaMap,
+        taskMetaMap: isRetainer ? null : taskMetaMap,
         collapsedMap,
         onToggleCollapse: handleToggleCollapse,
       }),
-    h(JobTaskDrawer, {
+    !isRetainer ? h(JobTaskDrawer, {
       isOpen: !!activeTask,
       task: activeTask,
       deliverable: drawerDeliverable,
@@ -267,6 +245,6 @@ export function JobTasksTab({
       readOnly,
       onClose: closeDrawer,
       onSave: handleSaveTask,
-    }),
+    }) : null,
   ]);
 }
