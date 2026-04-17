@@ -16,6 +16,7 @@ import { installCrashOverlay } from './utils/crash-overlay.js';
 import { mountShell, applyMainWrapperClass } from './app-shell/app-layout.js';
 import { setTheme, getTheme } from './app-shell/app-helpers.js';
 import { BUILD_STAMP } from './build-info.js';
+import { unmountGlobalTimeUI } from './time-tracking/global-time-ui.js';
 
 // Environment detection for Net Net (GitHub Pages vs Local)
 const detectedEnv = (typeof window !== 'undefined' && window.location.hostname === 'mpitre72.github.io')
@@ -91,6 +92,7 @@ function ensureShell(type, hash) {
     return;
   }
   if (type === 'auth') {
+    unmountGlobalTimeUI();
     mountAuthShell();
   } else {
     mountShell(rootHash);

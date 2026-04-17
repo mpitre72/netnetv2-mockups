@@ -29,6 +29,11 @@ import { getJobNumber } from '../jobs/job-number-utils.js';
 import { loadJobs, loadJobChatMessages, updateJob } from '../jobs/jobs-store.js';
 import { mergeTaskLifecycleFields } from '../jobs/task-execution-utils.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
+import {
+  getGlobalTimeSnapshot,
+  openTimeBarForTask,
+  subscribeGlobalTime,
+} from '../time-tracking/global-time-ui.js';
 import { getMyTasks } from './tasks-data.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
@@ -48,6 +53,20 @@ const DUE_DATE_FILTERS = [
   { value: '7', label: 'Next 7 days' },
   { value: '30', label: 'Next 30 days' },
 ];
+
+const DEFAULT_TIME_SNAPSHOT = Object.freeze({
+  barOpen: false,
+  hasTaskSelected: false,
+  dockTaskIds: [],
+  activeTaskId: null,
+  pausedTaskId: null,
+  selectedTaskId: null,
+  manualEntryStubOpen: false,
+  surfaceOpen: false,
+  surfaceView: 'auto',
+  hasWorkingSet: false,
+  hasActiveTimer: false,
+});
 
 function noop() {}
 
@@ -195,11 +214,15 @@ function renderChatIndicator() {
   ]);
 }
 
-function renderTimeIndicator() {
+function renderTimeIndicator(visualState = 'idle') {
+  const toneClass = visualState === 'active'
+    ? 'text-netnet-purple'
+    : visualState === 'docked'
+      ? 'text-slate-700 dark:text-slate-100'
+      : 'text-slate-600 dark:text-slate-300';
   return h('span', {
-    className: 'inline-flex items-center text-slate-600 dark:text-slate-300',
-    title: 'Open time details',
-    'aria-label': 'Open time details',
+    className: `inline-flex items-center ${toneClass}`,
+    'aria-hidden': 'true',
   }, [
     h('svg', {
       viewBox: '0 0 24 24',
@@ -213,6 +236,49 @@ function renderTimeIndicator() {
       h('circle', { cx: '12', cy: '12', r: '8' }),
       h('path', { d: 'M12 8v5l3 2' }),
     ]),
+  ]);
+}
+
+function getTaskTimeVisualState(taskId, timeSnapshot = DEFAULT_TIME_SNAPSHOT) {
+  const normalizedTaskId = String(taskId || '');
+  if (timeSnapshot?.barOpen && String(timeSnapshot?.selectedTaskId || '') === normalizedTaskId) {
+    return 'active';
+  }
+  return 'idle';
+}
+
+function getTaskTimeContextLine(task, contextPrimary, contextSecondary) {
+  const parts = task?.source === 'job'
+    ? [contextPrimary, contextSecondary]
+    : [contextSecondary || contextPrimary];
+  return parts.filter(Boolean).join(' • ');
+}
+
+function TaskRowTimeMenu({ task, visualState = 'idle' }) {
+  const triggerClassName = [
+    'inline-flex h-7 w-7 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netnet-purple/30 focus-visible:ring-offset-2',
+    visualState === 'active'
+      ? 'bg-netnet-purple/12 text-netnet-purple shadow-[inset_0_0_0_1px_rgba(113,31,255,0.18)] hover:bg-netnet-purple/16'
+      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10',
+  ].join(' ');
+
+  return h('div', { className: 'relative inline-flex items-center' }, [
+    h('button', {
+      type: 'button',
+      className: triggerClassName,
+      onMouseDown: (event) => event.stopPropagation(),
+      onClick: (event) => {
+        event.stopPropagation();
+        openTimeBarForTask(task);
+      },
+      'data-no-row-toggle': 'true',
+      'aria-haspopup': 'region',
+      'aria-expanded': visualState === 'active' ? 'true' : 'false',
+      'aria-label': visualState === 'active'
+        ? `Open time bar for ${task.title}. Task is selected for time tracking`
+        : `Open time bar for ${task.title}`,
+      title: visualState === 'active' ? 'Selected in time bar' : 'Track time',
+    }, renderTimeIndicator(visualState)),
   ]);
 }
 
@@ -333,23 +399,6 @@ function resolveClientNameFromJob(job, fallbackClientName, companyMap, personMap
   return job?.companyId || job?.personId ? 'Client' : 'Internal';
 }
 
-function openMyTaskTimeSurface(task, jobMap) {
-  if (task?.source === 'quick') {
-    if (task?.sourceId) {
-      openQuickTaskDrawer({
-        mode: 'edit',
-        taskId: task.sourceId,
-      });
-    }
-    return;
-  }
-  const jobId = task?.originalTaskRef?.jobId;
-  const job = jobId ? jobMap.get(String(jobId)) : null;
-  if (job?.id) {
-    navigate(`#/app/jobs/${job.id}`);
-  }
-}
-
 function openMyTaskChat(task, jobMap) {
   if (task?.source !== 'job') return;
   const jobId = task?.originalTaskRef?.jobId;
@@ -384,7 +433,13 @@ function buildAssigneeOptions(members, currentUserId) {
   ].filter(Boolean);
 }
 
-function MyTasksTable({ tasks = [], members = [], onTaskStatusChange, onTaskMutation }) {
+function MyTasksTable({
+  tasks = [],
+  members = [],
+  onTaskStatusChange,
+  onTaskMutation,
+  timeSnapshot = DEFAULT_TIME_SNAPSHOT,
+}) {
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [statusEditorTaskId, setStatusEditorTaskId] = useState(null);
   const memberMap = useMemo(
@@ -411,6 +466,17 @@ function MyTasksTable({ tasks = [], members = [], onTaskStatusChange, onTaskMuta
     const contextSecondary = task.source === 'job'
       ? resolveClientNameFromJob(job, task.clientName, companyMap, personMap)
       : (task.clientType === 'internal' ? 'Internal' : (task.clientName || 'Client'));
+    const timeVisualState = getTaskTimeVisualState(task.id, timeSnapshot);
+    const rowTimeTask = {
+      id: task.id,
+      source: task.source,
+      title: task.title,
+      description: task.description,
+      clientName: contextSecondary || task.clientName || '',
+      serviceType: task.serviceType,
+      dueDate: task.dueDate || null,
+    };
+    const timeContextLine = getTaskTimeContextLine(task, contextPrimary, contextSecondary);
     const actionsCellContent = h('div', {
       className: 'flex justify-end',
       onClick: (event) => event.stopPropagation(),
@@ -601,17 +667,11 @@ function MyTasksTable({ tasks = [], members = [], onTaskStatusChange, onTaskMuta
               'aria-label': 'Open task chat',
             }, renderChatIndicator())
             : h('span', { className: 'h-7 w-7 opacity-0', 'aria-hidden': 'true' }, ''),
-          h('button', {
-            type: 'button',
-            className: 'inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10',
-            onMouseDown: (event) => event.stopPropagation(),
-            onClick: (event) => {
-              event.stopPropagation();
-              openMyTaskTimeSurface(task, jobMap);
-            },
-            'data-no-row-toggle': 'true',
-            'aria-label': 'Open time details',
-          }, renderTimeIndicator()),
+          h(TaskRowTimeMenu, {
+            task: rowTimeTask,
+            contextLine: timeContextLine,
+            visualState: timeVisualState,
+          }),
         ]), 'w-[56px] min-w-[56px] text-center'),
         renderCell(
           h('div', { className: 'min-h-[40px] flex items-center' }, [
@@ -683,6 +743,7 @@ function MyTasksScreen() {
   const members = useMemo(() => loadTeamMembers(), []);
   const currentUserId = useMemo(() => getCurrentUserId(), []);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [timeSnapshot, setTimeSnapshot] = useState(() => getGlobalTimeSnapshot());
   const myTasks = useMemo(() => getMyTasks(currentUserId), [currentUserId, refreshToken]);
 
   useEffect(() => {
@@ -691,6 +752,7 @@ function MyTasksScreen() {
     window.addEventListener(TASK_SYSTEM_UPDATED_EVENT, handleTaskSystemUpdated);
     return () => window.removeEventListener(TASK_SYSTEM_UPDATED_EVENT, handleTaskSystemUpdated);
   }, []);
+  useEffect(() => subscribeGlobalTime(setTimeSnapshot), []);
   const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [dueDateFilter, setDueDateFilter] = useState('all');
@@ -785,6 +847,7 @@ function MyTasksScreen() {
         members,
         onTaskStatusChange: handleTaskStatusChange,
         onTaskMutation: () => setRefreshToken((current) => current + 1),
+        timeSnapshot,
       }),
   ]);
 }

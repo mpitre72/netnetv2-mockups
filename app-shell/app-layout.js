@@ -1,4 +1,4 @@
-import { APP_ICONS, ICONS, LOGO_ASSETS, SIDEBAR_LINKS, WORKSPACES, TIMER_ICONS } from './app-constants.js';
+import { APP_ICONS, ICONS, LOGO_ASSETS, SIDEBAR_LINKS, WORKSPACES } from './app-constants.js';
 import { renderTopBar, wireTopBarLogo, wireAppTimer } from './app-header.js';
 import { renderSidebar, wireSidebarIcons } from './app-sidebar.js';
 import { renderMobileBottomNav } from './app-bottom-nav.js';
@@ -6,6 +6,7 @@ import { initWorkspaceTabs, renderWorkspaceTabs } from './app-tabs.js';
 import { __isDark, getActiveWorkspace, setActiveWorkspace, setTheme } from './app-helpers.js';
 import { setAuthenticated, navigate } from '../router.js';
 import { flushNetNetPanelOpen, refreshNetNetPanelIcons, toggleNetNetPanel } from '../ai/netnet-panel.js';
+import { mountGlobalTimeUI, unmountGlobalTimeUI } from '../time-tracking/global-time-ui.js';
 
 function renderMobileHeader() {
   return `
@@ -80,6 +81,7 @@ export function renderAppShell(hash = '#/app/me/tasks') {
     <div id="app-shell" class="drawer-closed bg-white dark:bg-black">
       ${renderMobileHeader()}
       ${renderTopBar()}
+      <div id="global-time-bar-slot" class="global-time-bar-slot is-closed" aria-hidden="true"></div>
       ${renderSidebar(hash)}
       <main id="app-main"></main>
       ${renderMobileBottomNav()}
@@ -383,6 +385,7 @@ export function wireAppShell(hash) {
     mobileNetNetBtn.onclick = () => toggleNetNetPanel({ focusInput: true });
   }
   wireSidebarIcons(hash); wireTopBarLogo(); wireAppTimer(); wireMobileEvents(); 
+  mountGlobalTimeUI({ triggerId: 'timerBtn' });
   initWorkspaceSwitcher(); initMobileWorkspaceSwitcher(); 
   refreshDynamicIcons();
 }
@@ -410,15 +413,7 @@ function refreshDynamicIcons() {
     const src = performanceIcon.getAttribute(dark ? 'data-dark-idle' : 'data-light-idle');
     if (src && performanceIcon.getAttribute('src') !== src) performanceIcon.setAttribute('src', src);
   }
-  const ti = document.getElementById('timerIcon');
-  const tb = document.getElementById('timerBtn');
-  if (ti) {
-    const active = !!JSON.parse(localStorage.getItem('timerActive') || 'false');
-    const touch = window.matchMedia && window.matchMedia('(hover:none)').matches;
-    const showActiveVisual = touch || !active; // inverted mapping
-    ti.src = showActiveVisual ? TIMER_ICONS.active : TIMER_ICONS.idle;
-    if (tb) tb.classList.toggle('time-icon-active', showActiveVisual);
-  }
+  wireAppTimer();
 }
 
 function wireMobileEvents() {
@@ -479,6 +474,7 @@ function wireMobileEvents() {
 }
 
 export function mountShell(hash) {
+  unmountGlobalTimeUI();
   const root = document.getElementById('app-root') || document.body;
   root.innerHTML = renderAppShell(hash);
   const drawer = document.getElementById('drawer-container');
