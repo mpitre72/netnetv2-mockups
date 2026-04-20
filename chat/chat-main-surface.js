@@ -1,4 +1,5 @@
 import { ChatComposer } from './chat-composer.js';
+import { ActiveFilterBar, ChatFilterPopover } from './chat-filter-popover.js';
 import { ChatMessageList } from './chat-message-list.js';
 
 const { createElement: h } = React;
@@ -17,15 +18,20 @@ function getSurfaceKicker(location) {
 
 function getSurfaceDescription(location, selectedChannel) {
   if (location?.type === 'utility' && location.id === 'stream') {
-    return 'All work channels and direct messages, ordered by latest activity.';
+    return 'All recent channel and direct activity';
   }
   if (location?.type === 'utility' && location.id === 'unread') {
-    return 'Seeded unread activity across your Chat channels.';
+    return 'Unread activity across Chat';
   }
   if (location?.type === 'utility' && location.id === 'mentions') {
-    return 'Seeded messages where someone mentioned you.';
+    return 'Messages where someone mentioned you';
   }
   return selectedChannel?.subtitle || 'Channel conversation';
+}
+
+function formatMessageCount(count) {
+  const value = Number(count || 0);
+  return `${value} ${value === 1 ? 'message' : 'messages'}`;
 }
 
 export function ChatMainSurface({
@@ -34,26 +40,80 @@ export function ChatMainSurface({
   title,
   messages = [],
   streamMode = false,
+  filterOpen = false,
+  activeFilters = [],
+  mentionCatalog,
+  expandedThreadIds,
+  replyTarget,
+  composerText = '',
+  composerDisabled = false,
+  composerMentionOptions,
+  onComposerChange,
+  onComposerSubmit,
+  onCancelReply,
+  onStartReply,
+  onToggleThread,
+  onMentionClick,
+  onToggleFilter,
+  onRemoveFilter,
+  onClearFilters,
+  onCloseFilter,
 }) {
   const composerMode = streamMode ? 'stream' : 'channel';
   return h('main', {
-    className: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-slate-950/50',
+    className: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-slate-950/50',
     'data-chat-main-surface': 'true',
     'data-chat-view-type': activeLocation?.type || '',
     'data-chat-view-id': activeLocation?.id || '',
   }, [
     h('header', {
-      className: 'border-b border-slate-200 px-3 py-3 sm:px-4 dark:border-white/10',
+      className: 'border-b border-slate-200 py-2 dark:border-white/10',
       'data-chat-surface-header': 'true',
-    }, [
-      h('div', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500' }, getSurfaceKicker(activeLocation)),
-      h('h2', { className: 'mt-1 text-xl font-semibold text-slate-950 dark:text-white' }, title || 'Stream'),
-      h('p', { className: 'mt-1 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400' }, getSurfaceDescription(activeLocation, selectedChannel)),
-    ]),
+    }, h('div', { className: 'flex min-w-0 items-center justify-between gap-3' }, [
+      h('div', { className: 'min-w-0' }, [
+        h('div', { className: 'text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500' }, getSurfaceKicker(activeLocation)),
+        h('div', { className: 'mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5' }, [
+          h('h2', { className: 'min-w-0 truncate text-base font-semibold text-slate-950 dark:text-white' }, title || 'Stream'),
+          h('p', { className: 'min-w-0 truncate text-xs text-slate-500 dark:text-slate-400' }, getSurfaceDescription(activeLocation, selectedChannel)),
+        ]),
+      ]),
+      h('div', { className: 'shrink-0 rounded-md bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-400 dark:bg-white/5 dark:text-slate-500' }, formatMessageCount(messages.length)),
+    ])),
+    h(ActiveFilterBar, {
+      activeFilters,
+      onRemoveFilter,
+      onClearFilters,
+    }),
+    filterOpen ? h(ChatFilterPopover, {
+      catalog: mentionCatalog,
+      activeLocation,
+      selectedChannel,
+      activeFilters,
+      onToggleFilter,
+      onClose: onCloseFilter,
+    }) : null,
     h('div', {
-      className: 'min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-28 sm:px-4',
+      className: 'min-h-0 flex-1 overflow-y-auto py-3 pb-24 sm:py-4',
       'data-chat-message-stream': 'true',
-    }, h(ChatMessageList, { items: messages, streamMode })),
-    h(ChatComposer, { mode: composerMode }),
+    }, h(ChatMessageList, {
+      items: messages,
+      streamMode,
+      mentionCatalog,
+      expandedThreadIds,
+      replyTarget,
+      onStartReply,
+      onToggleThread,
+      onMentionClick,
+    })),
+    h(ChatComposer, {
+      mode: composerMode,
+      value: composerText,
+      replyTarget,
+      disabled: composerDisabled,
+      mentionOptions: composerMentionOptions,
+      onChange: onComposerChange,
+      onSubmit: onComposerSubmit,
+      onCancelReply,
+    }),
   ]);
 }

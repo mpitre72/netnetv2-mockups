@@ -325,6 +325,70 @@ html:not(.dark) .me-rings { --rings-color: var(--ring-color-light); }
   transform: rotate(180deg);
 }
 
+.chat-mention-token {
+  display: inline !important;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  border-radius: 3px;
+  padding: 0 0.125rem;
+  font-weight: 650;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition:
+    color 0.15s ease,
+    text-decoration-color 0.15s ease;
+}
+
+.chat-mention-token--job {
+  color: #711FFF;
+  text-decoration-color: rgba(113, 31, 255, 0.34);
+}
+
+.chat-mention-token--job:hover {
+  text-decoration-color: rgba(113, 31, 255, 0.78);
+}
+
+.chat-mention-token--deliverable {
+  color: #2563eb;
+  text-decoration-color: rgba(37, 99, 235, 0.34);
+}
+
+.chat-mention-token--deliverable:hover {
+  text-decoration-color: rgba(37, 99, 235, 0.78);
+}
+
+.chat-mention-token--task {
+  color: #15803d;
+  text-decoration-color: rgba(21, 128, 61, 0.34);
+}
+
+.chat-mention-token--task:hover {
+  text-decoration-color: rgba(21, 128, 61, 0.78);
+}
+
+.chat-mention-token--person {
+  color: #ca8a04;
+  text-decoration-color: rgba(202, 138, 4, 0.4);
+}
+
+.chat-mention-token--person:hover {
+  text-decoration-color: rgba(202, 138, 4, 0.82);
+}
+
+html.dark .chat-mention-token--deliverable {
+  color: #93c5fd;
+}
+
+html.dark .chat-mention-token--task {
+  color: #86efac;
+}
+
+html.dark .chat-mention-token--person {
+  color: #fde047;
+}
+
 @media (max-width: 640px) {
   .auth-switcher-inner {
     width: min(95vw, 420px);

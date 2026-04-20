@@ -1,3 +1,5 @@
+import { formatWorkMentionLabel, parseMessageTokens } from './chat-mention-utils.js';
+
 const { createElement: h } = React;
 
 function getInitials(name = '') {
@@ -10,65 +12,226 @@ function getInitials(name = '') {
     .toUpperCase() || '?';
 }
 
-function MessageText({ text }) {
-  const parts = String(text || '').split(/(\[\[[^\]]+\]\]|@[A-Za-z][A-Za-z.'-]*)/g).filter(Boolean);
-  return h('p', { className: 'text-[15px] leading-7 text-slate-800 dark:text-slate-100' }, parts.map((part, index) => {
-    const isWorkRef = part.startsWith('[[') && part.endsWith(']]');
-    const isPersonRef = part.startsWith('@');
-    if (isWorkRef || isPersonRef) {
-      return h('span', {
-        key: `${part}-${index}`,
-        className: isWorkRef
-          ? 'rounded-md bg-netnet-purple/10 px-1.5 py-0.5 font-semibold text-netnet-purple dark:bg-white/10 dark:text-white'
-          : 'rounded-md bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-100',
-      }, part);
+function tokenClass(type) {
+  if (type === 'job') return 'chat-mention-token chat-mention-token--job';
+  if (type === 'deliverable') return 'chat-mention-token chat-mention-token--deliverable';
+  if (type === 'task') return 'chat-mention-token chat-mention-token--task';
+  if (type === 'person') return 'chat-mention-token chat-mention-token--person';
+  return 'text-slate-700 underline decoration-slate-300 hover:text-slate-950 hover:decoration-slate-500 dark:text-slate-100 dark:decoration-white/30 dark:hover:text-white';
+}
+
+function getWorkSegmentParts(token, mentionCatalog) {
+  const ref = token.ref;
+  if (!ref) return [{ type: token.type || 'job', label: token.label, ref: null }];
+  if (ref.type === 'job') return [{ type: 'job', label: ref.label, ref }];
+
+  const job = mentionCatalog?.jobs?.find((candidate) => candidate.jobId === ref.jobId);
+  const parts = job ? [{ type: 'job', label: job.label, ref: job }] : [];
+
+  if (ref.type === 'deliverable') {
+    parts.push({ type: 'deliverable', label: ref.label, ref });
+    return parts;
+  }
+
+  const deliverable = mentionCatalog?.deliverables?.find((candidate) => candidate.id === ref.deliverableId);
+  if (deliverable) parts.push({ type: 'deliverable', label: deliverable.label, ref: deliverable });
+  parts.push({ type: 'task', label: ref.label, ref });
+  return parts;
+}
+
+function MentionSegment({ segment, item, onMentionClick }) {
+  return h('button', {
+    type: 'button',
+    className: [
+      'inline rounded-sm px-0.5 font-semibold underline-offset-2 transition-colors focus:outline-none focus:ring-1 focus:ring-netnet-purple/40',
+      onMentionClick ? 'cursor-pointer' : 'cursor-default',
+      tokenClass(segment.type),
+    ].join(' '),
+    onClick: onMentionClick ? () => onMentionClick({
+      kind: 'mention',
+      trigger: segment.type === 'person' ? 'person' : 'work',
+      type: segment.type,
+      label: segment.label,
+      raw: segment.raw || segment.label,
+      ref: segment.ref,
+    }, item) : undefined,
+    title: `Filter by ${segment.label}`,
+    'data-chat-mention-segment': segment.type,
+    'data-chat-mention-label': segment.raw || segment.label,
+  }, segment.raw || segment.label);
+}
+
+function WorkMentionToken({ token, item, mentionCatalog, onMentionClick }) {
+  const segments = getWorkSegmentParts(token, mentionCatalog);
+  const display = token.ref ? formatWorkMentionLabel(token.ref) : token.label;
+  const displayParts = display.split('/');
+  const alignedSegments = segments.length === displayParts.length
+    ? segments.map((segment, index) => ({ ...segment, raw: displayParts[index] }))
+    : segments;
+
+  return h('span', {
+    className: 'inline',
+    'data-chat-smart-mention': token.type,
+    title: display,
+  }, [
+    h('span', { key: 'open', className: tokenClass(alignedSegments[alignedSegments.length - 1]?.type || token.type) }, '[['),
+    ...alignedSegments.flatMap((segment, index) => [
+      index ? h('span', { key: `${segment.type}-${index}-slash`, className: 'text-slate-400 dark:text-slate-500' }, '/') : null,
+      h(MentionSegment, {
+        key: `${segment.type}-${segment.ref?.id || segment.label}-${index}`,
+        segment,
+        item,
+        onMentionClick,
+      }),
+    ]).filter(Boolean),
+    h('span', { key: 'close', className: tokenClass(alignedSegments[alignedSegments.length - 1]?.type || token.type) }, ']]'),
+  ]);
+}
+
+function MessageText({ text, item, mentionCatalog, onMentionClick }) {
+  const tokens = parseMessageTokens(text, mentionCatalog);
+  return h('p', { className: 'max-w-[72ch] text-[15px] leading-6 text-slate-800 dark:text-slate-100' }, tokens.map((token, index) => {
+    if (token.kind !== 'mention') return token.text;
+    if (token.trigger === 'work') {
+      return h(WorkMentionToken, {
+        key: `${token.raw}-${index}`,
+        token,
+        item,
+        mentionCatalog,
+        onMentionClick,
+      });
     }
-    return part;
+    const clickable = !!onMentionClick;
+    return h(MentionSegment, {
+      key: `${token.raw}-${index}`,
+      segment: { type: 'person', label: token.label, raw: token.raw, ref: token.ref },
+      item,
+      onMentionClick: clickable ? onMentionClick : null,
+    });
   }));
 }
 
 function SourceLabel({ label }) {
   if (!label) return null;
   return h('div', {
-    className: 'pb-1 pt-3 text-xs font-semibold text-slate-400 dark:text-slate-500',
+    className: 'flex items-center gap-2 px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 sm:px-3',
     'data-chat-source-label': 'true',
-  }, label);
+  }, [
+    h('span', { className: 'shrink-0' }, label),
+    h('span', { className: 'h-px min-w-8 flex-1 bg-slate-100 dark:bg-white/10', 'aria-hidden': 'true' }),
+  ]);
 }
 
-export function ChatMessageRow({ item, showSourceLabel = false }) {
-  if (!item) return null;
-  return h('div', { className: 'space-y-2', 'data-chat-message-wrap': 'true' }, [
-    showSourceLabel ? h(SourceLabel, { label: item.sourceLabel }) : null,
-    h('article', {
-      className: 'flex gap-3 py-2',
-      'data-chat-message-row': 'true',
-    }, [
-      h('div', {
-        className: 'mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-100 dark:ring-white/10',
-        'aria-hidden': 'true',
-      }, getInitials(item.author)),
-      h('div', { className: 'min-w-0 flex-1' }, [
-        h('div', { className: 'flex flex-wrap items-baseline gap-2' }, [
-          h('span', { className: 'text-sm font-semibold text-slate-950 dark:text-white' }, item.author),
-          h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, item.timestamp),
-        ]),
-        h('div', { className: 'mt-1' }, h(MessageText, { text: item.body || item.text })),
+function replyCountLabel(count, expanded) {
+  const value = Number(count || 0);
+  if (!value) return '';
+  return `${expanded ? 'Hide' : 'Show'} ${value} ${value === 1 ? 'reply' : 'replies'}`;
+}
+
+function MessageAnatomy({ item, compact = false, mentionCatalog, onMentionClick }) {
+  return h('article', {
+    className: [
+      'flex gap-3 px-2 sm:px-3',
+      compact ? 'py-1' : 'py-1.5',
+    ].join(' '),
+    'data-chat-message-row': compact ? 'reply' : 'true',
+  }, [
+    h('div', {
+      className: [
+        'mt-1 flex shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-100 dark:ring-white/10',
+        compact ? 'h-8 w-8' : 'h-9 w-9',
+      ].join(' '),
+      'aria-hidden': 'true',
+    }, getInitials(item.author)),
+    h('div', { className: 'min-w-0 flex-1' }, [
+      h('div', { className: 'flex flex-wrap items-baseline gap-2' }, [
+        h('span', { className: 'text-sm font-semibold text-slate-950 dark:text-white' }, item.author),
+        h('span', { className: 'text-xs text-slate-400 dark:text-slate-500' }, item.timestamp),
       ]),
+      h('div', { className: 'mt-1' }, h(MessageText, {
+        text: item.body || item.text,
+        item,
+        mentionCatalog,
+        onMentionClick,
+      })),
     ]),
   ]);
 }
 
-export function ChatMessageList({ items = [], streamMode = false }) {
+function ReplyThread({ item, mentionCatalog, onMentionClick }) {
+  const replies = [...(item.replies || [])].sort((a, b) => Number(a.sortAt || 0) - Number(b.sortAt || 0));
+  if (!replies.length) return null;
+  return h('div', {
+    className: 'ml-[34px] border-l border-slate-100 py-1 pl-3 dark:border-white/10 sm:ml-[42px]',
+    'data-chat-inline-thread': item.threadId,
+  }, replies.map((reply) => h(MessageAnatomy, {
+    key: reply.id,
+    item: reply,
+    compact: true,
+    mentionCatalog,
+    onMentionClick,
+  })));
+}
+
+export function ChatMessageRow({
+  item,
+  showSourceLabel = false,
+  expanded = false,
+  mentionCatalog,
+  replyTarget = null,
+  onStartReply,
+  onToggleThread,
+  onMentionClick,
+}) {
+  if (!item) return null;
+  const replyCount = (item.replies || []).length;
+  const isReplyTarget = replyTarget?.threadId === item.threadId;
+  return h('div', { 'data-chat-message-wrap': 'true' }, [
+    showSourceLabel ? h(SourceLabel, { label: item.sourceLabel }) : null,
+    h(MessageAnatomy, { item, mentionCatalog, onMentionClick }),
+    h('div', {
+      className: 'ml-[48px] flex flex-wrap items-center gap-3 px-2 pb-1 text-xs sm:ml-[56px] sm:px-3',
+      'data-chat-message-actions': item.threadId,
+    }, [
+      h('button', {
+        type: 'button',
+        className: [
+          'font-semibold transition-colors hover:text-netnet-purple focus:outline-none focus:ring-1 focus:ring-netnet-purple/40',
+          isReplyTarget ? 'text-netnet-purple' : 'text-slate-400 dark:text-slate-500',
+        ].join(' '),
+        onClick: () => onStartReply?.(item),
+      }, isReplyTarget ? 'Replying' : 'Reply'),
+      replyCount ? h('button', {
+        type: 'button',
+        className: 'font-semibold text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus:ring-1 focus:ring-netnet-purple/40 dark:text-slate-500 dark:hover:text-slate-200',
+        'aria-expanded': expanded ? 'true' : 'false',
+        onClick: () => onToggleThread?.(item.threadId),
+      }, replyCountLabel(replyCount, expanded)) : null,
+    ]),
+    expanded ? h(ReplyThread, { item, mentionCatalog, onMentionClick }) : null,
+  ]);
+}
+
+export function ChatMessageList({
+  items = [],
+  streamMode = false,
+  mentionCatalog,
+  expandedThreadIds,
+  replyTarget = null,
+  onStartReply,
+  onToggleThread,
+  onMentionClick,
+}) {
   if (!items.length) {
     return h('div', {
-      className: 'flex min-h-[300px] items-center justify-center text-center text-sm text-slate-500 dark:text-slate-400',
+      className: 'flex min-h-[300px] items-center justify-center px-3 text-center text-sm text-slate-500 dark:text-slate-400',
       'data-chat-message-empty': 'true',
     }, 'No messages here yet.');
   }
 
   let previousSource = null;
   return h('div', {
-    className: 'mx-auto w-full max-w-5xl space-y-1',
+    className: 'w-full space-y-0',
     'data-chat-message-list': 'true',
     'data-chat-stream-mode': streamMode ? 'true' : 'false',
   }, items.map((item) => {
@@ -78,6 +241,12 @@ export function ChatMessageList({ items = [], streamMode = false }) {
       key: item.id,
       item,
       showSourceLabel,
+      expanded: expandedThreadIds?.has(item.threadId) || item.filterMatchedReply,
+      mentionCatalog,
+      replyTarget,
+      onStartReply,
+      onToggleThread,
+      onMentionClick,
     });
   }));
 }
