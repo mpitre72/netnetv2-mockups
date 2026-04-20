@@ -4,7 +4,7 @@ import { renderMePage } from './me/index.js';
 import { renderJobsPage, unmountJobsPage } from './jobs/index.js';
 import { renderSalesPage } from './sales/index.js';
 import { renderQuickTasksPage } from './quick-tasks/index.js';
-import { renderChatPage } from './chat/index.js';
+import { renderChatPage, unmountChatPage } from './chat/index.js';
 import { renderPerformancePage, unmountPerformancePage } from './performance/index.js';
 import { renderSettingsPage } from './settings/index.js';
 import { renderProfilePage } from './profile/index.js';
@@ -107,6 +107,7 @@ function renderRoute(route) {
     unmountCheatSheet();
     unmountPerformancePage();
     unmountJobsPage?.();
+    unmountChatPage?.();
     ensureShell('auth', location.hash);
     renderAuthScreen(route.name);
     return;
@@ -121,6 +122,9 @@ function renderRoute(route) {
   }
   if (route.name !== 'jobs') {
     unmountJobsPage?.();
+  }
+  if (route.name !== 'chat') {
+    unmountChatPage?.();
   }
   if (route.name === 'components') {
     main.innerHTML = '<div id="components-cheat-sheet-root" class="w-full"></div>';

@@ -1086,13 +1086,11 @@ function TimerActionArea({ state, canStart }) {
   ]);
 }
 
-function ManualActionArea({ state, canStart }) {
-  const parsed = parseManualDuration(state.manualDurationInput, state.manualFormat);
-  const saveEnabled = !!canStart && parsed.valid;
+function ManualFields({ state }) {
   const presetSeconds = [15 * 60, 30 * 60, 60 * 60, 2 * 60 * 60];
   const inputPlaceholder = state.manualFormat === MANUAL_FORMATS.clock ? '1:15' : '1.25';
 
-  return h('div', { className: 'global-time-bar__manual-cluster' }, [
+  return h('div', { className: 'global-time-bar__manual-fields' }, [
     h(ManualDateControl, {
       value: state.manualDate,
       onChange: (nextDate) => applyState({ manualDate: nextDate || getTodayIso() }),
@@ -1120,12 +1118,26 @@ function ManualActionArea({ state, canStart }) {
       onChange: switchManualFormat,
       ariaLabel: 'Manual time format',
     }),
-    h('button', {
-      type: 'button',
-      className: 'global-time-bar__save',
-      disabled: !saveEnabled,
-      onClick: () => saveManualEntry(),
-    }, 'SAVE'),
+  ]);
+}
+
+function ManualPrimaryAction({ state, canStart }) {
+  const parsed = parseManualDuration(state.manualDurationInput, state.manualFormat);
+  const saveEnabled = !!canStart && parsed.valid;
+
+  return h('button', {
+    type: 'button',
+    className: 'global-time-bar__save',
+    disabled: !saveEnabled,
+    onClick: () => saveManualEntry(),
+  }, 'SAVE');
+}
+
+function PrimaryActionArea({ state, canStart, isManualMode }) {
+  return h('div', { className: 'global-time-bar__primary-action' }, [
+    isManualMode
+      ? h(ManualPrimaryAction, { state, canStart })
+      : h(TimerActionArea, { state, canStart }),
   ]);
 }
 
@@ -1266,6 +1278,9 @@ function GlobalTimeBar({ state, overlayTop = 0 }) {
           placeholder: 'Notes...',
           onChange: (event) => applyState({ notes: event.target.value || '' }),
         }),
+        isManualMode
+          ? h(ManualFields, { state })
+          : null,
         h('div', {
           className: [
             'global-time-bar__mode-toggle',
@@ -1298,9 +1313,7 @@ function GlobalTimeBar({ state, overlayTop = 0 }) {
             onClick: () => canSwitchMode && applyState({ selectedMode: 'manual' }),
           }, 'Manual Time'),
         ]),
-        state.selectedMode === 'manual' && state.timerState === TIMER_STATES.idle
-          ? h(ManualActionArea, { state, canStart })
-          : h(TimerActionArea, { state, canStart }),
+        h(PrimaryActionArea, { state, canStart, isManualMode }),
         h('button', {
           type: 'button',
           className: 'global-time-bar__close',

@@ -346,7 +346,8 @@ html:not(.dark) #app-sidebar .sidebar-profile-toggle:hover {
 }
 .global-time-bar__inner {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 340px) minmax(96px, 1fr) minmax(0, auto) 190px minmax(76px, auto) 34px;
   align-items: center;
   gap: 12px;
   height: 56px;
@@ -395,10 +396,10 @@ html.dark .global-time-bar__inner.is-confirming {
   box-shadow: none;
 }
 .global-time-bar__task-area {
+  grid-column: 1;
   position: relative;
-  flex: 0 1 340px;
-  min-width: 240px;
-  max-width: 360px;
+  min-width: 0;
+  max-width: none;
 }
 .global-time-bar__task-input {
   width: 100%;
@@ -495,8 +496,9 @@ html.dark .global-time-bar__inner.is-paused .global-time-bar__task-context {
   color: #ffffff;
 }
 .global-time-bar__notes {
-  flex: 1 1 auto;
-  min-width: 72px;
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
   height: 34px;
   border: none;
   border-bottom: 1px solid rgba(255,255,255,0.42);
@@ -558,6 +560,8 @@ html.dark .global-time-bar__inner.is-paused .global-time-bar__notes::placeholder
   color: rgba(255,255,255,0.82);
 }
 .global-time-bar__mode-toggle {
+  grid-column: 4;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -655,12 +659,23 @@ html.dark .global-time-bar__inner.is-confirming .global-time-bar__format-toggle 
   flex: 0 0 auto;
   min-width: 0;
 }
+.global-time-bar__manual-fields,
 .global-time-bar__manual-cluster {
+  grid-column: 3;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  flex: 0 0 auto;
+  justify-self: end;
+  flex: 0 1 auto;
   min-width: 0;
+}
+.global-time-bar__primary-action {
+  grid-column: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 76px;
+  min-height: 36px;
 }
 .global-time-bar__date-button {
   display: inline-flex;
@@ -1133,7 +1148,8 @@ html.dark .global-time-bar__status-placeholder {
   cursor: default;
 }
 .global-time-bar__close {
-  flex: 0 0 auto;
+  grid-column: 6;
+  justify-self: end;
   width: 32px;
   height: 32px;
   padding: 0;
