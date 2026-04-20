@@ -172,7 +172,9 @@ export function applyMainWrapperClass(hash) {
     h.startsWith('#/app/contacts/company/') ||
     h.startsWith('#/app/contacts/person/');
 
-  const base = (isComponents || isMeLists || isMeMyLists)
+  const base = isChat
+    ? 'p-3 sm:p-4 lg:p-5 pb-0 overflow-hidden'
+    : (isComponents || isMeLists || isMeMyLists)
     ? 'p-4 sm:p-6 lg:p-8 pb-14 overflow-y-auto'
     : isReportsOrTable
     ? 'p-4 sm:p-6 lg:p-8 pb-14 overflow-hidden'
