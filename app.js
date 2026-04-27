@@ -22,6 +22,21 @@ import { unmountGlobalTimeUI } from './time-tracking/global-time-ui.js';
 const detectedEnv = (typeof window !== 'undefined' && window.location.hostname === 'mpitre72.github.io')
   ? 'GitHub Pages'
   : 'Local';
+
+function mountBuildIndicator() {
+  if (typeof window === 'undefined') return;
+  const slot = document.getElementById('build-indicator-slot');
+  if (!slot) return;
+  let badge = slot.querySelector('.env-indicator');
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.className = 'env-indicator';
+    slot.appendChild(badge);
+  }
+  badge.textContent = `Environment: ${detectedEnv} • Build: ${BUILD_STAMP}`;
+  console.log('[env-indicator]', badge.textContent);
+}
+
 if (typeof window !== 'undefined') {
   try {
     const last = localStorage.getItem('netnet_last_build_stamp');
@@ -38,15 +53,7 @@ if (typeof window !== 'undefined') {
   }
   window.__NETNET_ENV__ = detectedEnv;
   window.__NETNET_BUILD__ = BUILD_STAMP;
-  window.addEventListener('DOMContentLoaded', () => {
-    const slot = document.getElementById('build-indicator-slot');
-    if (!slot || slot.querySelector('.env-indicator')) return;
-    const badge = document.createElement('div');
-    badge.className = 'env-indicator';
-    badge.textContent = `Environment: ${detectedEnv} • Build: ${BUILD_STAMP}`;
-    console.log('[env-indicator]', badge.textContent);
-    slot.appendChild(badge);
-  });
+  window.addEventListener('DOMContentLoaded', mountBuildIndicator);
 }
 
 function ensureToast() {
@@ -97,6 +104,7 @@ function ensureShell(type, hash) {
   } else {
     mountShell(rootHash);
     applyMainWrapperClass(rootHash);
+    mountBuildIndicator();
   }
   currentShell = type;
 }

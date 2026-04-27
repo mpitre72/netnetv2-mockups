@@ -1,6 +1,7 @@
 import { formatWorkMentionLabel, parseMessageTokens } from './chat-mention-utils.js';
 
 const { createElement: h } = React;
+const DEFAULT_VISIBLE_REPLY_COUNT = 2;
 
 function getInitials(name = '') {
   return String(name || '?')
@@ -122,10 +123,53 @@ function SourceLabel({ label }) {
   ]);
 }
 
-function replyCountLabel(count, expanded) {
+function replyCountLabel(count) {
   const value = Number(count || 0);
   if (!value) return '';
-  return `${expanded ? 'Hide' : 'Show'} ${value} ${value === 1 ? 'reply' : 'replies'}`;
+  return `${value} ${value === 1 ? 'reply' : 'replies'}`;
+}
+
+function getRecentReplyAuthors(replies = [], limit = 3) {
+  const authors = [];
+  [...replies].reverse().forEach((reply) => {
+    const author = reply?.author;
+    if (!author || authors.includes(author)) return;
+    authors.push(author);
+  });
+  return authors.slice(0, limit);
+}
+
+function StackedReplyAvatars({ replies = [] }) {
+  const authors = getRecentReplyAuthors(replies);
+  if (!authors.length) return null;
+
+  return h('span', {
+    className: 'flex shrink-0 -space-x-1',
+    'aria-hidden': 'true',
+  }, authors.map((author, index) => h('span', {
+    key: `${author}-${index}`,
+    className: 'inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-[10px] font-semibold text-slate-500 shadow-sm dark:border-slate-950 dark:bg-slate-800 dark:text-slate-200',
+    title: author,
+  }, getInitials(author))));
+}
+
+function ReplyRollupRow({ replies = [], expanded = false, onToggle }) {
+  if (replies.length <= DEFAULT_VISIBLE_REPLY_COUNT) return null;
+
+  const label = replyCountLabel(replies.length);
+  return h('button', {
+    type: 'button',
+    className: 'mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-netnet-purple focus:outline-none focus:ring-1 focus:ring-netnet-purple/40 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white',
+    'aria-expanded': expanded ? 'true' : 'false',
+    'aria-label': expanded ? `Collapse ${label}` : `Expand ${label}`,
+    'data-chat-thread-rollup': 'true',
+    'data-chat-thread-rollup-expanded': expanded ? 'true' : 'false',
+    'data-chat-thread-rollup-count': String(replies.length),
+    onClick: onToggle,
+  }, [
+    h(StackedReplyAvatars, { key: 'avatars', replies }),
+    h('span', { key: 'label', className: 'whitespace-nowrap' }, label),
+  ]);
 }
 
 function MessageAnatomy({ item, compact = false, mentionCatalog, onMentionClick }) {
@@ -158,19 +202,39 @@ function MessageAnatomy({ item, compact = false, mentionCatalog, onMentionClick 
   ]);
 }
 
-function ReplyThread({ item, mentionCatalog, onMentionClick }) {
+function ReplyThread({
+  item,
+  expanded = false,
+  mentionCatalog,
+  onMentionClick,
+  onToggleThread,
+}) {
   const replies = [...(item.replies || [])].sort((a, b) => Number(a.sortAt || 0) - Number(b.sortAt || 0));
   if (!replies.length) return null;
+  const visibleReplies = expanded ? replies : replies.slice(0, DEFAULT_VISIBLE_REPLY_COUNT);
   return h('div', {
     className: 'ml-[34px] border-l border-slate-100 py-1 pl-3 dark:border-white/10 sm:ml-[42px]',
     'data-chat-inline-thread': item.threadId,
-  }, replies.map((reply) => h(MessageAnatomy, {
-    key: reply.id,
-    item: reply,
-    compact: true,
-    mentionCatalog,
-    onMentionClick,
-  })));
+    'data-chat-inline-thread-expanded': expanded ? 'true' : 'false',
+    'data-chat-inline-thread-visible-replies': String(visibleReplies.length),
+    'data-chat-inline-thread-total-replies': String(replies.length),
+  }, [
+    ...visibleReplies.map((reply) => h(MessageAnatomy, {
+      key: reply.id,
+      item: reply,
+      compact: true,
+      mentionCatalog,
+      onMentionClick,
+    })),
+    h('div', {
+      key: 'rollup',
+      className: 'px-2 sm:px-3',
+    }, h(ReplyRollupRow, {
+      replies,
+      expanded,
+      onToggle: () => onToggleThread?.(item.threadId),
+    })),
+  ]);
 }
 
 export function ChatMessageRow({
@@ -201,14 +265,18 @@ export function ChatMessageRow({
         ].join(' '),
         onClick: () => onStartReply?.(item),
       }, isReplyTarget ? 'Replying' : 'Reply'),
-      replyCount ? h('button', {
-        type: 'button',
-        className: 'font-semibold text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus:ring-1 focus:ring-netnet-purple/40 dark:text-slate-500 dark:hover:text-slate-200',
-        'aria-expanded': expanded ? 'true' : 'false',
-        onClick: () => onToggleThread?.(item.threadId),
-      }, replyCountLabel(replyCount, expanded)) : null,
+      replyCount ? h('span', {
+        className: 'font-semibold text-slate-400 dark:text-slate-500',
+        'data-chat-reply-count': String(replyCount),
+      }, replyCountLabel(replyCount)) : null,
     ]),
-    expanded ? h(ReplyThread, { item, mentionCatalog, onMentionClick }) : null,
+    replyCount ? h(ReplyThread, {
+      item,
+      expanded,
+      mentionCatalog,
+      onMentionClick,
+      onToggleThread,
+    }) : null,
   ]);
 }
 
