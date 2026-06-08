@@ -1,11 +1,9 @@
 import { navigate } from '../router.js';
+import { PerfCard } from '../components/performance/primitives.js';
 import { PerformanceLayout } from './performance-layout.js';
-import { PerformancePulse } from './screens/PerformancePulse.js';
-import { AtRiskDeliverables } from './screens/AtRiskDeliverables.js';
-import { CapacityForecast } from './screens/CapacityForecast.js';
-import { JobsAtRisk } from './screens/JobsAtRisk.js';
 import { JobPulse } from './screens/JobPulse.js';
 import { ReportsRouter } from './reports/ReportsRouter.js';
+import { PerformanceArchive } from './archive/PerformanceArchive.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 const { createRoot } = ReactDOM;
@@ -33,33 +31,41 @@ function parsePerformanceHash(hash) {
   return { segments, queryString };
 }
 
+function archiveRedirect(view, queryString = '') {
+  const params = new URLSearchParams();
+  params.set('view', view);
+  const incoming = new URLSearchParams(queryString);
+  incoming.forEach((value, key) => {
+    if (key !== 'view') params.append(key, value);
+  });
+  return `#/app/performance/archive?${params.toString()}`;
+}
+
 function resolveRoute() {
   const { segments, queryString } = parsePerformanceHash();
-  if (!segments.length) return { redirect: '#/app/performance/overview' };
+  if (!segments.length) return { redirect: '#/app/performance/pulse' };
   if (segments[0] === 'reports' && !segments[1]) {
     const qs = queryString ? `?${queryString}` : '';
     return { redirect: `#/app/performance/reports/time${qs}` };
   }
   const view = segments[0];
-  if (view === 'overview') return { view: 'overview', queryString };
+  if (['pulse', 'production', 'team', 'patterns'].includes(view)) return { view, queryString };
+  if (view === 'overview') return { redirect: archiveRedirect('pulse', queryString) };
   if (view === 'at-risk-deliverables') {
-    const qs = queryString ? `?${queryString}` : '';
-    return { redirect: `#/app/performance/deliverables-in-drift${qs}` };
+    return { redirect: archiveRedirect('deliverables-in-drift', queryString) };
   }
-  if (view === 'deliverables-in-drift') return { view, queryString };
+  if (view === 'deliverables-in-drift') return { redirect: archiveRedirect('deliverables-in-drift', queryString) };
   if (view === 'capacity') {
-    const params = new URLSearchParams(queryString);
-    const horizon = parseInt(params.get('horizonDays') || '', 10);
-    if (![14, 30, 60].includes(horizon)) {
-      params.set('horizonDays', '30');
-      return { redirect: `#/app/performance/capacity?${params.toString()}` };
-    }
-    return { view, queryString: params.toString() };
+    return { redirect: archiveRedirect('capacity', queryString) };
   }
-  if (view === 'jobs-at-risk') return { view, queryString };
+  if (view === 'jobs-at-risk') return { redirect: archiveRedirect('jobs-at-risk', queryString) };
+  if (view === 'archive') {
+    const params = new URLSearchParams(queryString);
+    return { view, archiveView: params.get('view') || 'pulse', queryString };
+  }
   if (view === 'job-pulse') return { view, queryString };
   if (view === 'reports') return { view, report: segments[1] || 'time', queryString };
-  return { redirect: '#/app/performance/overview' };
+  return { redirect: '#/app/performance/pulse' };
 }
 
 function usePerformanceRoute() {
@@ -77,23 +83,49 @@ function usePerformanceRoute() {
   return route;
 }
 
+function PerformancePlaceholder({ title, copy }) {
+  return h(PerfCard, { className: 'space-y-3 p-6' }, [
+    h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Performance'),
+    h('h2', { className: 'text-2xl font-semibold text-slate-900 dark:text-white' }, title),
+    h('p', { className: 'max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300' }, copy),
+  ]);
+}
+
 function Screen({ route }) {
   const activeKey = useMemo(() => {
     if (route.view === 'reports') return 'reports';
-    if (route.view === 'job-pulse') return 'jobs-at-risk';
-    if (route.view === 'deliverables-in-drift') return 'deliverables-in-drift';
-    return route.view || 'overview';
+    if (route.view === 'job-pulse') return 'production';
+    return route.view || 'pulse';
   }, [route.view]);
 
   const content = (() => {
-    if (route.view === 'overview') return h(PerformancePulse);
-    if (route.view === 'deliverables-in-drift') return h(AtRiskDeliverables, { queryString: route.queryString });
-    if (route.view === 'capacity') return h(CapacityForecast, { queryString: route.queryString });
-    if (route.view === 'jobs-at-risk') return h(JobsAtRisk, { queryString: route.queryString });
+    if (route.view === 'pulse') return h(PerformancePlaceholder, {
+      title: 'Pulse',
+      copy: 'Pulse will show what needs attention right now.',
+    });
+    if (route.view === 'production') return h(PerformancePlaceholder, {
+      title: 'Production',
+      copy: 'Production will show active work that needs attention.',
+    });
+    if (route.view === 'team') return h(PerformancePlaceholder, {
+      title: 'Team',
+      copy: 'Team will show workload, capacity, and missing planning details.',
+    });
+    if (route.view === 'patterns') return h(PerformancePlaceholder, {
+      title: 'Patterns',
+      copy: 'Patterns will show what keeps happening across work, services, clients, and retainers.',
+    });
     if (route.view === 'job-pulse') return h(JobPulse, { queryString: route.queryString });
     if (route.view === 'reports') return h(ReportsRouter, { report: route.report, queryString: route.queryString });
-    return h(PerformancePulse);
+    return h(PerformancePlaceholder, {
+      title: 'Pulse',
+      copy: 'Pulse will show what needs attention right now.',
+    });
   })();
+
+  if (route.view === 'archive') {
+    return h(PerformanceArchive, { archiveView: route.archiveView, queryString: route.queryString });
+  }
 
   return h(PerformanceLayout, { activeKey }, content);
 }

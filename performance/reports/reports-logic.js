@@ -2,7 +2,7 @@ export const REPORTS_TABS = [
   { label: 'Time', value: 'time' },
   { label: 'Team', value: 'team' },
   { label: 'Sales', value: 'sales' },
-  { label: 'Job', value: 'job' },
+  { label: 'Jobs', value: 'job' },
 ];
 
 export const REPORT_DEFAULT_RANGE = 'last-30';

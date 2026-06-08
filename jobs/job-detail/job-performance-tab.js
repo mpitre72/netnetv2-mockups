@@ -1,14 +1,15 @@
 import { PerfCard, PerfSectionTitle } from '../../components/performance/primitives.js';
 import { loadServiceTypes } from '../../quick-tasks/quick-tasks-store.js';
-import { getJobCycleKey, setJobCycleKey } from '../jobs-ui-state.js';
+import { setJobCycleKey } from '../jobs-ui-state.js';
 import {
+  formatCycleLabel,
   getCurrentCycleKey,
   getTaskCycleKey,
   isDeliverableVisibleInCycle,
   isRecurringTemplateTask,
+  shiftCycleKey,
 } from '../retainer-cycle-utils.js';
 import { getApplicableChangeOrders, getOriginalPlanRowsById } from '../change-order-scope-utils.js';
-import { RetainerMonthSwitcher } from './retainer-month-switcher.js';
 
 const { createElement: h, useEffect, useMemo, useState } = React;
 
@@ -259,6 +260,172 @@ function formatPercent(value) {
   return `${rounded % 1 ? rounded.toFixed(1) : rounded}%`;
 }
 
+function parseDate(value) {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(value) {
+  const date = parseDate(value);
+  if (!date) return value || '-';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function statusLabel(status) {
+  if (status === 'active') return 'Active';
+  if (status === 'completed') return 'Completed';
+  if (status === 'archived') return 'Archived';
+  return 'Pending';
+}
+
+function isCycleKey(value) {
+  return /^\d{4}-\d{2}$/.test(String(value || ''));
+}
+
+function getCycleKeyFromDate(value) {
+  return String(value || '').match(/^\d{4}-\d{2}/)?.[0] || null;
+}
+
+function getCycleStartDate(cycleKey) {
+  return isCycleKey(cycleKey) ? `${cycleKey}-01` : null;
+}
+
+function compareCycleKeys(a, b) {
+  return String(a || '').localeCompare(String(b || ''));
+}
+
+function addCycleKey(target, value) {
+  if (isCycleKey(value)) target.add(String(value));
+}
+
+function getLatestCycleKey(keys = []) {
+  return [...keys].filter(isCycleKey).sort(compareCycleKeys).pop() || null;
+}
+
+function getEarliestCycleKey(keys = []) {
+  return [...keys].filter(isCycleKey).sort(compareCycleKeys)[0] || null;
+}
+
+function deriveFixedTermEndDate(startDate, durationMonths) {
+  const start = parseDate(startDate);
+  const duration = Math.round(Number(durationMonths) || 0);
+  if (!start || duration <= 0) return null;
+  const end = new Date(start.getFullYear(), start.getMonth() + duration, 0);
+  const year = end.getFullYear();
+  const month = `${end.getMonth() + 1}`.padStart(2, '0');
+  const day = `${end.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getRetainerEndDate(job) {
+  if (!job || job.kind !== 'retainer') return job?.targetEndDate || null;
+  if (job.completedAt) return job.completedAt;
+  if (job.billingStructure === 'fixed_term') {
+    return deriveFixedTermEndDate(job.startDate, job.billingDurationMonths);
+  }
+  return null;
+}
+
+function getRetainerStartDate(job, cycleKeys = []) {
+  return job?.startDate || job?.timeline?.startDate || getCycleStartDate(cycleKeys[0]) || getCycleStartDate(job?.currentCycleKey) || null;
+}
+
+function collectRetainerCycleKeys(job) {
+  const keys = new Set();
+  addCycleKey(keys, getCycleKeyFromDate(job?.startDate));
+  addCycleKey(keys, getCycleKeyFromDate(job?.completedAt));
+  addCycleKey(keys, job?.currentCycleKey);
+
+  const collectTask = (task) => {
+    addCycleKey(keys, task?.cycleKey);
+    addCycleKey(keys, getCycleKeyFromDate(task?.dueDate));
+    addCycleKey(keys, getCycleKeyFromDate(task?.completedAt));
+    (task?.timeEntries || []).forEach((entry) => addCycleKey(keys, getCycleKeyFromDate(entry?.date)));
+  };
+
+  (job?.deliverables || []).forEach((deliverable) => {
+    addCycleKey(keys, deliverable?.createdCycleKey);
+    addCycleKey(keys, getCycleKeyFromDate(deliverable?.dueDate));
+    Object.keys(deliverable?.poolsByCycle || {}).forEach((key) => addCycleKey(keys, key));
+    (deliverable?.tasks || []).forEach(collectTask);
+  });
+  (job?.unassignedTasks || []).forEach(collectTask);
+  (job?.changeOrders || []).forEach((changeOrder) => {
+    addCycleKey(keys, changeOrder?.effectiveStartMonth);
+    addCycleKey(keys, changeOrder?.effectiveMonth);
+    addCycleKey(keys, changeOrder?.cycleKey);
+    addCycleKey(keys, getCycleKeyFromDate(changeOrder?.effectiveDate));
+  });
+  Object.keys(job?.originalPlanSnapshot?.byMonth || {}).forEach((key) => addCycleKey(keys, key));
+  Object.keys(job?.currentPlanSnapshot?.byMonth || {}).forEach((key) => addCycleKey(keys, key));
+
+  return [...keys].sort(compareCycleKeys);
+}
+
+function buildCycleRange(startCycle, endCycle) {
+  if (!isCycleKey(startCycle) || !isCycleKey(endCycle) || compareCycleKeys(startCycle, endCycle) > 0) return [];
+  const keys = [];
+  let cursor = startCycle;
+  while (compareCycleKeys(cursor, endCycle) <= 0) {
+    keys.push(cursor);
+    cursor = shiftCycleKey(cursor, 1);
+    if (keys.length > 120) break;
+  }
+  return keys;
+}
+
+function getRetainerCycleBounds(job) {
+  const availableKeys = collectRetainerCycleKeys(job);
+  const startDate = getRetainerStartDate(job, availableKeys);
+  const startCycle = getCycleKeyFromDate(startDate) || getEarliestCycleKey(availableKeys) || job?.currentCycleKey || getCurrentCycleKey();
+  const availableLatest = getLatestCycleKey(availableKeys) || startCycle;
+  const endDate = getRetainerEndDate(job);
+  const fixedOrClosedEnd = getCycleKeyFromDate(endDate);
+  const endCycle = fixedOrClosedEnd || availableLatest || startCycle;
+  return {
+    startCycle,
+    endCycle: compareCycleKeys(endCycle, startCycle) < 0 ? startCycle : endCycle,
+    availableLatest,
+    endDate,
+  };
+}
+
+function getRetainerCycleKeys(job) {
+  const bounds = getRetainerCycleBounds(job);
+  return buildCycleRange(bounds.startCycle, bounds.endCycle);
+}
+
+function getDefaultRetainerCycleKey(job, cycleKeys = getRetainerCycleKeys(job)) {
+  if (!cycleKeys.length) return null;
+  const finalCycle = cycleKeys[cycleKeys.length - 1];
+  if (job?.status === 'active') {
+    if (cycleKeys.includes(job?.currentCycleKey)) return job.currentCycleKey;
+    return finalCycle;
+  }
+  return finalCycle;
+}
+
+function getInitialRetainerSelectedMonth(job, cycleKeys = []) {
+  return clampCycleKey(getDefaultRetainerCycleKey(job, cycleKeys), cycleKeys);
+}
+
+function clampCycleKey(cycleKey, cycleKeys = []) {
+  if (!cycleKeys.length) return null;
+  if (cycleKeys.includes(cycleKey)) return cycleKey;
+  if (cycleKey && compareCycleKeys(cycleKey, cycleKeys[0]) < 0) return cycleKeys[0];
+  if (cycleKey && compareCycleKeys(cycleKey, cycleKeys[cycleKeys.length - 1]) > 0) return cycleKeys[cycleKeys.length - 1];
+  return cycleKeys[cycleKeys.length - 1];
+}
+
+function getAppliedChangeOrdersForPerformance(job, { activeCycleKey = null, isRetainer = false } = {}) {
+  const applied = getApplicableChangeOrders(job, { cycleKey: activeCycleKey, status: 'applied' });
+  if (!isRetainer) return applied;
+  return applied.filter((changeOrder) => String(
+    changeOrder?.effectiveStartMonth || changeOrder?.effectiveMonth || changeOrder?.cycleKey || ''
+  ) === String(activeCycleKey || ''));
+}
+
 function getLeverageInsight(actual, aiHours) {
   const humanActual = Number(actual) || 0;
   const ai = Number(aiHours) || 0;
@@ -477,63 +644,40 @@ function DataRow({ gridTemplateColumns, children, muted = false, footer = false 
   }, children);
 }
 
-export function JobPerformanceTab({ job }) {
-  const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
-  const isRetainer = job?.kind === 'retainer';
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    if (!job || job.kind !== 'retainer') return null;
-    return getJobCycleKey(job.id) || job.currentCycleKey || getCurrentCycleKey();
-  });
-  const hybridDeliveryMap = loadHybridDeliveryMap(job?.id);
+function buildPerformanceMetrics({
+  job,
+  serviceTypes,
+  serviceTypeNameMap,
+  hybridDeliveryMap,
+  activeCycleKey = null,
+  isRetainer = false,
+}) {
+  if (!job) {
+    return {
+      appliedChangeOrders: [],
+      deliverableRows: [],
+      serviceRows: [],
+      originalPlanHours: 0,
+      currentPlanHours: 0,
+      actualHours: 0,
+      aiHours: 0,
+      effectiveOutputHours: 0,
+      leverageRatio: null,
+      leverageInsight: '',
+      varianceHours: 0,
+      variancePct: 0,
+      topHybridServiceInsight: '',
+      hasHybridData: false,
+      hasMonthActivity: false,
+    };
+  }
 
-  useEffect(() => {
-    if (!job || job.kind !== 'retainer') {
-      setSelectedMonth(null);
-      return;
-    }
-    setSelectedMonth(getJobCycleKey(job.id) || job.currentCycleKey || getCurrentCycleKey());
-  }, [job?.id, job?.kind, job?.currentCycleKey]);
-
-  const activeCycleKey = isRetainer ? (selectedMonth || getCurrentCycleKey()) : null;
-
-  const serviceTypeNameMap = useMemo(() => {
-    const map = new Map();
-    (serviceTypes || []).forEach((type) => {
-      map.set(String(type.id), type.name || `Service ${type.id}`);
-    });
-    Object.keys(job?.plan?.serviceTypeNames || {}).forEach((key) => {
-      if (!map.has(String(key))) map.set(String(key), String(job.plan.serviceTypeNames[key] || key));
-    });
-    return map;
-  }, [job?.plan?.serviceTypeNames, serviceTypes]);
-
-  const metrics = useMemo(() => {
-    if (!job) {
-      return {
-        appliedChangeOrders: [],
-        deliverableRows: [],
-        serviceRows: [],
-        originalPlanHours: 0,
-        currentPlanHours: 0,
-        actualHours: 0,
-        aiHours: 0,
-        effectiveOutputHours: 0,
-        leverageRatio: null,
-        leverageInsight: '',
-        varianceHours: 0,
-        variancePct: 0,
-        topHybridServiceInsight: '',
-        hasHybridData: false,
-        hasMonthActivity: false,
-      };
-    }
-
-    const originalDeliverablesById = getOriginalPlanRowsById(job, serviceTypes, { cycleKey: activeCycleKey });
-    const hybridByService = {};
-    const hybridNotesByService = {};
-    const deliverableRows = (job.deliverables || [])
-      .filter((deliverable) => !isRetainer || isDeliverableVisibleInCycle(deliverable, activeCycleKey))
-      .map((deliverable) => {
+  const originalDeliverablesById = getOriginalPlanRowsById(job, serviceTypes, { cycleKey: activeCycleKey });
+  const hybridByService = {};
+  const hybridNotesByService = {};
+  const deliverableRows = (job.deliverables || [])
+    .filter((deliverable) => !isRetainer || isDeliverableVisibleInCycle(deliverable, activeCycleKey))
+    .map((deliverable) => {
       const tasks = (Array.isArray(deliverable?.tasks) ? deliverable.tasks : []).filter((task) => (
         isTaskInCycle(task, activeCycleKey, isRetainer)
       ));
@@ -580,114 +724,229 @@ export function JobPerformanceTab({ job }) {
         varianceHours,
         variancePct: variancePercent(actual, currentPlan),
       };
-      });
-
-    const unassignedTasksForCycle = (job.unassignedTasks || []).filter((task) => (
-      isTaskInCycle(task, activeCycleKey, isRetainer)
-    ));
-    const unassignedActualMap = getUnassignedActualByServiceType(unassignedTasksForCycle, { cycleKey: activeCycleKey, isRetainer });
-    const unassignedActual = sumHoursMap(unassignedActualMap);
-    if (unassignedActual > 0 || unassignedTasksForCycle.length) {
-      deliverableRows.push({
-        id: 'unassigned',
-        name: 'General Job Tasks',
-        dueDate: null,
-        tasks: unassignedTasksForCycle,
-        currentPlanMap: {},
-        originalPlanMap: {},
-        actualMap: unassignedActualMap,
-        currentPlan: 0,
-        originalPlan: 0,
-        actual: unassignedActual,
-        aiHours: 0,
-        leverageRatio: null,
-        hybridTooltip: '',
-        executionContext: getExecutionContext(unassignedTasksForCycle, unassignedActual),
-        dueTiming: getDueTiming(null),
-        varianceHours: roundHours(unassignedActual),
-        variancePct: Infinity,
-      });
-    }
-
-    const currentPlanByService = {};
-    const originalPlanByService = {};
-    const actualByService = {};
-    deliverableRows.forEach((row) => {
-      addHoursToMap(currentPlanByService, row.currentPlanMap);
-      addHoursToMap(originalPlanByService, row.originalPlanMap);
-      addHoursToMap(actualByService, row.actualMap);
     });
 
-    const serviceTypeIds = [...new Set([
-      ...Object.keys(currentPlanByService),
-      ...Object.keys(originalPlanByService),
-      ...Object.keys(actualByService),
-    ])];
-
-    const serviceRows = serviceTypeIds.map((serviceTypeId) => {
-      const currentPlan = roundHours(currentPlanByService[serviceTypeId]);
-      const originalPlan = roundHours(originalPlanByService[serviceTypeId]);
-      const actual = roundHours(actualByService[serviceTypeId]);
-      const aiHours = roundHours(hybridByService[serviceTypeId]);
-      const combinedOutput = actual + aiHours;
-      return {
-        id: serviceTypeId,
-        name: serviceTypeNameMap.get(String(serviceTypeId)) || `Service ${serviceTypeId}`,
-        currentPlan,
-        originalPlan,
-        actual,
-        aiHours,
-        hybridSharePct: combinedOutput > 0 ? (aiHours / combinedOutput) * 100 : null,
-        hybridTooltip: (hybridNotesByService[serviceTypeId] || []).map((entry) => (
-          `${entry.deliverableName}: ${formatHours(entry.hours)}${entry.notes ? ` — ${entry.notes}` : ''}`
-        )).join('\n'),
-        varianceHours: roundHours(actual - currentPlan),
-        variancePct: variancePercent(actual, currentPlan),
-      };
+  const unassignedTasksForCycle = (job.unassignedTasks || []).filter((task) => (
+    isTaskInCycle(task, activeCycleKey, isRetainer)
+  ));
+  const unassignedActualMap = getUnassignedActualByServiceType(unassignedTasksForCycle, { cycleKey: activeCycleKey, isRetainer });
+  const unassignedActual = sumHoursMap(unassignedActualMap);
+  if (unassignedActual > 0 || unassignedTasksForCycle.length) {
+    deliverableRows.push({
+      id: 'unassigned',
+      name: 'General Job Tasks',
+      dueDate: null,
+      tasks: unassignedTasksForCycle,
+      currentPlanMap: {},
+      originalPlanMap: {},
+      actualMap: unassignedActualMap,
+      currentPlan: 0,
+      originalPlan: 0,
+      actual: unassignedActual,
+      aiHours: 0,
+      leverageRatio: null,
+      hybridTooltip: '',
+      executionContext: getExecutionContext(unassignedTasksForCycle, unassignedActual),
+      dueTiming: getDueTiming(null),
+      varianceHours: roundHours(unassignedActual),
+      variancePct: Infinity,
     });
+  }
 
-    deliverableRows.sort((a, b) => {
-      if (b.varianceHours !== a.varianceHours) return b.varianceHours - a.varianceHours;
-      if (b.actual !== a.actual) return b.actual - a.actual;
-      return String(a.name || '').localeCompare(String(b.name || ''));
-    });
+  const currentPlanByService = {};
+  const originalPlanByService = {};
+  const actualByService = {};
+  deliverableRows.forEach((row) => {
+    addHoursToMap(currentPlanByService, row.currentPlanMap);
+    addHoursToMap(originalPlanByService, row.originalPlanMap);
+    addHoursToMap(actualByService, row.actualMap);
+  });
 
-    serviceRows.sort((a, b) => {
-      if (b.varianceHours !== a.varianceHours) return b.varianceHours - a.varianceHours;
-      if (b.actual !== a.actual) return b.actual - a.actual;
-      return String(a.name || '').localeCompare(String(b.name || ''));
-    });
+  const serviceTypeIds = [...new Set([
+    ...Object.keys(currentPlanByService),
+    ...Object.keys(originalPlanByService),
+    ...Object.keys(actualByService),
+  ])];
 
-    const currentPlanHours = roundHours(sumHoursMap(currentPlanByService));
-    const originalPlanHours = roundHours(sumHoursMap(originalPlanByService));
-    const actualHours = roundHours(sumHoursMap(actualByService));
-    const aiHours = roundHours(sumHoursMap(hybridByService));
-    const effectiveOutputHours = roundHours(actualHours + aiHours);
-    const varianceHours = roundHours(actualHours - currentPlanHours);
-    const hasMonthActivity = deliverableRows.some((row) => row.actual > 0);
-
+  const serviceRows = serviceTypeIds.map((serviceTypeId) => {
+    const currentPlan = roundHours(currentPlanByService[serviceTypeId]);
+    const originalPlan = roundHours(originalPlanByService[serviceTypeId]);
+    const actual = roundHours(actualByService[serviceTypeId]);
+    const aiHours = roundHours(hybridByService[serviceTypeId]);
+    const combinedOutput = actual + aiHours;
     return {
-      appliedChangeOrders: getApplicableChangeOrders(job, { cycleKey: activeCycleKey, status: 'applied' }),
-      deliverableRows,
-      serviceRows,
-      originalPlanHours,
-      currentPlanHours,
-      actualHours,
+      id: serviceTypeId,
+      name: serviceTypeNameMap.get(String(serviceTypeId)) || `Service ${serviceTypeId}`,
+      currentPlan,
+      originalPlan,
+      actual,
       aiHours,
-      effectiveOutputHours,
-      leverageRatio: actualHours > 0 && aiHours > 0 ? (effectiveOutputHours / actualHours) : null,
-      leverageInsight: getLeverageInsight(actualHours, aiHours),
-      remainingHours: roundHours(currentPlanHours - actualHours),
-      varianceHours,
-      variancePct: variancePercent(actualHours, currentPlanHours),
-      topHybridServiceInsight: getTopHybridServiceInsight(serviceRows),
-      hasHybridData: aiHours > 0,
-      hasMonthActivity,
+      hybridSharePct: combinedOutput > 0 ? (aiHours / combinedOutput) * 100 : null,
+      hybridTooltip: (hybridNotesByService[serviceTypeId] || []).map((entry) => (
+        `${entry.deliverableName}: ${formatHours(entry.hours)}${entry.notes ? ` — ${entry.notes}` : ''}`
+      )).join('\n'),
+      varianceHours: roundHours(actual - currentPlan),
+      variancePct: variancePercent(actual, currentPlan),
     };
-  }, [job, serviceTypeNameMap, hybridDeliveryMap, activeCycleKey, isRetainer]);
+  });
 
-  if (!job) return null;
+  deliverableRows.sort((a, b) => {
+    if (b.varianceHours !== a.varianceHours) return b.varianceHours - a.varianceHours;
+    if (b.actual !== a.actual) return b.actual - a.actual;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
 
+  serviceRows.sort((a, b) => {
+    if (b.varianceHours !== a.varianceHours) return b.varianceHours - a.varianceHours;
+    if (b.actual !== a.actual) return b.actual - a.actual;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+
+  const currentPlanHours = roundHours(sumHoursMap(currentPlanByService));
+  const originalPlanHours = roundHours(sumHoursMap(originalPlanByService));
+  const actualHours = roundHours(sumHoursMap(actualByService));
+  const aiHours = roundHours(sumHoursMap(hybridByService));
+  const effectiveOutputHours = roundHours(actualHours + aiHours);
+  const varianceHours = roundHours(actualHours - currentPlanHours);
+  const hasMonthActivity = deliverableRows.some((row) => row.actual > 0);
+
+  return {
+    appliedChangeOrders: getAppliedChangeOrdersForPerformance(job, { activeCycleKey, isRetainer }),
+    deliverableRows,
+    serviceRows,
+    originalPlanHours,
+    currentPlanHours,
+    actualHours,
+    aiHours,
+    effectiveOutputHours,
+    leverageRatio: actualHours > 0 && aiHours > 0 ? (effectiveOutputHours / actualHours) : null,
+    leverageInsight: getLeverageInsight(actualHours, aiHours),
+    remainingHours: roundHours(currentPlanHours - actualHours),
+    varianceHours,
+    variancePct: variancePercent(actualHours, currentPlanHours),
+    topHybridServiceInsight: getTopHybridServiceInsight(serviceRows),
+    hasHybridData: aiHours > 0,
+    hasMonthActivity,
+  };
+}
+
+function CompactSummaryStat({ label, value, subtext }) {
+  return h('div', { className: 'rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-white/5' }, [
+    h('div', { className: 'text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, label),
+    h('div', { className: 'mt-1 text-base font-semibold leading-tight tabular-nums text-slate-900 dark:text-white' }, value),
+    subtext ? h('div', { className: 'mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400' }, subtext) : null,
+  ]);
+}
+
+function buildRetainerSummary(job, cycleMetrics = [], cycleKeys = []) {
+  const cycleCount = cycleKeys.length;
+  const totalPlan = cycleMetrics.reduce((sum, item) => sum + (Number(item.currentPlanHours) || 0), 0);
+  const totalActual = cycleMetrics.reduce((sum, item) => sum + (Number(item.actualHours) || 0), 0);
+  const remainingTotal = cycleMetrics.reduce((sum, item) => sum + (Number(item.remainingHours) || 0), 0);
+  const totalChangeOrders = cycleMetrics.reduce((sum, item) => sum + (item.appliedChangeOrders || []).length, 0);
+  const monthsOverPlan = cycleMetrics.filter((item) => (Number(item.varianceHours) || 0) > 0).length;
+  const monthsWithUnusedCapacity = cycleMetrics.filter((item) => (Number(item.remainingHours) || 0) > 0).length;
+  const serviceTotals = {};
+  const plannedServiceTotals = {};
+  cycleMetrics.forEach((item) => {
+    (item.serviceRows || []).forEach((row) => {
+      const key = row.name || 'Service Type';
+      serviceTotals[key] = roundHours((serviceTotals[key] || 0) + (Number(row.actual) || 0));
+      plannedServiceTotals[key] = roundHours((plannedServiceTotals[key] || 0) + (Number(row.currentPlan) || 0));
+    });
+  });
+  const serviceSource = Object.values(serviceTotals).some((value) => Number(value) > 0)
+    ? serviceTotals
+    : plannedServiceTotals;
+  const topService = Object.keys(serviceSource).sort((a, b) => {
+    if (serviceSource[b] !== serviceSource[a]) return serviceSource[b] - serviceSource[a];
+    return a.localeCompare(b);
+  })[0];
+  const endDate = getRetainerEndDate(job);
+  const startDate = getRetainerStartDate(job, cycleKeys);
+
+  return {
+    cycleCount,
+    dateRange: `${formatDate(startDate)} → ${endDate ? formatDate(endDate) : '-'}`,
+    status: statusLabel(job?.status),
+    averageCapacityUsed: totalPlan > 0 ? (totalActual / totalPlan) * 100 : 0,
+    averageRemaining: cycleCount ? remainingTotal / cycleCount : 0,
+    totalHoursUsed: totalActual,
+    monthsOverPlan,
+    monthsWithUnusedCapacity,
+    totalChangeOrders,
+    mostUsedService: topService || '-',
+    mostUsedServiceHours: topService ? serviceSource[topService] : 0,
+  };
+}
+
+function RetainerSummaryCards({ job, cycleMetrics, cycleKeys }) {
+  const summary = buildRetainerSummary(job, cycleMetrics, cycleKeys);
+  return h(PerfCard, null, [
+    h(PerfSectionTitle, {
+      title: 'Retainer Summary',
+      subtitle: 'Overall hour pattern across this Retainer.',
+    }),
+    h('div', { className: 'mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5' }, [
+      h(CompactSummaryStat, { label: 'Retainer Dates', value: summary.dateRange }),
+      h(CompactSummaryStat, { label: 'Retainer Status', value: summary.status }),
+      h(CompactSummaryStat, { label: 'Cycles', value: String(summary.cycleCount), subtext: 'Monthly cycles' }),
+      h(CompactSummaryStat, { label: 'Average Capacity Used', value: formatPercent(summary.averageCapacityUsed), subtext: 'Across cycles' }),
+      h(CompactSummaryStat, { label: 'Average Remaining', value: formatHours(summary.averageRemaining), subtext: 'Monthly capacity' }),
+      h(CompactSummaryStat, { label: 'Total Hours Used', value: formatHours(summary.totalHoursUsed) }),
+      h(CompactSummaryStat, { label: 'Months Over Plan', value: String(summary.monthsOverPlan) }),
+      h(CompactSummaryStat, { label: 'Months With Unused Capacity', value: String(summary.monthsWithUnusedCapacity) }),
+      h(CompactSummaryStat, { label: 'Change Orders', value: String(summary.totalChangeOrders), subtext: 'During Retainer' }),
+      h(CompactSummaryStat, {
+        label: 'Most Used Service Type',
+        value: summary.mostUsedService,
+        subtext: formatHours(summary.mostUsedServiceHours),
+      }),
+    ]),
+  ]);
+}
+
+function BoundedRetainerMonthSelector({ cycleKeys, selectedCycleKey, onSelect }) {
+  if (!cycleKeys.length) return null;
+  const selectedIndex = Math.max(0, cycleKeys.indexOf(selectedCycleKey));
+  const first = selectedIndex <= 0;
+  const last = selectedIndex >= cycleKeys.length - 1;
+  const baseButton = 'h-9 w-9 rounded-full border text-sm font-semibold transition';
+  const activeButton = 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-white/10';
+  const disabledButton = 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-300 dark:border-white/5 dark:bg-white/5 dark:text-white/25';
+  const changeTo = (index) => {
+    const nextKey = cycleKeys[index];
+    if (nextKey) onSelect(nextKey);
+  };
+
+  return h(PerfCard, null, [
+    h('div', { className: 'flex flex-wrap items-center justify-between gap-3' }, [
+      h('div', { className: 'space-y-1' }, [
+        h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, 'Month Selector'),
+        h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, 'Move through monthly Retainer cycles.'),
+      ]),
+      h('div', { className: 'inline-flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 dark:border-white/10 dark:bg-white/5' }, [
+        h('button', {
+          type: 'button',
+          disabled: first,
+          className: `${baseButton} ${first ? disabledButton : activeButton}`,
+          onClick: () => !first && changeTo(selectedIndex - 1),
+          'aria-label': 'Previous month',
+        }, '<'),
+        h('div', { className: 'min-w-[132px] text-center text-sm font-semibold text-slate-900 dark:text-white' }, formatCycleLabel(selectedCycleKey)),
+        h('button', {
+          type: 'button',
+          disabled: last,
+          className: `${baseButton} ${last ? disabledButton : activeButton}`,
+          onClick: () => !last && changeTo(selectedIndex + 1),
+          'aria-label': 'Next month',
+        }, '>'),
+      ]),
+    ]),
+  ]);
+}
+
+function ProjectPerformanceView({ job, metrics }) {
   const {
     appliedChangeOrders,
     deliverableRows,
@@ -697,16 +956,13 @@ export function JobPerformanceTab({ job }) {
     actualHours,
     aiHours,
     effectiveOutputHours,
-    leverageRatio,
     leverageInsight,
     remainingHours,
     varianceHours,
     variancePct,
     topHybridServiceInsight,
     hasHybridData,
-    hasMonthActivity,
   } = metrics;
-
   const hasAppliedChangeOrders = appliedChangeOrders.length > 0;
   const scopeDeltaHours = roundHours(currentPlanHours - originalPlanHours);
   const remainingTone = remainingHours < 0 ? 'danger' : remainingHours <= (currentPlanHours * 0.15) ? 'warn' : 'ok';
@@ -721,98 +977,52 @@ export function JobPerformanceTab({ job }) {
   const serviceGrid = hasHybridData
     ? 'minmax(220px,1.8fr) 120px 120px 96px 120px minmax(170px,1fr)'
     : 'minmax(220px,1.8fr) 120px 120px 120px minmax(170px,1fr)';
+  const summaryStats = [
+    h(SummaryStat, { key: 'original', label: 'Original Plan', value: formatHours(originalPlanHours) }),
+    h(SummaryStat, {
+      key: 'current',
+      label: 'Current Plan',
+      value: formatHours(currentPlanHours),
+      subtext: scopeDeltaHours ? `${formatHours(scopeDeltaHours, { signed: true })} from change orders` : null,
+    }),
+    h(SummaryStat, { key: 'actual', label: 'Actual Hours', value: formatHours(actualHours) }),
+    job?.status === 'active'
+      ? h(SummaryStat, {
+        key: 'remaining',
+        label: 'Remaining Hours',
+        value: formatHours(remainingHours),
+        subtext: 'Current Plan - Actual Hours',
+        valueClassName: remainingValueClass,
+      })
+      : null,
+    h(SummaryStat, {
+      key: 'variance',
+      label: 'Variance',
+      value: formatHours(varianceHours, { signed: true }),
+      subtext: formatVariancePercent(variancePct),
+      secondary: true,
+    }),
+    h(SummaryStat, { key: 'change-orders', label: 'Change Orders', value: String(appliedChangeOrders.length) }),
+  ].filter(Boolean);
 
   return h('div', { className: 'space-y-6 pb-12' }, [
     h(PerfCard, null, [
       h(PerfSectionTitle, {
-        title: 'Performance',
+        title: 'Project Performance',
         subtitle: 'Execution vs approved scope',
-        rightSlot: h('div', { className: 'flex flex-wrap items-center justify-end gap-3' }, [
-          isRetainer ? h(RetainerMonthSwitcher, {
-            cycleKey: activeCycleKey,
-            onChange: (nextKey) => {
-              setSelectedMonth(nextKey);
-              if (job?.id) setJobCycleKey(job.id, nextKey);
-            },
-            ariaLabel: 'Selected month',
-          }) : null,
-          h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, (
-            hasAppliedChangeOrders
-              ? `${appliedChangeOrders.length} applied change ${appliedChangeOrders.length === 1 ? 'order' : 'orders'} · ${formatHours(scopeDeltaHours, { signed: true })} scope movement`
-              : 'No applied change orders'
-          )),
-        ].filter(Boolean)),
+        rightSlot: h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, (
+          hasAppliedChangeOrders
+            ? `${appliedChangeOrders.length} applied change ${appliedChangeOrders.length === 1 ? 'order' : 'orders'} · ${formatHours(scopeDeltaHours, { signed: true })} scope movement`
+            : 'No applied change orders'
+        )),
       }),
-      h('div', { className: `mt-5 grid gap-4 sm:grid-cols-2 ${hasAppliedChangeOrders ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}` }, (
-        hasAppliedChangeOrders
-          ? [
-            h(SummaryStat, {
-              key: 'original',
-              label: 'Original Plan',
-              value: formatHours(originalPlanHours),
-            }),
-            h(SummaryStat, {
-              key: 'current',
-              label: 'Current Plan',
-              value: formatHours(currentPlanHours),
-              subtext: `${formatHours(scopeDeltaHours, { signed: true })} from change orders`,
-            }),
-            h(SummaryStat, {
-              key: 'actual',
-              label: 'Actual',
-              value: formatHours(actualHours),
-            }),
-            h(SummaryStat, {
-              key: 'remaining',
-              label: 'Remaining',
-              value: formatHours(remainingHours),
-              subtext: 'Current plan - actual',
-              valueClassName: remainingValueClass,
-            }),
-            h(SummaryStat, {
-              key: 'variance',
-              label: 'Variance',
-              value: formatHours(varianceHours, { signed: true }),
-              subtext: formatVariancePercent(variancePct),
-              secondary: true,
-            }),
-          ]
-          : [
-            h(SummaryStat, {
-              key: 'plan',
-              label: 'Plan',
-              value: formatHours(currentPlanHours),
-            }),
-            h(SummaryStat, {
-              key: 'actual',
-              label: 'Actual',
-              value: formatHours(actualHours),
-            }),
-            h(SummaryStat, {
-              key: 'remaining',
-              label: 'Remaining',
-              value: formatHours(remainingHours),
-              subtext: 'Plan - actual',
-              valueClassName: remainingValueClass,
-            }),
-            h(SummaryStat, {
-              key: 'variance',
-              label: 'Variance',
-              value: formatHours(varianceHours, { signed: true }),
-              subtext: formatVariancePercent(variancePct),
-              secondary: true,
-            }),
-          ]
-      )),
+      h('div', { className: 'mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-6' }, summaryStats),
       h('div', { className: 'mt-5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-900/50' }, [
         h('div', { className: 'mb-3 flex items-center justify-between gap-3' }, [
           h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, 'Actual vs Current Plan'),
           h('div', { className: 'text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400' }, `Variance ${formatHours(varianceHours, { signed: true })} · ${formatVariancePercent(variancePct)}`),
         ]),
         h(UsageMeter, { actual: actualHours, plan: currentPlanHours, aiHours }),
-        isRetainer && !hasMonthActivity
-          ? h('div', { className: 'mt-3 text-[11px] text-slate-500 dark:text-slate-400' }, 'No activity this month')
-          : null,
         hasHybridData
           ? h('div', { className: 'mt-3 space-y-1' }, [
             h('div', { className: 'text-xs tabular-nums text-slate-500 dark:text-slate-400' }, [
@@ -829,11 +1039,10 @@ export function JobPerformanceTab({ job }) {
           : null,
       ]),
     ]),
-
     h(PerfCard, null, [
       h(PerfSectionTitle, {
-        title: 'Deliverable Drift',
-        subtitle: 'Largest overages first so scope movement and execution drift surface immediately.',
+        title: 'Deliverable Breakdown',
+        subtitle: 'Plan and actual hours by deliverable.',
       }),
       hasHybridData && topHybridServiceInsight
         ? h('div', { className: 'mt-3 text-sm text-slate-600 dark:text-slate-300' }, topHybridServiceInsight)
@@ -841,18 +1050,15 @@ export function JobPerformanceTab({ job }) {
       h('div', { className: 'mt-4 overflow-hidden rounded-xl border border-slate-200/80 dark:border-white/10' }, [
         h(DataTableHeader, {
           columns: hasHybridData
-            ? ['Deliverable Name', 'Original Plan', 'Current Plan', 'Actual', 'AI (hrs)', 'Variance', 'Variance %', 'LOE Meter']
-            : ['Deliverable Name', 'Original Plan', 'Current Plan', 'Actual', 'Variance', 'Variance %', 'LOE Meter'],
+            ? ['Deliverable', 'Original Plan', 'Current Plan', 'Actual Hours', 'AI Hours', 'Variance', 'Variance %', 'Meter']
+            : ['Deliverable', 'Original Plan', 'Current Plan', 'Actual Hours', 'Variance', 'Variance %', 'Meter'],
           gridTemplateColumns: deliverableGrid,
         }),
         deliverableRows.length
           ? [
             ...deliverableRows.map((row) => {
               const currentDelta = roundHours(row.currentPlan - row.originalPlan);
-              return h(DataRow, {
-                key: row.id,
-                gridTemplateColumns: deliverableGrid,
-              }, [
+              return h(DataRow, { key: row.id, gridTemplateColumns: deliverableGrid }, [
                 h('div', { className: 'min-w-0 space-y-1' }, [
                   h('div', { className: 'truncate text-sm font-semibold text-slate-900 dark:text-white' }, row.name),
                   h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, row.executionContext),
@@ -882,11 +1088,7 @@ export function JobPerformanceTab({ job }) {
                 }),
               ]);
             }),
-            h(DataRow, {
-              key: 'deliverable-total',
-              gridTemplateColumns: deliverableGrid,
-              footer: true,
-            }, [
+            h(DataRow, { key: 'deliverable-total', gridTemplateColumns: deliverableGrid, footer: true }, [
               h('div', { className: 'space-y-1' }, [
                 h('div', { className: 'text-sm text-slate-900 dark:text-white' }, 'Totals'),
                 h('div', { className: `text-[11px] ${remainingValueClass || 'text-slate-500 dark:text-slate-400'}` }, `Remaining ${formatHours(remainingHours)}`),
@@ -894,12 +1096,7 @@ export function JobPerformanceTab({ job }) {
               h('div', { className: 'text-sm tabular-nums' }, formatHours(originalPlanHours)),
               h('div', { className: 'text-sm tabular-nums' }, formatHours(currentPlanHours)),
               h('div', { className: 'text-sm tabular-nums' }, formatHours(actualHours)),
-              ...(hasHybridData ? [
-                h(HybridValueCell, {
-                  hours: aiHours,
-                  secondaryText: leverageInsight || null,
-                }),
-              ] : []),
+              ...(hasHybridData ? [h(HybridValueCell, { hours: aiHours, secondaryText: leverageInsight || null })] : []),
               h('div', { className: 'text-xs tabular-nums text-slate-500 dark:text-slate-400' }, formatHours(varianceHours, { signed: true })),
               h('div', { className: 'text-xs tabular-nums text-slate-500 dark:text-slate-400' }, formatVariancePercent(variancePct)),
               h(UsageMeter, { actual: actualHours, plan: currentPlanHours, aiHours, compact: true }),
@@ -908,7 +1105,6 @@ export function JobPerformanceTab({ job }) {
           : h('div', { className: 'px-5 py-6 text-sm text-slate-500 dark:text-slate-400' }, 'Add deliverables to compare plan and actuals.'),
       ]),
     ]),
-
     h(PerfCard, null, [
       h(PerfSectionTitle, {
         title: 'Service Type Breakdown',
@@ -917,44 +1113,35 @@ export function JobPerformanceTab({ job }) {
       h('div', { className: 'mt-4 overflow-hidden rounded-xl border border-slate-200/80 dark:border-white/10' }, [
         h(DataTableHeader, {
           columns: hasHybridData
-            ? ['Service Type', 'Planned', 'Actual', 'AI (hrs)', 'Variance', 'Meter']
-            : ['Service Type', 'Planned', 'Actual', 'Variance', 'Meter'],
+            ? ['Service Type', 'Current Plan', 'Actual Hours', 'AI Hours', 'Variance', 'Meter']
+            : ['Service Type', 'Current Plan', 'Actual Hours', 'Variance', 'Meter'],
           gridTemplateColumns: serviceGrid,
         }),
         serviceRows.length
           ? [
-            ...serviceRows.map((row) => {
-              return h(DataRow, {
-                key: row.id,
-                gridTemplateColumns: serviceGrid,
-              }, [
-                h('div', { className: 'min-w-0 space-y-1' }, [
-                  h('div', { className: 'truncate text-sm font-semibold text-slate-900 dark:text-white' }, row.name),
-                  hasAppliedChangeOrders && row.currentPlan !== row.originalPlan
-                    ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `${formatHours(row.currentPlan - row.originalPlan, { signed: true })} from change orders`)
+            ...serviceRows.map((row) => h(DataRow, { key: row.id, gridTemplateColumns: serviceGrid }, [
+              h('div', { className: 'min-w-0 space-y-1' }, [
+                h('div', { className: 'truncate text-sm font-semibold text-slate-900 dark:text-white' }, row.name),
+                hasAppliedChangeOrders && row.currentPlan !== row.originalPlan
+                  ? h('div', { className: 'text-xs text-slate-500 dark:text-slate-400' }, `${formatHours(row.currentPlan - row.originalPlan, { signed: true })} from change orders`)
+                  : null,
+              ]),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(row.currentPlan)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(row.actual)),
+              ...(hasHybridData ? [
+                h(HybridValueCell, {
+                  hours: row.aiHours,
+                  tooltip: row.hybridTooltip,
+                  secondaryText: row.hybridSharePct !== null && row.hybridSharePct !== undefined && row.aiHours > 0
+                    ? `${formatPercent(row.hybridSharePct)} hybrid`
                     : null,
-                ]),
-                h('div', { className: 'text-sm tabular-nums' }, formatHours(row.currentPlan)),
-                h('div', { className: 'text-sm tabular-nums' }, formatHours(row.actual)),
-                ...(hasHybridData ? [
-                  h(HybridValueCell, {
-                    hours: row.aiHours,
-                    tooltip: row.hybridTooltip,
-                    secondaryText: row.hybridSharePct !== null && row.hybridSharePct !== undefined && row.aiHours > 0
-                      ? `${formatPercent(row.hybridSharePct)} hybrid`
-                      : null,
-                    secondaryClassName: row.aiHours > 0 ? 'font-medium text-slate-600 dark:text-slate-300' : '',
-                  }),
-                ] : []),
-                h('div', { className: 'text-xs tabular-nums text-slate-500 dark:text-slate-400' }, formatHours(row.varianceHours, { signed: true })),
-                h(UsageMeter, { actual: row.actual, plan: row.currentPlan, aiHours: row.aiHours, compact: true }),
-              ]);
-            }),
-            h(DataRow, {
-              key: 'service-total',
-              gridTemplateColumns: serviceGrid,
-              footer: true,
-            }, [
+                  secondaryClassName: row.aiHours > 0 ? 'font-medium text-slate-600 dark:text-slate-300' : '',
+                }),
+              ] : []),
+              h('div', { className: 'text-xs tabular-nums text-slate-500 dark:text-slate-400' }, formatHours(row.varianceHours, { signed: true })),
+              h(UsageMeter, { actual: row.actual, plan: row.currentPlan, aiHours: row.aiHours, compact: true }),
+            ])),
+            h(DataRow, { key: 'service-total', gridTemplateColumns: serviceGrid, footer: true }, [
               h('div', { className: 'space-y-1' }, [
                 h('div', { className: 'text-sm text-slate-900 dark:text-white' }, 'Totals'),
                 h('div', { className: `text-[11px] ${remainingValueClass || 'text-slate-500 dark:text-slate-400'}` }, `Remaining ${formatHours(remainingHours)}`),
@@ -978,4 +1165,184 @@ export function JobPerformanceTab({ job }) {
       ]),
     ]),
   ]);
+}
+
+function RetainerPerformanceView({ job, metrics, cycleKeys, selectedCycleKey, onSelectMonth, cycleMetrics }) {
+  const {
+    appliedChangeOrders,
+    deliverableRows,
+    serviceRows,
+    currentPlanHours,
+    actualHours,
+    remainingHours,
+    varianceHours,
+    variancePct,
+    hasMonthActivity,
+  } = metrics;
+  const deliverableGrid = 'minmax(220px,2fr) 120px 120px 120px 120px';
+  const serviceGrid = 'minmax(220px,2fr) 120px 120px 120px';
+
+  return h('div', { className: 'space-y-6 pb-12' }, [
+    h(RetainerSummaryCards, { job, cycleMetrics, cycleKeys }),
+    h(BoundedRetainerMonthSelector, {
+      cycleKeys,
+      selectedCycleKey,
+      onSelect: onSelectMonth,
+    }),
+    h(PerfCard, null, [
+      h(PerfSectionTitle, {
+        title: `${formatCycleLabel(selectedCycleKey)} Detail`,
+        subtitle: 'Monthly plan, actuals, remaining capacity, and scope movement.',
+        rightSlot: h('div', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' }, 'Selected Month'),
+      }),
+      h('div', { className: 'mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-6' }, [
+        h(SummaryStat, { label: 'Monthly Plan', value: formatHours(currentPlanHours) }),
+        h(SummaryStat, { label: 'Actual Hours', value: formatHours(actualHours) }),
+        h(SummaryStat, { label: 'Remaining Capacity', value: formatHours(remainingHours) }),
+        h(SummaryStat, { label: 'Capacity Used', value: formatPercent(currentPlanHours > 0 ? (actualHours / currentPlanHours) * 100 : 0) }),
+        h(SummaryStat, { label: 'Variance', value: formatHours(varianceHours, { signed: true }), subtext: formatVariancePercent(variancePct), secondary: true }),
+        h(SummaryStat, { label: 'Change Orders This Month', value: String(appliedChangeOrders.length) }),
+      ]),
+      h('div', { className: 'mt-5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-900/50' }, [
+        h('div', { className: 'mb-3 flex items-center justify-between gap-3' }, [
+          h('div', { className: 'text-sm font-semibold text-slate-900 dark:text-white' }, 'Actual vs Current Plan'),
+          h('div', { className: 'text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400' }, `Variance ${formatHours(varianceHours, { signed: true })} · ${formatVariancePercent(variancePct)}`),
+        ]),
+        h(UsageMeter, { actual: actualHours, plan: currentPlanHours }),
+        !hasMonthActivity
+          ? h('div', { className: 'mt-3 text-[11px] text-slate-500 dark:text-slate-400' }, 'No activity this month')
+          : null,
+      ]),
+    ]),
+    h(PerfCard, null, [
+      h(PerfSectionTitle, {
+        title: 'Monthly Deliverable Breakdown',
+        subtitle: 'One-off work appears only in the month or months where it was active.',
+      }),
+      h('div', { className: 'mt-4 overflow-hidden rounded-xl border border-slate-200/80 dark:border-white/10' }, [
+        h(DataTableHeader, {
+          columns: ['Deliverable', 'Monthly Plan', 'Actual Hours', 'Remaining', 'Variance'],
+          gridTemplateColumns: deliverableGrid,
+        }),
+        deliverableRows.length
+          ? [
+            ...deliverableRows.map((row) => h(DataRow, { key: row.id, gridTemplateColumns: deliverableGrid }, [
+              h('div', { className: 'min-w-0' }, h('div', { className: 'truncate text-sm font-semibold text-slate-900 dark:text-white' }, row.name)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(row.currentPlan)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(row.actual)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(row.currentPlan - row.actual)),
+              h('div', { className: 'text-sm tabular-nums text-slate-500 dark:text-slate-400' }, formatHours(row.varianceHours, { signed: true })),
+            ])),
+            h(DataRow, { key: 'deliverable-total', gridTemplateColumns: deliverableGrid, footer: true }, [
+              h('div', { className: 'text-sm text-slate-900 dark:text-white' }, 'Totals'),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(currentPlanHours)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(actualHours)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(remainingHours)),
+              h('div', { className: 'text-sm tabular-nums text-slate-500 dark:text-slate-400' }, formatHours(varianceHours, { signed: true })),
+            ]),
+          ]
+          : h('div', { className: 'px-5 py-6 text-sm text-slate-500 dark:text-slate-400' }, 'No deliverable activity for this month.'),
+      ]),
+    ]),
+    h(PerfCard, null, [
+      h(PerfSectionTitle, {
+        title: 'Monthly Service Type Breakdown',
+        subtitle: 'Hours grouped by service type for this cycle.',
+      }),
+      h('div', { className: 'mt-4 overflow-hidden rounded-xl border border-slate-200/80 dark:border-white/10' }, [
+        h(DataTableHeader, {
+          columns: ['Service Type', 'Monthly Plan', 'Actual Hours', 'Variance'],
+          gridTemplateColumns: serviceGrid,
+        }),
+        serviceRows.length
+          ? [
+            ...serviceRows.map((row) => h(DataRow, { key: row.id, gridTemplateColumns: serviceGrid }, [
+              h('div', { className: 'min-w-0' }, h('div', { className: 'truncate text-sm font-semibold text-slate-900 dark:text-white' }, row.name)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(row.currentPlan)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(row.actual)),
+              h('div', { className: 'text-sm tabular-nums text-slate-500 dark:text-slate-400' }, formatHours(row.varianceHours, { signed: true })),
+            ])),
+            h(DataRow, { key: 'service-total', gridTemplateColumns: serviceGrid, footer: true }, [
+              h('div', { className: 'text-sm text-slate-900 dark:text-white' }, 'Totals'),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(currentPlanHours)),
+              h('div', { className: 'text-sm tabular-nums' }, formatHours(actualHours)),
+              h('div', { className: 'text-sm tabular-nums text-slate-500 dark:text-slate-400' }, formatHours(varianceHours, { signed: true })),
+            ]),
+          ]
+          : h('div', { className: 'px-5 py-6 text-sm text-slate-500 dark:text-slate-400' }, 'No service type data for this month.'),
+      ]),
+    ]),
+  ]);
+}
+
+export function JobPerformanceTab({ job }) {
+  const serviceTypes = useMemo(() => loadServiceTypes().filter((type) => type.active), []);
+  const isRetainer = job?.kind === 'retainer';
+  const serviceTypeNameMap = useMemo(() => {
+    const map = new Map();
+    (serviceTypes || []).forEach((type) => {
+      map.set(String(type.id), type.name || `Service ${type.id}`);
+    });
+    Object.keys(job?.plan?.serviceTypeNames || {}).forEach((key) => {
+      if (!map.has(String(key))) map.set(String(key), String(job.plan.serviceTypeNames[key] || key));
+    });
+    return map;
+  }, [job?.plan?.serviceTypeNames, serviceTypes]);
+
+  const cycleKeys = useMemo(() => (
+    isRetainer ? getRetainerCycleKeys(job) : []
+  ), [isRetainer, job]);
+  const defaultRetainerCycleKey = useMemo(() => (
+    isRetainer ? getDefaultRetainerCycleKey(job, cycleKeys) : null
+  ), [isRetainer, job, cycleKeys]);
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const hybridDeliveryMap = useMemo(() => loadHybridDeliveryMap(job?.id), [job?.id]);
+
+  useEffect(() => {
+    setSelectedMonth(null);
+  }, [isRetainer, defaultRetainerCycleKey, job?.id]);
+
+  const activeCycleKey = isRetainer
+    ? clampCycleKey(selectedMonth || getInitialRetainerSelectedMonth(job, cycleKeys), cycleKeys)
+    : null;
+
+  const metrics = useMemo(() => buildPerformanceMetrics({
+    job,
+    serviceTypes,
+    serviceTypeNameMap,
+    hybridDeliveryMap,
+    activeCycleKey,
+    isRetainer,
+  }), [job, serviceTypes, serviceTypeNameMap, hybridDeliveryMap, activeCycleKey, isRetainer]);
+
+  const cycleMetrics = useMemo(() => {
+    if (!isRetainer) return [];
+    return cycleKeys.map((cycleKey) => buildPerformanceMetrics({
+      job,
+      serviceTypes,
+      serviceTypeNameMap,
+      hybridDeliveryMap,
+      activeCycleKey: cycleKey,
+      isRetainer: true,
+    }));
+  }, [isRetainer, cycleKeys, job, serviceTypes, serviceTypeNameMap, hybridDeliveryMap]);
+
+  if (!job) return null;
+
+  if (isRetainer) {
+    return h(RetainerPerformanceView, {
+      job,
+      metrics,
+      cycleKeys,
+      selectedCycleKey: activeCycleKey,
+      cycleMetrics,
+      onSelectMonth: (nextKey) => {
+        const clampedKey = clampCycleKey(nextKey, cycleKeys);
+        setSelectedMonth(clampedKey);
+        if (job?.id && clampedKey) setJobCycleKey(job.id, clampedKey);
+      },
+    });
+  }
+
+  return h(ProjectPerformanceView, { job, metrics });
 }

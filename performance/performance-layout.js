@@ -4,10 +4,10 @@ import { PerfCard } from '../components/performance/primitives.js';
 const { createElement: h } = React;
 
 const NAV_ITEMS = [
-  { key: 'overview', label: 'Pulse', href: '#/app/performance/overview' },
-  { key: 'deliverables-in-drift', label: 'Deliverables in Drift', href: '#/app/performance/deliverables-in-drift' },
-  { key: 'capacity', label: 'Capacity Outlook', href: '#/app/performance/capacity?horizonDays=30' },
-  { key: 'jobs-at-risk', label: 'Jobs in Drift', href: '#/app/performance/jobs-at-risk' },
+  { key: 'pulse', label: 'Pulse', href: '#/app/performance/pulse' },
+  { key: 'production', label: 'Production', href: '#/app/performance/production' },
+  { key: 'team', label: 'Team', href: '#/app/performance/team' },
+  { key: 'patterns', label: 'Patterns', href: '#/app/performance/patterns' },
   { key: 'reports', label: 'Reports', href: '#/app/performance/reports/time' },
 ];
 
@@ -35,7 +35,7 @@ function PerformanceNav({ activeKey }) {
   );
 }
 
-export function PerformanceLayout({ activeKey = 'overview', children }) {
+export function PerformanceLayout({ activeKey = 'pulse', children }) {
   const activeLabel = NAV_ITEMS.find((n) => n.key === activeKey)?.label || 'Pulse';
   const breadcrumb = h('div', { className: 'flex items-center gap-2' }, [
     h('span', { className: 'text-sm text-slate-500 dark:text-white/70' }, 'Performance'),

@@ -5,6 +5,7 @@ const { createElement: h } = React;
 
 export function ReportsRouter({ report, queryString }) {
   const allowed = REPORTS_TABS.map((t) => t.value);
-  const active = allowed.includes(report) ? report : 'time';
+  const normalized = report === 'jobs' ? 'job' : report;
+  const active = allowed.includes(normalized) ? normalized : 'time';
   return h(ReportsShell, { report: active, queryString });
 }

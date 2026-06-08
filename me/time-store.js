@@ -1,7 +1,7 @@
 import { getActiveWorkspace } from '../app-shell/app-helpers.js';
 import { getContactsData, getIndividualsData } from '../contacts/contacts-data.js';
 import { loadJobs } from '../jobs/jobs-store.js';
-import { loadQuickTasks } from '../quick-tasks/quick-tasks-store.js';
+import { loadQuickTasks, loadServiceTypes } from '../quick-tasks/quick-tasks-store.js';
 import { getMyTimeSeedEntries } from './time-data.js';
 
 function workspaceId() {
@@ -92,6 +92,7 @@ function normalizeCatalogTask(entry = {}) {
     deliverableName: String(entry.deliverableName || ''),
     contextType: entry.contextType === 'internal' ? 'internal' : 'client',
     companyName: String(entry.companyName || ''),
+    serviceTypeId: String(entry.serviceTypeId || ''),
     serviceType: String(entry.serviceType || ''),
     searchIndex: buildSearchIndex([
       entry.title,
@@ -105,11 +106,14 @@ function normalizeCatalogTask(entry = {}) {
 }
 
 function buildQuickTaskCatalog(companyMap, personMap) {
+  const serviceTypeMap = new Map(loadServiceTypes().map((type) => [String(type.id), type]));
   return loadQuickTasks()
     .filter((task) => task && !task.isArchived && task.status !== 'archived')
     .map((task) => {
       const context = task?.context && typeof task.context === 'object' ? task.context : {};
       const contextType = context.type === 'internal' ? 'internal' : 'client';
+      const primaryAllocation = Array.isArray(task.allocations) ? task.allocations.find((allocation) => allocation?.serviceTypeId) : null;
+      const serviceTypeId = primaryAllocation?.serviceTypeId ? String(primaryAllocation.serviceTypeId) : '';
       return normalizeCatalogTask({
         id: `quick:${String(task.id || '')}`,
         source: 'quick',
@@ -122,13 +126,15 @@ function buildQuickTaskCatalog(companyMap, personMap) {
         companyName: contextType === 'internal'
           ? ''
           : resolveClientName(context.companyId, context.personId, companyMap, personMap),
-        serviceType: '',
+        serviceTypeId,
+        serviceType: serviceTypeId ? (serviceTypeMap.get(serviceTypeId)?.name || '') : '',
       });
     });
 }
 
 function buildJobTaskCatalog(companyMap, personMap) {
   const entries = [];
+  const serviceTypeMap = new Map(loadServiceTypes().map((type) => [String(type.id), type]));
 
   loadJobs().forEach((job) => {
     const contextType = job?.isInternal ? 'internal' : 'client';
@@ -138,6 +144,8 @@ function buildJobTaskCatalog(companyMap, personMap) {
 
     const pushTask = (task, deliverableName = '') => {
       if (!task || task.isArchived || task.status === 'archived') return;
+      const primaryAllocation = Array.isArray(task.allocations) ? task.allocations.find((allocation) => allocation?.serviceTypeId) : null;
+      const serviceTypeId = primaryAllocation?.serviceTypeId ? String(primaryAllocation.serviceTypeId) : '';
       entries.push(normalizeCatalogTask({
         id: `job:${String(task.id || '')}`,
         source: 'job',
@@ -148,7 +156,8 @@ function buildJobTaskCatalog(companyMap, personMap) {
         deliverableName,
         contextType,
         companyName,
-        serviceType: '',
+        serviceTypeId,
+        serviceType: serviceTypeId ? (serviceTypeMap.get(serviceTypeId)?.name || '') : '',
       }));
     };
 
@@ -225,6 +234,7 @@ function normalizeDurationMinutes(entry = {}) {
 
 function bindEntryToTask(entry, task) {
   if (!task) return entry;
+  const hasExplicitServiceType = Object.prototype.hasOwnProperty.call(entry, 'serviceTypeId');
   return {
     ...entry,
     taskId: task.id,
@@ -235,10 +245,12 @@ function bindEntryToTask(entry, task) {
     deliverableName: task.deliverableName,
     contextType: task.contextType,
     companyName: task.companyName,
+    serviceTypeId: hasExplicitServiceType ? String(entry.serviceTypeId || '') : (task.serviceTypeId || ''),
   };
 }
 
 function normalizeStoredEntry(entry = {}, catalog = []) {
+  const hasExplicitServiceType = Object.prototype.hasOwnProperty.call(entry, 'serviceTypeId');
   const normalized = {
     id: String(entry.id || ''),
     userId: String(entry.userId || ''),
@@ -250,6 +262,7 @@ function normalizeStoredEntry(entry = {}, catalog = []) {
     deliverableName: String(entry.deliverableName || ''),
     contextType: entry.contextType === 'internal' ? 'internal' : 'client',
     companyName: String(entry.companyName || ''),
+    serviceTypeId: String(entry.serviceTypeId || ''),
     notes: String(entry.notes || ''),
     date: String(entry.date || ''),
     duration_minutes: normalizeDurationMinutes(entry),
@@ -262,16 +275,21 @@ function normalizeStoredEntry(entry = {}, catalog = []) {
   const linkedTask = findMyTimeTask(normalized.taskId, catalog) || findBestTaskMatch(normalized, catalog);
   if (!linkedTask) return normalized;
 
-  if (!normalized.taskId) {
+  const normalizedWithServiceType = {
+    ...normalized,
+    serviceTypeId: hasExplicitServiceType ? normalized.serviceTypeId : (linkedTask.serviceTypeId || ''),
+  };
+
+  if (!normalizedWithServiceType.taskId) {
     return {
-      ...normalized,
+      ...normalizedWithServiceType,
       taskId: linkedTask.id,
       taskSource: linkedTask.source,
       taskSourceId: linkedTask.sourceId,
     };
   }
 
-  return normalized;
+  return normalizedWithServiceType;
 }
 
 function seedEntries(now = new Date(), catalog = []) {
@@ -280,9 +298,15 @@ function seedEntries(now = new Date(), catalog = []) {
 
 function mergeStoredEntriesWithSeeds(storedEntries = [], seededEntries = []) {
   if (!Array.isArray(storedEntries) || !storedEntries.length) return seededEntries;
+  const seedById = new Map(seededEntries.map((entry) => [String(entry?.id || ''), entry]));
   const existingIds = new Set(storedEntries.map((entry) => String(entry?.id || '')));
+  const hydratedStoredEntries = storedEntries.map((entry) => {
+    const seed = seedById.get(String(entry?.id || ''));
+    if (!seed || entry?.serviceTypeId) return entry;
+    return { ...entry, serviceTypeId: seed.serviceTypeId || '' };
+  });
   const missingSeeds = seededEntries.filter((entry) => !existingIds.has(String(entry?.id || '')));
-  return missingSeeds.length ? [...storedEntries, ...missingSeeds] : storedEntries;
+  return missingSeeds.length ? [...hydratedStoredEntries, ...missingSeeds] : hydratedStoredEntries;
 }
 
 export function loadMyTimeTaskLockMap() {
