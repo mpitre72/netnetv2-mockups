@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Net Net · Jobs UI Redesign · Brief &amp; Spec Proposals</title>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root { --purple: #711fff; --accent: #8b47ff; }
+[data-theme='dark'] { --bg: #0b0217; --card: #170b26; --soft: #211334; --line: rgb(255 255 255 / 14%); --line2: rgb(255 255 255 / 8%); --tx: #f5f5f5; --tx2: #cdc4d6; --tx3: #a69bad; --green: #5fcea8; --orange: #f59825; --red: #fa2d23; }
+[data-theme='light'] { --bg: #eef0f4; --card: #ffffff; --soft: #f6f4fa; --line: rgb(49 0 133 / 16%); --line2: rgb(49 0 133 / 9%); --tx: #16102b; --tx2: #6d5f7a; --tx3: #493b52; --green: #008a5a; --orange: #b96400; --red: #d92018; }
+* { box-sizing: border-box; margin: 0; }
+html { font-size: 14px; scroll-behavior: smooth; }
+body { font-family: 'Open Sans', system-ui, sans-serif; background: var(--bg); color: var(--tx); padding: 3rem 1.2rem 6rem; line-height: 1.65; }
+.wrap { max-width: 820px; margin: 0 auto; }
+.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+.top a { color: var(--tx2); text-decoration: none; font-weight: 700; font-size: 0.9rem; }
+.tbtn { border: 1px solid var(--line); background: var(--soft); color: var(--tx); border-radius: 999px; padding: 0.4rem 1rem; font-weight: 700; cursor: pointer; }
+h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.3rem; }
+h2 { font-size: 1.25rem; font-weight: 800; margin: 2.6rem 0 0.8rem; padding-top: 1rem; border-top: 1px solid var(--line2); }
+h3 { font-size: 1rem; font-weight: 800; margin: 1.4rem 0 0.4rem; }
+p { margin: 0 0 0.9rem; color: var(--tx); }
+p.lead { color: var(--tx2); font-size: 1.05rem; }
+ul, ol { margin: 0 0 1rem 1.3rem; }
+li { margin-bottom: 0.45rem; }
+code { background: var(--soft); border: 1px solid var(--line2); border-radius: 5px; padding: 1px 6px; font-size: 0.85em; }
+table { width: 100%; border-collapse: collapse; margin: 0.8rem 0 1.4rem; font-size: 0.88rem; }
+th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--tx3); padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line); }
+td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line2); vertical-align: top; }
+td:first-child { font-family: ui-monospace, monospace; font-size: 0.82rem; white-space: nowrap; }
+.chip { display: inline-block; width: 13px; height: 13px; border-radius: 4px; border: 1px solid var(--line); vertical-align: -2px; margin-right: 5px; }
+.tagn { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; background: rgb(139 71 255 / 16%); color: var(--accent); padding: 1px 7px; border-radius: 999px; }
+.tagk { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; background: var(--soft); color: var(--tx3); padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line2); }
+.prop { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 0.9rem; }
+.prop b.t { font-size: 1rem; }
+.prop .m { color: var(--tx2); font-size: 0.92rem; margin-top: 0.35rem; }
+.prop .m b { color: var(--tx); }
+.callout { background: var(--soft); border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; padding: 0.8rem 1rem; margin: 1rem 0 1.4rem; color: var(--tx2); font-size: 0.95rem; }
+.toc { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.4rem; margin: 1.4rem 0 0; font-size: 0.92rem; }
+.toc a { color: var(--accent); text-decoration: none; font-weight: 700; }
+@media print { body { background: #fff; color: #111; } .tbtn, .top a { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="index.html">← All mockups</a>
+    <button class="tbtn" id="tt">Light mode</button>
+  </div>
+
+  <h1>Jobs UI Redesign: Brief &amp; Spec Proposals</h1>
+  <p class="lead">Net Net V2 · prepared July 10, 2026 · companion to the <a href="netnet-jobs-mockup-v10.html" style="color:var(--accent)">interactive mockup (v10)</a>. Everything here was designed against the real netnet-web codebase and the current Product Specs; token names below are the actual variables in <code>packages/styles/src/_variables.scss</code>.</p>
+
+  <div class="toc">
+    Contents: <a href="#why">1 Why</a> · <a href="#tokens">2 Token patch</a> · <a href="#grammar">3 Interaction grammar</a> · <a href="#anatomy">4 Screen anatomy</a> · <a href="#meters">5 Meters</a> · <a href="#chat">6 Chat indicators</a> · <a href="#scroll">7 One-scroll rule</a> · <a href="#mobile">8 Mobile</a> · <a href="#specs">9 Spec-change proposals</a> · <a href="#order">10 Suggested build order</a>
+  </div>
+
+  <h2 id="why">1 · Why this redesign</h2>
+  <p>The audit of the live app (July 9) found one root cause behind most complaints: <b>insufficient separation between surfaces</b>. Cards, page background, and inner cells sit within one or two shades of each other in both themes; borders are set too faint to do their boxing work; and the decorative background pattern is painted at full strength behind content, adding noise exactly where the eye seeks structure. Second: the Tasks tab renders permanent form controls (Status, Due, Confidence dropdowns) on every deliverable row, crushing density; three deliverables fill a screen that comparable tools use for ten rows. Third: nested scrolling. The shell locks the sidebar and content area to fixed heights, so the sidebar, the content, and each task table scroll independently. Fourth: two token gaps in production, <code>--nn-color-text-secondary</code> and <code>--nn-color-error</code>, are referenced by the Jobs styles but never defined anywhere, so secondary text silently inherits the wrong color.</p>
+  <div class="callout">None of this needs a rewrite. The surfaces are one token file; the density and inline behavior are a handful of components in <code>features/jobs/components/job-tasks/</code>; the scroll shell is two or three files. The spec-level items are listed in section 9 with a blameless history note.</div>
+
+  <h2 id="tokens">2 · The token patch</h2>
+  <p>Every value is <span class="tagk">keep</span> (current production value, unchanged) or <span class="tagn">new</span> (proposed). Structure is identical across themes; only values differ. The two missing tokens must be added in both themes.</p>
+
+  <h3>Dark theme</h3>
+  <table>
+    <tr><th>Token</th><th>Value</th><th></th><th>Role</th></tr>
+    <tr><td>--nn-color-bg</td><td><span class="chip" style="background:#0b0217"></span>#0b0217</td><td><span class="tagk">keep</span></td><td>page background</td></tr>
+    <tr><td>--nn-color-primary-glass</td><td><span class="chip" style="background:#170b26"></span>#170b26</td><td><span class="tagn">new</span></td><td>card fill; was rgb(13 1 27/89%), nearly identical to bg</td></tr>
+    <tr><td>--nn-color-primary-glass-soft</td><td><span class="chip" style="background:#211334"></span>#211334</td><td><span class="tagn">new</span></td><td>inner cells, hover; was a 20% tint that read as nothing</td></tr>
+    <tr><td>--nn-color-foreground-light</td><td><span class="chip" style="background:#2a1c40"></span>#2a1c40</td><td><span class="tagn">new</span></td><td>third surface layer (pressed, wells)</td></tr>
+    <tr><td>--nn-color-meter-background</td><td><span class="chip" style="background:#32224b"></span>#32224b</td><td><span class="tagn">new</span></td><td>meter track with actual presence</td></tr>
+    <tr><td>--nn-glass-line-strong</td><td>rgb(255 255 255 / 14%)</td><td><span class="tagn">new</span></td><td>card borders (dark mode gets real borders, not only sheen)</td></tr>
+    <tr><td>--nn-glass-line-soft</td><td>rgb(255 255 255 / 8%)</td><td><span class="tagn">new</span></td><td>inner dividers</td></tr>
+    <tr><td>--nn-color-text</td><td><span class="chip" style="background:#f5f5f5"></span>#f5f5f5</td><td><span class="tagk">keep</span></td><td>primary text</td></tr>
+    <tr><td>--nn-color-text-secondary</td><td><span class="chip" style="background:#cdc4d6"></span>#cdc4d6</td><td><span class="tagn">new</span></td><td><b>missing in production</b>; step between text and muted</td></tr>
+    <tr><td>--nn-color-text-muted</td><td><span class="chip" style="background:#a69bad"></span>#a69bad</td><td><span class="tagk">keep</span></td><td>muted text</td></tr>
+    <tr><td>--nn-color-error</td><td><span class="chip" style="background:#fa2d23"></span>#fa2d23</td><td><span class="tagn">new</span></td><td><b>missing in production</b> as a token</td></tr>
+  </table>
+
+  <h3>Light theme</h3>
+  <table>
+    <tr><th>Token</th><th>Value</th><th></th><th>Role</th></tr>
+    <tr><td>--nn-color-bg</td><td><span class="chip" style="background:#eef0f4"></span>#eef0f4</td><td><span class="tagn">new</span></td><td>cool neutral page so white cards can separate; was #f5f5f5</td></tr>
+    <tr><td>--nn-color-primary-glass</td><td><span class="chip" style="background:#ffffff"></span>#ffffff</td><td><span class="tagn">new</span></td><td>cards: solid white; was lavender-tinted glass</td></tr>
+    <tr><td>--nn-color-primary-glass-soft</td><td><span class="chip" style="background:#f6f4fa"></span>#f6f4fa</td><td><span class="tagn">new</span></td><td>inner cells, hover</td></tr>
+    <tr><td>--nn-color-foreground-light</td><td><span class="chip" style="background:#edeaf4"></span>#edeaf4</td><td><span class="tagn">new</span></td><td>third layer</td></tr>
+    <tr><td>--nn-color-meter-background</td><td><span class="chip" style="background:#e4e0ee"></span>#e4e0ee</td><td><span class="tagn">new</span></td><td>meter track</td></tr>
+    <tr><td>--nn-glass-line-strong</td><td>rgb(49 0 133 / 16%)</td><td><span class="tagn">new</span></td><td>card borders; production's 10% cannot box anything</td></tr>
+    <tr><td>--nn-glass-line-soft</td><td>rgb(49 0 133 / 9%)</td><td><span class="tagn">new</span></td><td>inner dividers</td></tr>
+    <tr><td>--nn-color-text</td><td><span class="chip" style="background:#16102b"></span>#16102b</td><td><span class="tagn">new</span></td><td>ink with brand undertone; was pure #000</td></tr>
+    <tr><td>--nn-color-text-secondary</td><td><span class="chip" style="background:#6d5f7a"></span>#6d5f7a</td><td><span class="tagn">new</span></td><td><b>missing in production</b></td></tr>
+    <tr><td>--nn-color-error</td><td><span class="chip" style="background:#d92018"></span>#d92018</td><td><span class="tagn">new</span></td><td><b>missing in production</b>; AA on white</td></tr>
+    <tr><td>--nn-accent-green</td><td><span class="chip" style="background:#008a5a"></span>#008a5a</td><td><span class="tagn">new</span></td><td>was #00ac70; fails contrast as text on white</td></tr>
+    <tr><td>--nn-accent-orange</td><td><span class="chip" style="background:#b96400"></span>#b96400</td><td><span class="tagn">new</span></td><td>was #df7a00; readable as text on white</td></tr>
+    <tr><td>--nn-accent-blue</td><td><span class="chip" style="background:#0b6fd0"></span>#0b6fd0</td><td><span class="tagn">new</span></td><td>contrast fix</td></tr>
+  </table>
+  <p><b>Also in this patch:</b> demote the body background pattern (<code>globals.scss</code>) to near-invisible texture (≈4% opacity in dark, faint in light) or remove it; brand purple and radii unchanged.</p>
+
+  <h2 id="grammar">3 · Interaction grammar (applies everywhere)</h2>
+  <ul>
+    <li><b>Display text never morphs into a control.</b> Pick lists (assignee, service type, deliverable type, status, confidence) open a styled dropdown overlay on click; dates open a calendar popover. The text stays text. This matches the spec's own display-first model (Jobs 10A.3).</li>
+    <li><b>Typed fields (task name, description, LOE) edit in place</b> with a quiet input, no layout shift. Enter commits, Escape cancels, Tab moves on.</li>
+    <li><b>Description</b> opens a multi-line WYSIWYG dropdown with the cursor already inside; clicking outside or Tab saves and closes; Escape cancels.</li>
+    <li><b>Inline task creation per spec 10A.4:</b> "+ Add a task" is a text link, becomes an inline row, no Save button, autosaves when complete, Draft badge until then. New tasks start <b>unassigned</b>.</li>
+    <li><b>Editable cells look editable on hover</b> (dashed underline affordance); saves confirm with a quiet "Saved ✓" flash.</li>
+    <li><b>Glyph convention:</b> green = on, gray = off. Recurrence glyph (existing) and the new Hybrid Delivery glyph both follow it.</li>
+  </ul>
+
+  <h2 id="anatomy">4 · Screen anatomy (Tasks tab)</h2>
+  <ul>
+    <li><b>Deliverable row:</b> one line: chevron · name (+task count) · Deliverable Type pill (searchable typeahead with inline create, spec Jobs §20) · Status pill · Due (projects only) · Confidence · AI glyph (Hybrid Delivery on/off, shows aggregate AI hours when on) · chat indicator. Column-aligned so values scan vertically. The old Details wrapper is gone; Hybrid Delivery appears as a collapsible strip only when its glyph is on.</li>
+    <li><b>Task row:</b> caret (only when multi-assignee) · status dot (click cycles) · name · description · chat · assignee · service · <b>schedule cluster</b> (a bounded cell holding due date and, on retainers, the recurrence glyph; recurrence on replaces the date with "Monthly") · hours bracket meter · ⋮ menu.</li>
+    <li><b>Multi-assignee:</b> one task, N allocation rows (person + service type + LOE + actuals). Single assignee edits flat in the row; two or more expands to child rows in the same grid, all inline. "＋ Add another assignee" lives in the assignee menu; removal blocked when time is logged (spec 10A.5).</li>
+    <li><b>⋮ menu:</b> Edit details · Move task · Duplicate task (proposed addition) · Delete (disabled when time logged, borrowing the Quick Tasks protection).</li>
+    <li><b>Carryover:</b> open one-off tasks from a prior month appear in the current month with an orange "↷ Jun" badge and a header counter. Prior months keep the truth (not completed then); hours logged stay in their month.</li>
+  </ul>
+
+  <h2 id="meters">5 · The meter system</h2>
+  <p><b>Task level, two values:</b> the bracket meter, logged hours on the left, allocated on the right, stoplight bar between (green ≤85%, orange ≤100%, red over). Same pattern per assignee on child rows. This is V1's Hours pattern, kept deliberately.</p>
+  <p><b>Deliverable level, three values:</b> the bullet meter (Stephen Few's pattern). The track length is <b>estimated</b>, the fill is <b>logged</b> (stoplight colors), and a high-contrast purple <b>tick marks allocated</b>. A tick short of the end shows unallocated capacity at a glance; when allocation exceeds the estimate, a red-striped extension zone continues past the track and the tick sits inside it, captioned "over-allocated by Xh."</p>
+  <p><b>Completion returns unused allocation:</b> pool "allocated" counts open tasks at LOE and completed tasks at actuals. Finishing a 27h-allocated task with 18h logged returns 9h to the pool automatically, no dialog, marked on the task with a green "↩ 9h" receipt. The task's original allocation freezes as history for estimate-accuracy reporting. Reopening restores the reservation.</p>
+
+  <h2 id="chat">6 · Chat indicators (spec 9.4, locked, now rendered)</h2>
+  <p>Four states, priority order: <b>green numeric badge</b> = unread mentions of the current user; <b>white dot</b> = new messages (rendered as ink in light mode to survive the background); <b>normal contrast</b> = chats exist, nothing new; <b>muted</b> = no chats. Icon always visible; counts live in the panel, not the icon. Chat exists at Job, Deliverable, and Task levels; Quick Tasks have none.</p>
+
+  <h2 id="scroll">7 · One scroll per screen</h2>
+  <p>The page is the only scroll surface. The job header and tabs stick; tables grow to natural height and ride the page scroll; the sidebar fits without scrolling at normal sizes. Remaining legitimate scrollers (chat panel, drawers) get thin auto-hiding scrollbars. Implementation touches: the height locks in <code>SideNav.module.scss</code>, <code>.layout-children-container</code> in <code>globals.scss</code>, and letting <code>InfiniteTable</code> render natural height (row height 40px, header 30px, down from 96px rows).</p>
+
+  <h2 id="mobile">8 · Mobile</h2>
+  <p>Phones get an app, not a shrunken website: a persistent bottom navigation bar with five slots, <b>My Tasks · My Time · My Lists · Chat · Menu</b>, where Menu opens the full-screen drawer with all sections and sub-navigation. Task rows re-compose into stacked cards; deliverable values wrap under the name; the description editor and pickers are the same overlays. Breakpoint: 768px (the existing <code>mobileBreakpoint</code> constant).</p>
+
+  <h2 id="specs">9 · Spec-change proposals</h2>
+  <div class="callout"><b>History note, important:</b> several of the behaviors being corrected here (notably deliverable due dates on retainers) trace back to the original ChatGPT-drafted specifications and slipped through review. They were built faithfully to the documents. This is a process correction, not a criticism of the implementation.</div>
+
+  <div class="prop"><b class="t">P1 · Scheduling mode is exclusive and mandatory</b>
+    <div class="m">Every task carries exactly one scheduling mode: <b>a due date or recurrence, never both, never neither</b>. Activating recurrence deactivates and hides the due date (the task shows "Monthly"); deactivating recurrence requires a due date. UI: the schedule cluster binds the two controls in one bounded cell. Touches Jobs 10A.2/10A.6.</div></div>
+
+  <div class="prop"><b class="t">P2 · Retainer deliverables have no due date</b>
+    <div class="m">The cycle is the deadline. Remove the Due field from retainer deliverable headers, and amend Activation Review ("all Deliverables must have due dates", Jobs §8.1) with a retainer exemption. Projects keep deliverable due dates.</div></div>
+
+  <div class="prop"><b class="t">P3 · Cycle carryover for open one-off tasks</b>
+    <div class="m">Never auto-complete, never silently archive. At cycle turnover, open non-recurring tasks appear in the new month with a "Carried from [month]" badge and a header counter. The task lives in one active cycle at a time; each month's actuals and completion truth stay in that month. Fills the gap Jobs §1716 explicitly defers.</div></div>
+
+  <div class="prop"><b class="t">P4 · Completion returns unused allocation to the pool</b>
+    <div class="m">Pool allocated = open tasks at LOE + completed tasks at actuals. Automatic on completion, visible "↩ Xh" receipt, allocation history frozen on the task for estimate-accuracy reporting, reopening restores the reservation. New section under Jobs §11.4 (pools).</div></div>
+
+  <div class="prop"><b class="t">P5 · Hybrid Delivery activation moves to the AI glyph</b>
+    <div class="m">A glyph on the deliverable row (green on, gray off, same convention as the recurrence glyph) toggles Hybrid Delivery and shows the aggregate AI hours when on. The HD editor renders as a collapsible strip that exists only while the glyph is on. The Details wrapper is removed; Deliverable Type already lives on the row as a pill. Also enforces the existing "collapsed by default" rule (Jobs §2474) the current UI violates.</div></div>
+
+  <div class="prop"><b class="t">P6 · Enumerate the task ⋮ menu</b>
+    <div class="m">The Jobs spec names the menu but never defines it. Proposed contents: Edit details · Move task · <b>Duplicate task (new)</b> · Delete, with Delete disabled while any assignee has time logged (adopting the Quick Tasks rule).</div></div>
+
+  <div class="prop"><b class="t">P7 · General Job Tasks group is removed</b>
+    <div class="m">Per the July 10 decision: the special group goes away unless client demand warrants it. Owners who want job-wide work create an ordinary deliverable (e.g., "General"), which then has a real pool, closing the unpooled-effort hole. Supersedes Jobs §10.6.</div></div>
+
+  <div class="prop"><b class="t">P8 · Deliverable meters adopt the bullet pattern</b>
+    <div class="m">Track = estimated, fill = logged, purple tick = allocated, striped extension = over-allocation, as in section 5. Task and assignee meters use the bracket pattern. Meter thresholds unchanged (85/100).</div></div>
+
+  <div class="prop"><b class="t">P9 · Interaction grammar codified</b>
+    <div class="m">Section 3 (no-morph overlays, in-place typed edits, description editor behavior, autosave/Draft, hover affordances, keyboard rules) becomes normative language in Jobs 10A, replacing the current always-rendered controls on deliverable headers.</div></div>
+
+  <div class="prop"><b class="t">P10 · Token additions and surface roles</b>
+    <div class="m">Add the two missing tokens (<code>--nn-color-text-secondary</code>, <code>--nn-color-error</code>) in both themes; adopt the section 2 values; demote the background pattern; document the three-layer surface system (bg → card → soft → light) in Net-Net-V2-Resources.</div></div>
+
+  <h2 id="order">10 · Suggested build order</h2>
+  <ol>
+    <li><b>Token patch + missing tokens + pattern demotion</b> (one file, whole-app payoff, easiest QA).</li>
+    <li><b>One-scroll shell</b> (sidebar height, content container, table natural height).</li>
+    <li><b>Deliverable row compaction</b> (pills replace permanent controls; AI glyph; HD strip; Type pill).</li>
+    <li><b>Task grid</b> (bracket meters, schedule cluster, inline grammar, child allocation rows, ⋮ menu).</li>
+    <li><b>Pool bullets + allocation return + carryover</b> (needs backend: P3, P4).</li>
+    <li><b>Mobile bottom nav + card layouts.</b></li>
+  </ol>
+  <p style="color:var(--tx3);font-size:.85rem;margin-top:2rem">Prepared by Claude with Marc · July 10, 2026 · sources: live-app audit, netnet-web codebase deep dive, Jobs/Settings/Performance/Chat/Quick Tasks functional specs, Hybrid Delivery technical overview.</p>
+</div>
+<script>
+const r = document.documentElement, b = document.getElementById('tt');
+function s() { b.textContent = r.dataset.theme === 'dark' ? 'Light mode' : 'Dark mode'; }
+b.onclick = () => { r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'; s(); };
+s();
+</script>
+</body>
+</html>

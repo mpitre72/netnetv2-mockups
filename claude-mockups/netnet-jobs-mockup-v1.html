@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Net Net · Jobs · Mockup v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   NET NET DESIGN TOKENS · v1
+   One source of truth. Every color, space, and radius below.
+   Light and dark are the SAME structure, different values.
+   ============================================================ */
+:root {
+  /* Brand */
+  --nn-purple: #711FFF;
+  --nn-purple-deep: #5A0BDF;
+
+  /* Stoplight (effort meters): green to 85%, yellow to 100%, red over */
+  --nn-good: #21A567;
+  --nn-warn: #E8A020;
+  --nn-over: #E4405F;
+
+  /* Type scale */
+  --fs-xs: 0.72rem;
+  --fs-sm: 0.82rem;
+  --fs-md: 0.92rem;
+  --fs-lg: 1.05rem;
+  --fs-xl: 1.45rem;
+
+  /* Space + shape */
+  --sp-1: 0.35rem; --sp-2: 0.6rem; --sp-3: 0.9rem; --sp-4: 1.25rem; --sp-5: 1.8rem;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --row-h: 56px;
+}
+
+/* ---------- LIGHT ---------- */
+:root[data-theme="light"] {
+  --bg: #F3F4F8;                              /* page, never pure white */
+  --surface: #FFFFFF;                          /* cards, table body */
+  --surface-2: #F8F9FC;                        /* header rows, wells */
+  --surface-3: #EEF0F6;                        /* hover, pressed */
+  --border: rgba(20, 24, 46, 0.10);            /* soft structure lines */
+  --border-strong: rgba(20, 24, 46, 0.18);     /* element boxing */
+  --text-1: #14182E;
+  --text-2: rgba(20, 24, 46, 0.68);
+  --text-3: rgba(20, 24, 46, 0.45);
+  --purple-soft: rgba(113, 31, 255, 0.07);
+  --good-soft: rgba(33, 165, 103, 0.12);
+  --warn-soft: rgba(232, 160, 32, 0.14);
+  --over-soft: rgba(228, 64, 95, 0.12);
+  --shadow: 0 1px 2px rgba(20,24,46,.05), 0 8px 24px rgba(20,24,46,.06);
+  --shadow-lift: 0 2px 6px rgba(20,24,46,.08), 0 12px 32px rgba(20,24,46,.10);
+}
+
+/* ---------- DARK ---------- */
+:root[data-theme="dark"] {
+  --bg: #0E0E17;                               /* page, deep violet-black */
+  --surface: #171724;                          /* cards, table body */
+  --surface-2: #1D1D2E;                        /* header rows, wells */
+  --surface-3: #252538;                        /* hover, pressed */
+  --border: rgba(245, 247, 255, 0.09);
+  --border-strong: rgba(245, 247, 255, 0.17);
+  --text-1: #F5F7FF;
+  --text-2: rgba(245, 247, 255, 0.68);
+  --text-3: rgba(245, 247, 255, 0.44);
+  --purple-soft: rgba(113, 31, 255, 0.16);
+  --good-soft: rgba(43, 197, 126, 0.16);
+  --warn-soft: rgba(240, 176, 60, 0.16);
+  --over-soft: rgba(240, 90, 118, 0.16);
+  --nn-good: #2BC57E;
+  --nn-warn: #F0B03C;
+  --nn-over: #F05A76;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  --shadow-lift: 0 2px 8px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.45);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'Open Sans', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  transition: background .25s ease, color .25s ease;
+}
+button { font-family: inherit; cursor: pointer; }
+input, select { font-family: inherit; }
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+.app { display: flex; min-height: 100vh; }
+
+.sidenav {
+  width: 200px; flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-4) var(--sp-2);
+  display: flex; flex-direction: column; gap: 2px;
+  position: sticky; top: 0; height: 100vh;
+}
+.sidenav .logo { display:block; height: 30px; margin: 0 var(--sp-2) var(--sp-5); }
+.sidenav .logo img { height: 100%; }
+:root[data-theme="light"] .logo-dark { display: none; }
+:root[data-theme="dark"] .logo-light { display: none; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: var(--r-sm);
+  color: var(--text-2); font-size: var(--fs-sm); font-weight: 600;
+  text-decoration: none; border: 1px solid transparent;
+}
+.nav-item:hover { background: var(--surface-3); color: var(--text-1); }
+.nav-item.active {
+  background: var(--purple-soft); color: var(--nn-purple);
+  border-color: transparent;
+}
+:root[data-theme="dark"] .nav-item.active { color: #A98BFF; }
+.nav-item svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-3); padding: var(--sp-3) var(--sp-5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 30;
+}
+.search {
+  flex: 1; max-width: 420px; display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 7px 14px; color: var(--text-3); font-size: var(--fs-sm);
+}
+.topbar-right { display: flex; align-items: center; gap: var(--sp-3); }
+.theme-toggle {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+  color: var(--text-1); border-radius: 999px; padding: 7px 14px;
+  font-size: var(--fs-sm); font-weight: 700;
+}
+.theme-toggle:hover { background: var(--surface-3); }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--nn-purple); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--fs-xs); font-weight: 800; flex-shrink: 0;
+  border: 2px solid var(--surface);
+}
+
+/* ============================================================
+   PAGE HEADER
+   ============================================================ */
+.page { padding: var(--sp-5); max-width: 1280px; width: 100%; margin: 0 auto; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-4); flex-wrap: wrap; }
+.page-title h1 { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; }
+.page-title p { color: var(--text-2); font-size: var(--fs-sm); margin-top: 4px; }
+.head-actions { display: flex; gap: var(--sp-2); align-items: center; }
+
+.seg {
+  display: inline-flex; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px;
+}
+.seg button {
+  border: 0; background: transparent; color: var(--text-2);
+  padding: 6px 16px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 700;
+}
+.seg button.on { background: var(--surface); color: var(--text-1); box-shadow: var(--shadow); }
+
+.btn-primary {
+  background: var(--nn-purple); color: #fff; border: 0;
+  padding: 9px 18px; border-radius: var(--r-sm);
+  font-size: var(--fs-sm); font-weight: 700;
+  box-shadow: 0 4px 14px rgba(113, 31, 255, 0.35);
+}
+.btn-primary:hover { background: var(--nn-purple-deep); }
+
+/* ============================================================
+   JOBS TABLE  (div-grid so it can collapse to cards on phones)
+   ============================================================ */
+.jobs-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.jrow {
+  display: grid;
+  grid-template-columns: 70px minmax(220px, 1.6fr) minmax(140px, 1fr) 120px minmax(160px, 1.1fr) 150px 90px;
+  align-items: center;
+  column-gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+  min-height: var(--row-h);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.jrow:last-child { border-bottom: 0; }
+
+.jhead {
+  background: var(--surface-2);
+  min-height: 44px;
+  font-size: var(--fs-xs); font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-3);
+  position: sticky; top: 61px; z-index: 20;
+}
+
+.jbody .jrow { cursor: pointer; transition: background .12s ease; }
+.jbody .jrow:hover { background: var(--surface-2); }
+.jbody .jrow:hover .rowtools { opacity: 1; }
+
+.jno { color: var(--text-3); font-size: var(--fs-sm); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.jname { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.jname .nm {
+  font-weight: 700; font-size: var(--fs-md); color: var(--text-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border-radius: 6px; padding: 3px 6px; margin-left: -6px;
+}
+.jbody .nm:hover { background: var(--purple-soft); }
+.jname input {
+  font-weight: 700; font-size: var(--fs-md); color: var(--text-1);
+  background: var(--surface); border: 2px solid var(--nn-purple);
+  border-radius: 6px; padding: 2px 6px; width: 100%; outline: none;
+}
+.jtype {
+  font-size: var(--fs-xs); font-weight: 700; color: var(--text-3);
+  border: 1px solid var(--border-strong); padding: 1px 7px; border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.jco { color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-xs); font-weight: 800;
+  padding: 4px 11px; border-radius: 999px; border: 0; white-space: nowrap;
+}
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+.chip.active   { background: var(--good-soft); color: var(--nn-good); }
+.chip.active .dot { background: var(--nn-good); }
+.chip.pending  { background: var(--warn-soft); color: var(--nn-warn); }
+.chip.pending .dot { background: var(--nn-warn); }
+.chip.completed{ background: var(--purple-soft); color: var(--nn-purple); }
+:root[data-theme="dark"] .chip.completed { color: #A98BFF; }
+.chip.completed .dot { background: currentColor; }
+
+/* Effort meter */
+.meter-wrap { display: flex; align-items: center; gap: 10px; }
+.meter {
+  flex: 1; height: 7px; border-radius: 999px;
+  background: var(--surface-3); overflow: hidden; min-width: 60px;
+  border: 1px solid var(--border);
+}
+.meter > i { display: block; height: 100%; border-radius: 999px; }
+.meter-pct { font-size: var(--fs-xs); font-weight: 800; font-variant-numeric: tabular-nums; width: 40px; text-align: right; }
+.g .meter > i { background: var(--nn-good); } .g .meter-pct { color: var(--nn-good); }
+.y .meter > i { background: var(--nn-warn); } .y .meter-pct { color: var(--nn-warn); }
+.r .meter > i { background: var(--nn-over); } .r .meter-pct { color: var(--nn-over); }
+
+.jdates { font-size: var(--fs-xs); color: var(--text-2); font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.track-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.track-dot.ok { background: var(--nn-good); }
+.track-dot.drift { background: var(--nn-over); box-shadow: 0 0 0 3px var(--over-soft); }
+
+.avstack { display: flex; }
+.avstack .avatar { width: 26px; height: 26px; font-size: 0.6rem; margin-left: -7px; }
+.avstack .avatar:first-child { margin-left: 0; }
+
+.rowtools {
+  position: absolute; right: var(--sp-3); top: 50%; transform: translateY(-50%);
+  display: flex; gap: 6px; opacity: 0;
+  transition: opacity .12s ease;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px; box-shadow: var(--shadow-lift);
+}
+.rowtools button {
+  border: 0; background: transparent; color: var(--text-2);
+  width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.rowtools button:hover { background: var(--purple-soft); color: var(--nn-purple); }
+
+/* Status menu */
+.statuswrap { position: relative; }
+.smenu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--r-md); box-shadow: var(--shadow-lift);
+  padding: 5px; display: none; min-width: 140px;
+}
+.smenu.open { display: block; }
+.smenu button {
+  display: flex; width: 100%; border: 0; background: transparent;
+  padding: 7px 10px; border-radius: var(--r-sm);
+  font-size: var(--fs-sm); font-weight: 700; color: var(--text-1);
+  align-items: center; gap: 8px;
+}
+.smenu button:hover { background: var(--surface-3); }
+
+/* Expanded deliverables panel */
+.jexpand {
+  grid-column: 1 / -1;
+  background: var(--surface-2);
+  border-top: 1px dashed var(--border-strong);
+  margin: 0 calc(-1 * var(--sp-4));
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) calc(var(--sp-4) + 70px + var(--sp-3));
+}
+.jexpand h4 { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin-bottom: var(--sp-2); }
+.dlv {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 7px 10px; border-radius: var(--r-sm); font-size: var(--fs-sm);
+}
+.dlv:hover { background: var(--surface-3); }
+.dlv .dname { flex: 1; font-weight: 600; }
+.dlv .meter { max-width: 120px; }
+.add-inline {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text-3); font-size: var(--fs-sm); font-weight: 700;
+  padding: 7px 10px; border-radius: var(--r-sm);
+  border: 1px dashed transparent; background: transparent; width: 100%;
+  text-align: left;
+}
+.add-inline:hover { color: var(--nn-purple); background: var(--purple-soft); }
+.add-inline-input {
+  width: 100%; background: var(--surface); border: 2px solid var(--nn-purple);
+  border-radius: var(--r-sm); padding: 6px 10px; font-size: var(--fs-sm);
+  color: var(--text-1); outline: none; font-weight: 600;
+}
+
+/* Add-job row */
+.addrow {
+  display: flex; align-items: center; gap: 8px;
+  padding: var(--sp-3) var(--sp-4);
+  color: var(--text-3); font-weight: 700; font-size: var(--fs-sm);
+  border-top: 1px solid var(--border); cursor: pointer; user-select: none;
+}
+.addrow:hover { color: var(--nn-purple); background: var(--purple-soft); }
+.addform {
+  display: none; grid-template-columns: 1.6fr 1fr 130px auto; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border);
+  background: var(--surface-2); align-items: center;
+}
+.addform.open { display: grid; }
+.addform input, .addform select {
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm); padding: 9px 12px; font-size: var(--fs-sm);
+  color: var(--text-1); outline: none; width: 100%;
+}
+.addform input:focus, .addform select:focus { border-color: var(--nn-purple); box-shadow: 0 0 0 3px var(--purple-soft); }
+.addform .frm-actions { display: flex; gap: 8px; }
+.btn-ghost {
+  background: transparent; border: 1px solid var(--border-strong);
+  color: var(--text-2); padding: 8px 14px; border-radius: var(--r-sm);
+  font-size: var(--fs-sm); font-weight: 700;
+}
+.btn-ghost:hover { background: var(--surface-3); }
+
+.hint {
+  margin-top: var(--sp-3); color: var(--text-3); font-size: var(--fs-xs);
+  display: flex; gap: 14px; flex-wrap: wrap;
+}
+.hint b { color: var(--text-2); }
+
+/* ============================================================
+   PHONE LAYOUT  (< 768px): rows become cards, nav goes bottom
+   ============================================================ */
+.bottomnav { display: none; }
+
+@media (max-width: 960px) {
+  .sidenav { width: 64px; padding: var(--sp-4) 8px; }
+  .sidenav .logo { height: 24px; margin-bottom: var(--sp-4); }
+  .nav-item span { display: none; }
+  .nav-item { justify-content: center; }
+}
+
+@media (max-width: 768px) {
+  .sidenav { display: none; }
+  .page { padding: var(--sp-3); padding-bottom: 86px; }
+  .topbar { padding: var(--sp-2) var(--sp-3); }
+  .search { display: none; }
+
+  .jhead { display: none; }
+  .jrow {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name   status"
+      "co     co"
+      "meter  meter"
+      "dates  team";
+    row-gap: 8px; padding: var(--sp-3) var(--sp-4);
+  }
+  .jno { display: none; }
+  .jname { grid-area: name; }
+  .jname .nm { white-space: normal; }
+  .jco { grid-area: co; }
+  .statuswrap { grid-area: status; justify-self: end; }
+  .meter-wrap { grid-area: meter; }
+  .jdates { grid-area: dates; }
+  .avstack { grid-area: team; justify-self: end; }
+  .rowtools { display: none; }
+  .jexpand { margin: 0 calc(-1 * var(--sp-4)); padding: var(--sp-3) var(--sp-4); }
+  .addform { grid-template-columns: 1fr; }
+
+  .bottomnav {
+    display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+    background: var(--surface); border-top: 1px solid var(--border-strong);
+    padding: 8px max(env(safe-area-inset-left), 10px) max(env(safe-area-inset-bottom), 8px);
+    justify-content: space-around;
+    box-shadow: 0 -8px 24px rgba(0,0,0,.12);
+  }
+  .bottomnav a {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: var(--text-3); text-decoration: none; font-size: 0.62rem; font-weight: 700;
+    padding: 4px 10px; border-radius: var(--r-sm);
+  }
+  .bottomnav a.active { color: var(--nn-purple); }
+  .bottomnav svg { width: 20px; height: 20px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= SIDE NAV ================= -->
+  <nav class="sidenav">
+    <a class="logo" href="#">
+      <img class="logo-light" src="https://hellonetnet.com/wp-content/uploads/2024/12/logo-standard.svg" alt="Net Net">
+      <img class="logo-dark" src="https://hellonetnet.com/wp-content/uploads/2024/12/logo-white.svg" alt="Net Net">
+    </a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Me</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c0-3.5 3-5 6-5s6 1.5 6 5M14 15.5c2.5 0 5 1 5 4"/></svg><span>Contacts</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 12V7h-5"/></svg><span>Sales</span></a>
+    <a class="nav-item active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg><span>Jobs</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg><span>Quick Tasks</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 01-8 8H4l2-3a8 8 0 1115-5z"/></svg><span>Chat</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Reports</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3L2 8l10 5 10-5-10-5z"/><path d="M6 10v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg><span>Net Net U</span></a>
+  </nav>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <header class="topbar">
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        Search Jobs, people, companies&hellip;
+      </div>
+      <div class="topbar-right">
+        <button class="theme-toggle" id="themeToggle" title="Switch theme">
+          <span id="themeIcon">☀️</span><span id="themeLabel">Light</span>
+        </button>
+        <span class="avatar">MP</span>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="page-head">
+        <div class="page-title">
+          <h1>Jobs</h1>
+          <p>6 Jobs · 4 Active · 1 drifting over plan</p>
+        </div>
+        <div class="head-actions">
+          <div class="seg">
+            <button class="on">All</button><button>Projects</button><button>Retainers</button>
+          </div>
+          <button class="btn-primary" onclick="openAdd()">+ New Job</button>
+        </div>
+      </div>
+
+      <div class="jobs-card">
+        <!-- header row -->
+        <div class="jrow jhead">
+          <div>No.</div><div>Job</div><div>Company</div><div>Status</div><div>Effort</div><div>Timeline</div><div>Team</div>
+        </div>
+
+        <div class="jbody" id="jbody"><!-- rows injected by JS --></div>
+
+        <!-- inline add -->
+        <div class="addrow" id="addrow" onclick="openAdd()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Add a Job
+        </div>
+        <div class="addform" id="addform">
+          <input id="f_name" type="text" placeholder="Job name" autocomplete="off">
+          <select id="f_co">
+            <option>ITK Creative</option><option>Reitzes Consulting</option><option>Bluegrass Coffee Co.</option>
+            <option>Harbor Legal</option><option>Mount Holly Realty</option><option>Fielder Athletics</option>
+          </select>
+          <select id="f_type"><option>Project</option><option>Retainer</option></select>
+          <div class="frm-actions">
+            <button class="btn-primary" onclick="commitAdd()">Add Job</button>
+            <button class="btn-ghost" onclick="closeAdd()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hint">
+        <span><b>Click a Job name</b> to rename it in place</span>
+        <span><b>Click a status chip</b> to change status</span>
+        <span><b>Click anywhere on a row</b> to expand Deliverables</span>
+        <span><b>Enter</b> commits · <b>Esc</b> cancels</span>
+        <span><b>Resize this window narrow</b> to see the phone layout</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- phone bottom nav -->
+<nav class="bottomnav">
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Me</a>
+  <a href="#" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Jobs</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>Quick</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 01-8 8H4l2-3a8 8 0 1115-5z"/></svg>Chat</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Reports</a>
+</nav>
+
+<script>
+/* ============================================================
+   Sample data (no dollars anywhere; effort + timeline only)
+   ============================================================ */
+const jobs = [
+  { no: 1026, name: 'Q3 Campaign Sprint', co: 'Bluegrass Coffee Co.', type: 'Project',  status: 'active',    pct: 108, from: 'Jun 1',  to: 'Aug 14', drift: true,
+    team: ['MP','AV','JT'], dlv: [ ['Creative Concepts', 100], ['Asset Production', 122], ['Media Handoff', 40] ] },
+  { no: 1025, name: 'Website Redesign', co: 'Reitzes Consulting', type: 'Project', status: 'active', pct: 91, from: 'May 12', to: 'Aug 29', drift: false,
+    team: ['AV','LK'], dlv: [ ['Discovery & IA', 100], ['Design System', 96], ['Page Builds', 74], ['QA & Launch', 0] ] },
+  { no: 1024, name: 'Brand Refresh Retainer', co: 'ITK Creative', type: 'Retainer', status: 'active', pct: 62, from: 'Jul cycle', to: '31 days', drift: false,
+    team: ['MP','LK','RD','AV'], dlv: [ ['Monthly Creative Pool', 62] ] },
+  { no: 1028, name: 'Social Content Retainer', co: 'Mount Holly Realty', type: 'Retainer', status: 'active', pct: 47, from: 'Jul cycle', to: '31 days', drift: false,
+    team: ['JT'], dlv: [ ['Content Calendar', 55], ['Production Pool', 39] ] },
+  { no: 1027, name: 'SEO Foundations', co: 'Harbor Legal', type: 'Project', status: 'pending', pct: 0, from: 'Aug 3', to: 'Oct 9', drift: false,
+    team: ['RD'], dlv: [ ['Technical Audit', 0], ['Content Plan', 0] ] },
+  { no: 1029, name: 'Product Launch Video', co: 'Fielder Athletics', type: 'Project', status: 'completed', pct: 88, from: 'Mar 2', to: 'May 30', drift: false,
+    team: ['MP','AV'], dlv: [ ['Script & Boards', 92], ['Shoot', 85], ['Edit & Delivery', 88] ] },
+];
+
+const AV_COLORS = ['#711FFF','#0B88F9','#21A567','#E8A020','#E4405F'];
+const zone = p => p <= 85 ? 'g' : p <= 100 ? 'y' : 'r';
+const cap  = p => Math.min(p, 100);
+const chipLabel = { active: 'Active', pending: 'Pending', completed: 'Completed' };
+
+function avatarHtml(t, i) {
+  return `<span class="avatar" style="background:${AV_COLORS[i % AV_COLORS.length]}">${t}</span>`;
+}
+
+function meterHtml(pct, small) {
+  return `<div class="meter-wrap ${zone(pct)}" ${small ? 'style="max-width:190px"' : ''}>
+      <div class="meter"><i style="width:${cap(pct)}%"></i></div>
+      <span class="meter-pct">${pct}%</span>
+    </div>`;
+}
+
+function rowHtml(j, idx) {
+  return `
+  <div class="jrow" data-idx="${idx}" onclick="toggleExpand(event, ${idx})">
+    <div class="jno">${j.no}</div>
+    <div class="jname">
+      <span class="nm" title="Click to rename" onclick="startRename(event, ${idx})">${j.name}</span>
+      <span class="jtype">${j.type}</span>
+    </div>
+    <div class="jco">${j.co}</div>
+    <div class="statuswrap">
+      <button class="chip ${j.status}" onclick="toggleMenu(event, ${idx})"><span class="dot"></span>${chipLabel[j.status]}</button>
+      <div class="smenu" id="menu-${idx}">
+        <button onclick="setStatus(event, ${idx}, 'active')"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--nn-good)"></span>Active</button>
+        <button onclick="setStatus(event, ${idx}, 'pending')"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--nn-warn)"></span>Pending</button>
+        <button onclick="setStatus(event, ${idx}, 'completed')"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--nn-purple)"></span>Completed</button>
+      </div>
+    </div>
+    ${meterHtml(j.pct)}
+    <div class="jdates">
+      <span class="track-dot ${j.drift ? 'drift' : 'ok'}" title="${j.drift ? 'Drifting over plan' : 'On track'}"></span>
+      ${j.from} → ${j.to}
+    </div>
+    <div class="avstack">${j.team.map(avatarHtml).join('')}</div>
+    <div class="rowtools">
+      <button title="Open Job chat" onclick="event.stopPropagation()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 01-8 8H4l2-3a8 8 0 1115-5z"/></svg></button>
+      <button title="Rename" onclick="startRename(event, ${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg></button>
+    </div>
+    <div class="jexpand" id="exp-${idx}" style="display:none" onclick="event.stopPropagation()">
+      <h4>Deliverables</h4>
+      ${j.dlv.map(d => `
+        <div class="dlv">
+          <span class="dname">${d[0]}</span>
+          ${meterHtml(d[1], true)}
+        </div>`).join('')}
+      <button class="add-inline" onclick="startAddDlv(event, ${idx})">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Add a Deliverable
+      </button>
+    </div>
+  </div>`;
+}
+
+function render() {
+  document.getElementById('jbody').innerHTML = jobs.map(rowHtml).join('');
+}
+render();
+
+/* ---------- theme ---------- */
+const root = document.documentElement;
+function applyThemeButton() {
+  const dark = root.dataset.theme === 'dark';
+  document.getElementById('themeIcon').textContent = dark ? '☀️' : '🌙';
+  document.getElementById('themeLabel').textContent = dark ? 'Light' : 'Dark';
+}
+document.getElementById('themeToggle').onclick = () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  applyThemeButton();
+};
+applyThemeButton();
+
+/* ---------- expand ---------- */
+function toggleExpand(e, idx) {
+  if (e.target.closest('.smenu, .jname input, .rowtools, .add-inline-input')) return;
+  const el = document.getElementById('exp-' + idx);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+/* ---------- inline rename ---------- */
+function startRename(e, idx) {
+  e.stopPropagation();
+  const row = document.querySelector(`.jrow[data-idx="${idx}"]`);
+  const nm = row.querySelector('.nm');
+  if (!nm) return;
+  const input = document.createElement('input');
+  input.value = jobs[idx].name;
+  nm.replaceWith(input);
+  input.focus(); input.select();
+  const commit = () => { jobs[idx].name = input.value.trim() || jobs[idx].name; render(); };
+  input.onblur = commit;
+  input.onkeydown = ev => {
+    if (ev.key === 'Enter') input.blur();
+    if (ev.key === 'Escape') { input.onblur = null; render(); }
+  };
+}
+
+/* ---------- status menu ---------- */
+function toggleMenu(e, idx) {
+  e.stopPropagation();
+  document.querySelectorAll('.smenu.open').forEach(m => m.classList.remove('open'));
+  document.getElementById('menu-' + idx).classList.toggle('open');
+}
+function setStatus(e, idx, s) {
+  e.stopPropagation();
+  jobs[idx].status = s;
+  render();
+}
+document.addEventListener('click', () => document.querySelectorAll('.smenu.open').forEach(m => m.classList.remove('open')));
+
+/* ---------- inline add deliverable ---------- */
+function startAddDlv(e, idx) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  const input = document.createElement('input');
+  input.className = 'add-inline-input';
+  input.placeholder = 'Deliverable name, press Enter';
+  btn.replaceWith(input);
+  input.focus();
+  input.onkeydown = ev => {
+    if (ev.key === 'Enter' && input.value.trim()) {
+      jobs[idx].dlv.push([input.value.trim(), 0]);
+      render();
+      document.getElementById('exp-' + idx).style.display = 'block';
+    }
+    if (ev.key === 'Escape') render();
+  };
+  input.onblur = () => render();
+}
+
+/* ---------- add job ---------- */
+function openAdd() {
+  document.getElementById('addform').classList.add('open');
+  document.getElementById('addrow').style.display = 'none';
+  document.getElementById('f_name').focus();
+}
+function closeAdd() {
+  document.getElementById('addform').classList.remove('open');
+  document.getElementById('addrow').style.display = 'flex';
+  document.getElementById('f_name').value = '';
+}
+function commitAdd() {
+  const name = document.getElementById('f_name').value.trim();
+  if (!name) { document.getElementById('f_name').focus(); return; }
+  jobs.unshift({
+    no: Math.max(...jobs.map(j => j.no)) + 1,
+    name,
+    co: document.getElementById('f_co').value,
+    type: document.getElementById('f_type').value,
+    status: 'pending', pct: 0, from: 'Today', to: 'TBD', drift: false,
+    team: ['MP'], dlv: []
+  });
+  render();
+  closeAdd();
+}
+document.getElementById('f_name').addEventListener('keydown', ev => {
+  if (ev.key === 'Enter') commitAdd();
+  if (ev.key === 'Escape') closeAdd();
+});
+</script>
+</body>
+</html>

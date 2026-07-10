@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Net Net · Jobs UI Redesign · Mockups</title>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root { --purple: #711fff; --accent: #8b47ff; }
+[data-theme='dark'] { --bg: #0b0217; --card: #170b26; --soft: #211334; --line: rgb(255 255 255 / 14%); --line2: rgb(255 255 255 / 8%); --tx: #f5f5f5; --tx2: #cdc4d6; --tx3: #a69bad; --green: #5fcea8; }
+[data-theme='light'] { --bg: #eef0f4; --card: #ffffff; --soft: #f6f4fa; --line: rgb(49 0 133 / 16%); --line2: rgb(49 0 133 / 9%); --tx: #16102b; --tx2: #6d5f7a; --tx3: #493b52; --green: #008a5a; }
+* { box-sizing: border-box; margin: 0; }
+html { font-size: 14px; }
+body { font-family: 'Open Sans', system-ui, sans-serif; background: var(--bg); color: var(--tx); min-height: 100vh; padding: 3rem 1.2rem 5rem; transition: all .25s ease; }
+.wrap { max-width: 760px; margin: 0 auto; }
+.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.2rem; }
+.top img { height: 26px; }
+.tbtn { border: 1px solid var(--line); background: var(--soft); color: var(--tx); border-radius: 999px; padding: 0.4rem 1rem; font-weight: 700; cursor: pointer; }
+h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.4rem; }
+.sub { color: var(--tx2); margin-bottom: 2rem; font-size: 1.02rem; }
+.card { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1.1rem 1.3rem; margin-bottom: 0.8rem; text-decoration: none; color: var(--tx); box-shadow: 0 1px 2px rgb(0 0 0 / 20%), 0 10px 30px rgb(0 0 0 / 15%); transition: transform .12s ease; }
+.card:hover { transform: translateY(-1px); border-color: var(--accent); }
+.card b { font-size: 1.08rem; display: flex; align-items: center; gap: 8px; }
+.card p { color: var(--tx2); font-size: 0.92rem; margin-top: 0.3rem; line-height: 1.5; }
+.tag { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: rgb(139 71 255 / 16%); color: var(--accent); padding: 2px 8px; border-radius: 999px; }
+.tag.g { background: rgb(95 206 168 / 14%); color: var(--green); }
+.h2 { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--tx3); margin: 2rem 0 0.7rem; }
+.old { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.old a { color: var(--tx2); font-size: 0.85rem; font-weight: 700; text-decoration: none; border: 1px solid var(--line2); border-radius: 999px; padding: 0.25rem 0.8rem; }
+.old a:hover { color: var(--accent); border-color: var(--accent); }
+.note { color: var(--tx3); font-size: 0.85rem; margin-top: 2rem; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <img id="logo" src="https://hellonetnet.com/wp-content/uploads/2024/12/logo-white.svg" alt="Net Net">
+    <button class="tbtn" id="tt">Light mode</button>
+  </div>
+  <h1>Jobs UI Redesign</h1>
+  <p class="sub">Interactive working mockups plus the design brief. Built July 9–10, 2026 from the live V2 codebase: every color maps to a token in <code>packages/styles/_variables.scss</code>.</p>
+
+  <a class="card" href="netnet-jobs-mockup-v10.html">
+    <b>Jobs · Tasks tab — current mockup <span class="tag g">v10 · show this one</span></b>
+    <p>Everything in one interactive page: light/dark themes, Retainer vs Project modes, inline editing (nothing morphs), schedule cluster with recurrence, bullet meters with allocation ticks and over-allocation zones, returned-hours on completion, spec-accurate chat indicators, carryover badge, Hybrid Delivery glyph. Resize narrow for the phone layout with bottom navigation.</p>
+  </a>
+
+  <a class="card" href="redesign-brief.html">
+    <b>Design brief &amp; spec-change proposals <span class="tag">documentation</span></b>
+    <p>The written backbone: what's wrong today (with evidence from the audit and the codebase), the exact token patch, the interaction grammar, the meter and chat systems, the mobile spec, and ten numbered spec-change proposals including the recurrence/due-date rule and allocation return.</p>
+  </a>
+
+  <div class="h2">Earlier iterations (the design argument, in order)</div>
+  <div class="old">
+    <a href="netnet-jobs-mockup-v1.html">v1 · jobs list</a>
+    <a href="netnet-jobs-mockup-v2.html">v2 · first tasks tab</a>
+    <a href="netnet-jobs-mockup-v3.html">v3 · full coverage</a>
+    <a href="netnet-jobs-mockup-v4.html">v4 · inline pattern C</a>
+    <a href="netnet-jobs-mockup-v5.html">v5 · glyphs + modes</a>
+    <a href="netnet-jobs-mockup-v6.html">v6 · no-morph overlays</a>
+    <a href="netnet-jobs-mockup-v7.html">v7 · schedule cluster</a>
+    <a href="netnet-jobs-mockup-v8.html">v8 · meters</a>
+    <a href="netnet-jobs-mockup-v9.html">v9 · pools + over-allocation</a>
+  </div>
+
+  <p class="note">These are working design mockups, not production code. The intended implementation path is Arthur's own components in netnet-web: the brief's token patch changes global surfaces in one file, and the component-level patterns are specified per screen. Sample data is fictional except structure borrowed from real screens.</p>
+</div>
+<script>
+const r = document.documentElement, b = document.getElementById('tt'), l = document.getElementById('logo');
+function s() {
+  const d = r.dataset.theme === 'dark';
+  b.textContent = d ? 'Light mode' : 'Dark mode';
+  l.src = d ? 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-white.svg' : 'https://hellonetnet.com/wp-content/uploads/2024/12/logo-standard.svg';
+}
+b.onclick = () => { r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'; s(); };
+s();
+</script>
+</body>
+</html>
