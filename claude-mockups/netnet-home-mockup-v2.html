@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Net Net · Home &amp; Onboarding · Mockup v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ==================================================================
+   Net Net V2 · Home & Onboarding mockup v2 · July 13, 2026
+   Rebuilt after feedback. Fixes vs v1:
+   · Real four-layer surfaces + strong borders (the brief's contrast fix)
+   · No sub-11px muted text; body copy uses secondary, not muted
+   · Dropped the redundant "Start Here" nav grid (the sidebar is the nav)
+   · Checklist is the centrepiece (role-aware, graduates when done)
+   · "Need a hand" is a real Crisp surface (articles + video + AI chat),
+     NOT an invented Net Net search (Net Net has no global search)
+   · Launch point defaults to this Welcome screen; shows My Tasks,
+     My Lists, My Time, My Performance, Jobs, Performance, then the rest
+   Tokens are verbatim from netnet-jobs-mockup-v10.html.
+   ================================================================== */
+:root {
+  --nn-color-primary: #711fff;
+  --nn-color-primary-light: #dcd4fd;
+  --nn-color-primary-dark: #310085;
+  --nn-color-primary-accent: #8b47ff;
+  --outer-border-radius: 1rem;
+  --inner-border-radius: 0.5rem;
+}
+[data-theme='dark'] {
+  --nn-color-bg: #0b0217;
+  --nn-color-primary-glass: #170b26;
+  --nn-color-primary-glass-soft: #211334;
+  --nn-color-foreground-light: #2a1c40;
+  --nn-color-meter-background: #32224b;
+  --nn-glass-line-strong: rgb(255 255 255 / 14%);
+  --nn-glass-line-soft: rgb(255 255 255 / 8%);
+  --nn-color-text: #f5f5f5;
+  --nn-color-text-muted: #a69bad;
+  --nn-color-text-secondary: #cdc4d6;
+  --nn-color-error: #fa2d23;
+  --nn-color-input-border: rgb(238 209 255 / 32%);
+  --nn-accent-green: #5fcea8;
+  --nn-accent-orange: #f59825;
+  --nn-accent-blue: #4aa3ff;
+  --nn-accent-green-glass: rgb(95 206 168 / 14%);
+  --nn-accent-orange-glass: rgb(245 152 37 / 14%);
+  --nn-accent-red-glass: rgb(250 45 35 / 14%);
+  --nn-accent-blue-glass: rgb(74 163 255 / 14%);
+  --nn-purple-glass: rgb(139 71 255 / 16%);
+  --nn-general-bg: #1f194c;
+  --nn-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 10px 30px rgb(0 0 0 / 35%);
+  --pattern-opacity: 0.04;
+}
+[data-theme='light'] {
+  --nn-color-bg: #eef0f4;
+  --nn-color-primary-glass: #ffffff;
+  --nn-color-primary-glass-soft: #f6f4fa;
+  --nn-color-foreground-light: #edeaf4;
+  --nn-color-meter-background: #e4e0ee;
+  --nn-glass-line-strong: rgb(49 0 133 / 16%);
+  --nn-glass-line-soft: rgb(49 0 133 / 9%);
+  --nn-color-text: #16102b;
+  --nn-color-text-muted: #493b52;
+  --nn-color-text-secondary: #6d5f7a;
+  --nn-color-error: #d92018;
+  --nn-color-input-border: #8a8a8a;
+  --nn-accent-green: #008a5a;
+  --nn-accent-orange: #b96400;
+  --nn-accent-blue: #0b6fd0;
+  --nn-accent-green-glass: rgb(0 138 90 / 10%);
+  --nn-accent-orange-glass: rgb(185 100 0 / 12%);
+  --nn-accent-red-glass: rgb(217 32 24 / 10%);
+  --nn-accent-blue-glass: rgb(11 111 208 / 10%);
+  --nn-purple-glass: rgb(113 31 255 / 8%);
+  --nn-general-bg: #eae6f7;
+  --nn-shadow: 0 1px 2px rgb(22 16 43 / 6%), 0 6px 20px rgb(22 16 43 / 7%);
+  --pattern-opacity: 0.35;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { font-family: 'Open Sans', system-ui, sans-serif; background: var(--nn-color-bg); color: var(--nn-color-text); min-height: 100vh; transition: background .25s ease, color .25s ease; }
+button { font-family: inherit; cursor: pointer; color: inherit; }
+a { color: inherit; }
+body::before { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse at 12% -5%, var(--nn-purple-glass), transparent 55%), radial-gradient(ellipse at 95% 105%, var(--nn-purple-glass), transparent 50%); opacity: var(--pattern-opacity); }
+
+/* ============ shell ============ */
+.topbar { position: sticky; top: 0; z-index: 90; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(90deg, #5a0bdf, var(--nn-color-primary)); padding: 0.6rem 1.2rem; color: #fff; }
+.topbar img { height: 22px; display: block; }
+.topbar-right { display: flex; align-items: center; gap: 0.6rem; }
+.tpill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; background: rgb(31 209 130 / 22%); border: 1px solid rgb(120 240 190 / 55%); color: #eafff6; padding: 0.28rem 0.7rem; border-radius: 999px; }
+.tpill .dotclock { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #7ef0be; position: relative; }
+.tico { width: 32px; height: 32px; border-radius: 9px; border: 0; background: rgb(255 255 255 / 16%); color: #fff; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+.tico:hover { background: rgb(255 255 255 / 30%); }
+.tico svg { width: 16px; height: 16px; }
+.tico .n { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; border-radius: 999px; background: var(--nn-accent-orange); color: #1b1200; font-size: 0.64rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; padding: 0 3px; border: 1.5px solid var(--nn-color-primary); }
+
+.frame { display: flex; position: relative; z-index: 1; }
+.sidenav { width: 194px; flex-shrink: 0; align-self: flex-start; position: sticky; top: 45px; background: var(--nn-color-primary-glass); border-right: 1px solid var(--nn-glass-line-strong); padding: 0.9rem 0.7rem; display: flex; flex-direction: column; gap: 2px; min-height: calc(100vh - 45px); }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 0.62rem 0.8rem; border-radius: var(--inner-border-radius); color: var(--nn-color-text-secondary); font-size: 1rem; font-weight: 600; text-decoration: none; }
+.nav-item:hover { background: var(--nn-color-primary-glass-soft); color: var(--nn-color-text); }
+.nav-item.active { background: var(--nn-purple-glass); color: var(--nn-color-primary-light); font-weight: 700; }
+[data-theme='light'] .nav-item.active { color: var(--nn-color-primary); }
+.nav-item svg { width: 16px; height: 16px; }
+.nav-spacer { flex: 1; min-height: 1rem; }
+.wscard { display: flex; align-items: center; gap: 8px; padding: 0.5rem 0.6rem; border-radius: var(--inner-border-radius); border: 1px solid var(--nn-glass-line-soft); margin-top: 0.5rem; }
+.wscard .logo { width: 26px; height: 26px; border-radius: 7px; background: #e5322d; color: #fff; font-size: 0.62rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.wscard .nm { font-size: 0.82rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.usercard { display: flex; align-items: center; gap: 8px; padding: 0.45rem 0.6rem; border-radius: var(--inner-border-radius); margin-top: 4px; }
+.usercard .av { width: 30px; height: 30px; border-radius: 50%; background: var(--nn-color-primary); color: #fff; font-size: 0.72rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.usercard .nm { font-size: 0.85rem; font-weight: 700; }
+.usercard .rl { font-size: 0.72rem; color: var(--nn-color-text-muted); }
+
+.main { flex: 1; min-width: 0; padding: 0 1.8rem 5rem; max-width: 1120px; }
+[data-persona='lead'] .hide-lead, [data-persona='member'] .hide-member { display: none !important; }
+
+/* ============ demo bar (not product UI) ============ */
+.demo { display: flex; align-items: center; flex-wrap: wrap; gap: 0.7rem; margin: 1.1rem 0 0; padding: 0.55rem 0.8rem; background: var(--nn-color-primary-glass); border: 1px dashed var(--nn-glass-line-strong); border-radius: var(--inner-border-radius); }
+.demo .lab { font-size: 0.7rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--nn-color-text-muted); }
+.seg { display: inline-flex; background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-glass-line-soft); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--nn-color-text-secondary); padding: 0.32rem 0.85rem; border-radius: 999px; font-size: 0.82rem; font-weight: 700; }
+.seg button.on { background: var(--nn-color-primary); color: #fff; }
+.demo .hint { font-size: 0.82rem; color: var(--nn-color-text-secondary); margin-left: auto; }
+
+/* ============ hero ============ */
+.hero { padding: 1.5rem 0 0.2rem; }
+.eyebrow { display: inline-block; font-size: 0.72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--nn-color-primary-light); background: var(--nn-purple-glass); border: 1px solid var(--nn-glass-line-soft); padding: 0.25rem 0.7rem; border-radius: 999px; margin-bottom: 0.7rem; }
+[data-theme='light'] .eyebrow { color: var(--nn-color-primary); }
+.hero h1 { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.12; }
+.hero p { color: var(--nn-color-text-secondary); font-size: 1.05rem; margin-top: 0.55rem; max-width: 62ch; }
+.persona-block { display: none; }
+[data-persona='owner'] .p-owner, [data-persona='lead'] .p-lead, [data-persona='member'] .p-member { display: block; }
+li.persona-block { display: none; }
+[data-persona='owner'] li.p-owner, [data-persona='lead'] li.p-lead, [data-persona='member'] li.p-member { display: flex; }
+
+/* ============ getting-started checklist (the centrepiece) ============ */
+.card { background: var(--nn-color-primary-glass); border: 1px solid var(--nn-glass-line-strong); border-radius: var(--outer-border-radius); box-shadow: var(--nn-shadow); }
+.checklist { margin-top: 1.5rem; }
+[data-state='return'] .checklist.full { display: none; }
+.cl-head { display: flex; align-items: center; gap: 1rem; padding: 1.05rem 1.25rem; border-bottom: 1px solid var(--nn-glass-line-soft); }
+.cl-head h2 { font-size: 1.2rem; font-weight: 800; }
+.cl-head .sub { font-size: 0.9rem; color: var(--nn-color-text-secondary); margin-top: 2px; }
+.cl-head .spread { flex: 1; }
+.progress { display: flex; align-items: center; gap: 0.65rem; }
+.progress .bar { width: 128px; height: 8px; border-radius: 999px; background: var(--nn-color-meter-background); overflow: hidden; border: 1px solid var(--nn-glass-line-soft); }
+.progress .bar i { display: block; height: 100%; border-radius: 999px; background: var(--nn-accent-green); }
+.progress .txt { font-size: 0.88rem; font-weight: 800; color: var(--nn-accent-green); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hidebtn { border: 1px solid var(--nn-glass-line-strong); background: transparent; color: var(--nn-color-text-secondary); font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.75rem; border-radius: 999px; }
+.hidebtn:hover { color: var(--nn-color-text); border-color: var(--nn-color-input-border); }
+.steps { padding: 0.6rem; }
+.step { display: flex; align-items: center; gap: 0.95rem; padding: 0.8rem 0.85rem; border-radius: var(--inner-border-radius); background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-glass-line-soft); }
+.step + .step { margin-top: 0.5rem; }
+.step.now { border-color: var(--nn-color-primary-accent); background: var(--nn-color-foreground-light); }
+.dot { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800; border: 2px solid var(--nn-color-text-muted); color: var(--nn-color-text-secondary); background: var(--nn-color-primary-glass); }
+.step.done .dot { background: var(--nn-accent-green); border-color: var(--nn-accent-green); color: #06231a; }
+.step.now .dot { background: var(--nn-color-primary); border-color: var(--nn-color-primary-accent); color: #fff; }
+.step .body { flex: 1; min-width: 0; }
+.step .body b { font-size: 1.02rem; font-weight: 700; color: var(--nn-color-text); }
+.step.done .body b { color: var(--nn-color-text-muted); }
+.step .body p { font-size: 0.9rem; color: var(--nn-color-text-secondary); margin-top: 2px; }
+.step.done .body p { color: var(--nn-color-text-muted); }
+.btn { border: 1px solid var(--nn-glass-line-strong); background: var(--nn-color-primary-glass); color: var(--nn-color-text); border-radius: 999px; padding: 0.5rem 1.05rem; font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
+.btn:hover { border-color: var(--nn-color-primary-accent); color: var(--nn-color-primary-light); }
+[data-theme='light'] .btn:hover { color: var(--nn-color-primary); }
+.btn.primary { background: var(--nn-color-primary); border-color: var(--nn-color-primary); color: #fff; }
+.btn.primary:hover { background: var(--nn-color-primary-dark); color: #fff; }
+.step .tag-done { font-size: 0.78rem; font-weight: 800; color: var(--nn-accent-green); white-space: nowrap; }
+
+/* graduated chip (returning) */
+.chip { display: none; align-items: center; gap: 0.8rem; margin-top: 1.4rem; padding: 0.7rem 1rem; width: fit-content; }
+[data-state='return'] .chip { display: inline-flex; }
+.chip .txt { font-size: 0.92rem; font-weight: 700; color: var(--nn-color-text-secondary); }
+.chip .mini { width: 90px; height: 7px; border-radius: 999px; background: var(--nn-color-meter-background); overflow: hidden; border: 1px solid var(--nn-glass-line-soft); }
+.chip .mini i { display: block; height: 100%; width: 80%; background: var(--nn-accent-green); }
+.chip .re { border: 1px solid var(--nn-color-primary-accent); background: var(--nn-purple-glass); color: var(--nn-color-primary-light); font-size: 0.84rem; font-weight: 800; padding: 0.35rem 0.85rem; border-radius: 999px; }
+[data-theme='light'] .chip .re { color: var(--nn-color-primary); }
+
+/* ============ two-column band: Crisp help + launch point ============ */
+.band { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-top: 1.4rem; }
+.panel { padding: 1.2rem 1.3rem; }
+.panel h2 { font-size: 1.1rem; font-weight: 800; }
+.panel .lede { font-size: 0.9rem; color: var(--nn-color-text-secondary); margin: 0.2rem 0 1rem; }
+
+/* Crisp help */
+.arts { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.arts li { display: flex; align-items: center; gap: 0.7rem; padding: 0.7rem 0.8rem; border-radius: var(--inner-border-radius); background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-glass-line-soft); }
+.arts li:hover { border-color: var(--nn-color-primary-accent); }
+.arts .ai { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--nn-purple-glass); color: var(--nn-color-primary-light); }
+[data-theme='light'] .arts .ai { color: var(--nn-color-primary); }
+.arts .ai svg { width: 15px; height: 15px; }
+.arts .tx { flex: 1; min-width: 0; }
+.arts .tx b { font-size: 0.94rem; font-weight: 700; display: block; }
+.arts .kind { font-size: 0.76rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+.kind.video { color: var(--nn-accent-orange); background: var(--nn-accent-orange-glass); }
+.kind.article { color: var(--nn-accent-blue); background: var(--nn-accent-blue-glass); }
+.helprow { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
+.crisp-note { margin-top: 0.95rem; font-size: 0.8rem; color: var(--nn-color-text-muted); display: flex; align-items: center; gap: 7px; line-height: 1.5; }
+.crisp-note .g { width: 9px; height: 9px; border-radius: 50%; background: var(--nn-accent-green); flex-shrink: 0; }
+
+/* launch point */
+.launch-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.55rem; }
+.lc { display: flex; align-items: center; gap: 0.6rem; text-align: left; background: var(--nn-color-primary-glass-soft); border: 1.5px solid var(--nn-glass-line-strong); border-radius: var(--inner-border-radius); padding: 0.65rem 0.75rem; }
+.lc:hover { border-color: var(--nn-color-primary-accent); }
+.lc.sel { border-color: var(--nn-color-primary); background: var(--nn-purple-glass); }
+.lc .r { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--nn-color-text-muted); flex-shrink: 0; }
+.lc.sel .r { border-color: var(--nn-color-primary); background: radial-gradient(var(--nn-color-primary) 0 42%, transparent 46%); }
+.lc b { font-size: 0.92rem; font-weight: 700; }
+.lc .badge { display: inline-block; font-size: 0.62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--nn-accent-green); background: var(--nn-accent-green-glass); border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; }
+.morerow { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.85rem; flex-wrap: wrap; }
+.morerow select { background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-color-input-border); color: var(--nn-color-text); border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.88rem; font-weight: 600; }
+.morerow .cap { font-size: 0.82rem; color: var(--nn-color-text-muted); }
+
+.foot { margin-top: 2.4rem; font-size: 0.84rem; color: var(--nn-color-text-muted); border-top: 1px solid var(--nn-glass-line-soft); padding-top: 1rem; line-height: 1.6; }
+.foot b { color: var(--nn-color-text-secondary); }
+
+/* mobile bottom nav */
+.bottomnav { display: none; }
+@media (max-width: 1000px) { .band { grid-template-columns: 1fr; } .sidenav { width: 58px; } .nav-item span, .wscard .nm, .usercard .nm, .usercard .rl { display: none; } .nav-item { justify-content: center; } .wscard, .usercard { justify-content: center; } }
+@media (max-width: 720px) {
+  .sidenav { display: none; }
+  .main { padding: 0 0.9rem 7rem; max-width: 100%; }
+  .launch-cards { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 1.7rem; }
+  .cl-head { flex-wrap: wrap; }
+  .demo .hint { display: none; }
+  .bottomnav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 95; background: var(--nn-color-primary-glass); border-top: 1px solid var(--nn-glass-line-strong); backdrop-filter: blur(10px); padding: 0.5rem 0.4rem max(env(safe-area-inset-bottom), 0.55rem); justify-content: space-around; }
+  .bottomnav a { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--nn-color-text-muted); text-decoration: none; font-size: 0.68rem; font-weight: 700; min-width: 54px; }
+  .bottomnav a.active { color: var(--nn-color-primary-light); }
+  [data-theme='light'] .bottomnav a.active { color: var(--nn-color-primary); }
+  .bottomnav svg { width: 20px; height: 20px; }
+}
+</style>
+</head>
+<body data-persona="owner" data-state="new">
+
+<header class="topbar">
+  <img src="https://hellonetnet.com/wp-content/uploads/2024/12/logo-white.svg" alt="Net Net">
+  <div class="topbar-right">
+    <button class="tico" title="Time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg></button>
+    <span class="tpill"><span class="dotclock"></span>Trial: 49d left</span>
+    <button class="tico" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="n">4</span></button>
+    <button class="tico" id="tt" title="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg></button>
+  </div>
+</header>
+
+<div class="frame">
+  <nav class="sidenav">
+    <a class="nav-item active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>Home</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Me</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c0-3.5 3-5 6-5s6 1.5 6 5M14 15.5c2.5 0 5 1 5 4"/></svg><span>Contacts</span></a>
+    <a class="nav-item hide-member" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 12V7h-5"/></svg><span>Sales</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg><span>Jobs</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg><span>Quick Tasks</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 01-8 8H4l2-3a8 8 0 1115-5z"/></svg><span>Chat</span></a>
+    <a class="nav-item hide-lead hide-member" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Performance</span></a>
+    <div class="nav-spacer"></div>
+    <a class="nav-item hide-lead hide-member" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.9 7.9 0 000-2l2-1.6-2-3.4-2.4 1a7.9 7.9 0 00-1.7-1L14 3h-4l-.3 2.6a7.9 7.9 0 00-1.7 1l-2.4-1-2 3.4L5.6 11a7.9 7.9 0 000 2l-2 1.6 2 3.4 2.4-1a7.9 7.9 0 001.7 1L10 21h4l.3-2.6a7.9 7.9 0 001.7-1l2.4 1 2-3.4z"/></svg><span>Settings</span></a>
+    <div class="wscard"><span class="logo">RH</span><span class="nm">Peanut Studio</span></div>
+    <div class="usercard"><span class="av" id="uav">MP</span><div><div class="nm" id="unm">Maria Ortiz</div><div class="rl" id="url">Owner</div></div></div>
+  </nav>
+
+  <main class="main">
+
+    <!-- DEMO CONTROLS (not product UI) -->
+    <div class="demo">
+      <span class="lab">Demo</span>
+      <div class="seg" id="segPersona">
+        <button data-persona="owner" class="on">Owner · blank slate</button>
+        <button data-persona="lead">Lead · Juan</button>
+        <button data-persona="member">Member</button>
+      </div>
+      <div class="seg" id="segState">
+        <button data-state="new" class="on">First login</button>
+        <button data-state="return">Returning</button>
+      </div>
+      <span class="hint">One Home, different states.</span>
+    </div>
+
+    <!-- HERO -->
+    <section class="hero">
+      <span class="eyebrow">Workspace Home</span>
+      <div class="persona-block p-owner">
+        <h1>Welcome to Peanut Studio</h1>
+        <p>You created this workspace, so you own it. A few short steps and your team can start working. Do them now or come back here whenever it suits you.</p>
+      </div>
+      <div class="persona-block p-lead">
+        <h1>Welcome, Juan</h1>
+        <p>You are a Lead on Peanut Studio. This is where your work lives and how it flows. Five short moves and you are running.</p>
+      </div>
+      <div class="persona-block p-member">
+        <h1>Welcome, Priya</h1>
+        <p>Here is your work and the few things worth knowing. No setup to wade through, just the parts you will actually use.</p>
+      </div>
+    </section>
+
+    <!-- CHECKLIST (centrepiece, role-aware, graduates when done) -->
+    <section class="card checklist full">
+      <div class="cl-head">
+        <div>
+          <h2 class="persona-block p-owner">Get your workspace ready</h2>
+          <h2 class="persona-block p-lead">Find your footing</h2>
+          <h2 class="persona-block p-member">Get going</h2>
+          <div class="sub persona-block p-owner">Two done from signup. Two to go.</div>
+          <div class="sub persona-block p-lead">A few minutes, then it steps aside.</div>
+          <div class="sub persona-block p-member">The short version. You will pick up the rest as you go.</div>
+        </div>
+        <div class="spread"></div>
+        <div class="progress"><span class="bar"><i id="clfill" style="width:50%"></i></span><span class="txt" id="cltxt">2 of 4</span></div>
+        <button class="hidebtn">Hide</button>
+      </div>
+
+      <!-- OWNER -->
+      <div class="steps persona-block p-owner">
+        <div class="step done"><span class="dot">&check;</span><div class="body"><b>Name your workspace</b><p>Peanut Studio is live.</p></div><span class="tag-done">Done</span></div>
+        <div class="step done"><span class="dot">&check;</span><div class="body"><b>Add your Service Types</b><p>What you do and how you shape effort. You added 6.</p></div><span class="tag-done">Done</span></div>
+        <div class="step now"><span class="dot">3</span><div class="body"><b>Invite your team</b><p>Bring in the people who will do the work. 1 of 4 seats used.</p></div><button class="btn primary">Invite team</button></div>
+        <div class="step"><span class="dot">4</span><div class="body"><b>Build your first Job</b><p>Turn an estimate into a plan, or start a Job from scratch.</p></div><button class="btn">Create a Job</button></div>
+      </div>
+
+      <!-- LEAD -->
+      <div class="steps persona-block p-lead">
+        <div class="step done"><span class="dot">&check;</span><div class="body"><b>See your tasks</b><p>My Tasks pulls your Job work and Quick Tasks into one list.</p></div><span class="tag-done">Done</span></div>
+        <div class="step now"><span class="dot">2</span><div class="body"><b>Track your time</b><p>Start a timer or log effort while the work is fresh.</p></div><button class="btn primary">Go to My Time</button></div>
+        <div class="step"><span class="dot">3</span><div class="body"><b>Learn how work is shaped</b><p>Jobs hold Deliverables, Deliverables hold Tasks. About 90 seconds.</p></div><button class="btn">Watch</button></div>
+        <div class="step"><span class="dot">4</span><div class="body"><b>Talk to your team</b><p>Use [[ to point at work and @ to reach a person in chat.</p></div><button class="btn">Open Chat</button></div>
+        <div class="step"><span class="dot">5</span><div class="body"><b>Pick where you land</b><p>Choose the screen Net Net opens to when you log in.</p></div><button class="btn">Choose</button></div>
+      </div>
+
+      <!-- MEMBER -->
+      <div class="steps persona-block p-member">
+        <div class="step done"><span class="dot">&check;</span><div class="body"><b>See your tasks</b><p>Everything assigned to you, in one place.</p></div><span class="tag-done">Done</span></div>
+        <div class="step now"><span class="dot">2</span><div class="body"><b>Track your time</b><p>Start a timer or log effort as you work.</p></div><button class="btn primary">Go to My Time</button></div>
+        <div class="step"><span class="dot">3</span><div class="body"><b>Capture your ideas</b><p>My Lists is your private scratch space. Only you see it.</p></div><button class="btn">Open My Lists</button></div>
+        <div class="step"><span class="dot">4</span><div class="body"><b>Talk to your team</b><p>Use [[ to point at work and @ to reach a person in chat.</p></div><button class="btn">Open Chat</button></div>
+      </div>
+    </section>
+
+    <!-- graduated chip (returning) -->
+    <div class="card chip"><span class="txt">Getting started</span><span class="mini"><i></i></span><span class="txt" style="color:var(--nn-accent-green)">4 of 5</span><button class="re">Reopen</button></div>
+
+    <div class="band">
+      <!-- NEED A HAND = Crisp surface (articles + video + AI chat). No Net Net search. -->
+      <section class="card panel">
+        <h2>Need a hand?</h2>
+        <p class="lede">Short help articles and videos, plus live chat and an AI assistant, all powered by Crisp.</p>
+        <ul class="arts">
+          <li class="persona-block p-owner"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>Set up your Service Types</b></span><span class="kind article">Article</span></li>
+        <li class="persona-block p-owner"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>Invite your team and set roles</b></span><span class="kind video">Video</span></li>
+          <li class="persona-block p-owner"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>Turn an estimate into a Job</b></span><span class="kind video">Video</span></li>
+          <li class="persona-block p-lead"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>How Jobs, Deliverables and Tasks fit</b></span><span class="kind video">Video</span></li>
+          <li class="persona-block p-lead"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>Track effort with timers and entries</b></span><span class="kind article">Article</span></li>
+          <li class="persona-block p-lead"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>Mentions: [[ for work, @ for people</b></span><span class="kind article">Article</span></li>
+          <li class="persona-block p-member"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>Work your task list and statuses</b></span><span class="kind video">Video</span></li>
+          <li class="persona-block p-member"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>Log your time the easy way</b></span><span class="kind video">Video</span></li>
+          <li class="persona-block p-member"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><span class="tx"><b>Capture ideas in My Lists</b></span><span class="kind article">Article</span></li>
+        </ul>
+        <div class="helprow">
+          <button class="btn">Open Help Center</button>
+          <button class="btn">Chat with us</button>
+          <button class="btn primary">Ask Net Net AI</button>
+        </div>
+        <div class="crisp-note"><span class="g"></span>Powered by Crisp. The Help Center, videos, and AI assistant are trained on Net Net's own content, and the assistant only ever does what your role allows.</div>
+      </section>
+
+      <!-- LAUNCH POINT: default is this Welcome screen -->
+      <section class="card panel">
+        <h2>When I log in, take me to</h2>
+        <p class="lede">This Welcome screen is your default. Change it to any place you can open.</p>
+        <div class="launch-cards">
+          <button class="lc sel"><span class="r"></span><b>Welcome<span class="badge">Default</span></b></button>
+          <button class="lc"><span class="r"></span><b>My Tasks</b></button>
+          <button class="lc"><span class="r"></span><b>My Lists</b></button>
+          <button class="lc"><span class="r"></span><b>My Time</b></button>
+          <button class="lc"><span class="r"></span><b>My Performance</b></button>
+          <button class="lc"><span class="r"></span><b>Jobs</b></button>
+          <button class="lc hide-lead hide-member"><span class="r"></span><b>Performance</b></button>
+        </div>
+        <div class="morerow">
+          <select>
+            <option>More places…</option>
+            <option>Chat</option>
+            <option>Quick Tasks</option>
+            <option>Contacts</option>
+            <option>A specific Job…</option>
+          </select>
+          <span class="cap">Only lists screens your role can open.</span>
+        </div>
+      </section>
+    </div>
+
+    <p class="foot"><b>Net Net V2 · Home &amp; Onboarding mockup v2.</b> One graduating Home, role-aware, replaces the static Workspace Home. Checklist is the focus; help is a real Crisp surface (articles, video, live chat, AI), not a Net Net search; launch point defaults to this Welcome screen. Companion to the Jobs redesign (v10). Demo controls at top are not product UI. Prepared by Claude with Marc, July 13, 2026.</p>
+
+  </main>
+</div>
+
+<nav class="bottomnav">
+  <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v7H4V5h11"/></svg>My Tasks</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>My Time</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h10"/><circle cx="4" cy="6" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/></svg>My Lists</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 01-8 8H4l2-3a8 8 0 1115-5z"/></svg>Chat</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</a>
+</nav>
+
+<script>
+const body = document.body, root = document.documentElement;
+document.getElementById('tt').onclick = () => { root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'; };
+
+const cfg = {
+  owner:  { fill: 50, txt: '2 of 4', av: 'MP', nm: 'Maria Ortiz', rl: 'Owner' },
+  lead:   { fill: 20, txt: '1 of 5', av: 'JR', nm: 'Juan Reyes',  rl: 'Lead' },
+  member: { fill: 25, txt: '1 of 4', av: 'PS', nm: 'Priya Shah',  rl: 'Member' },
+};
+function setPersona(p) {
+  body.dataset.persona = p;
+  document.querySelectorAll('#segPersona button').forEach(b => b.classList.toggle('on', b.dataset.persona === p));
+  document.getElementById('clfill').style.width = cfg[p].fill + '%';
+  document.getElementById('cltxt').textContent = cfg[p].txt;
+  document.getElementById('uav').textContent = cfg[p].av;
+  document.getElementById('unm').textContent = cfg[p].nm;
+  document.getElementById('url').textContent = cfg[p].rl;
+}
+function setState(s) {
+  body.dataset.state = s;
+  document.querySelectorAll('#segState button').forEach(b => b.classList.toggle('on', b.dataset.state === s));
+}
+document.getElementById('segPersona').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setPersona(b.dataset.persona); });
+document.getElementById('segState').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setState(b.dataset.state); });
+document.querySelectorAll('.lc').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('.lc').forEach(x => x.classList.remove('sel'));
+  c.classList.add('sel');
+}));
+setPersona('owner'); setState('new');
+</script>
+</body>
+</html>
