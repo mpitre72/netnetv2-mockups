@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Net Net · Home &amp; Onboarding · Mockup v4</title>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ==================================================================
+   Net Net V2 · Home & Onboarding mockup v4 · July 14, 2026
+   Re-centred on the two original objectives:
+   1) FIND YOUR WAY AROUND — orientation, leads, prominent (the part we lost)
+   2) GET SET UP — one combined checklist, grouped "Your workspace" + "You"
+   Renamed: no more "Make it yours" / "Where you work".
+   Tokens verbatim from v10; contrast verified (WCAG AA).
+   ================================================================== */
+:root { --nn-color-primary: #711fff; --nn-color-primary-light: #dcd4fd; --nn-color-primary-dark: #310085; --nn-color-primary-accent: #8b47ff; --outer-border-radius: 1rem; --inner-border-radius: 0.5rem; }
+[data-theme='dark'] { --nn-color-bg: #0b0217; --nn-color-primary-glass: #170b26; --nn-color-primary-glass-soft: #211334; --nn-color-foreground-light: #2a1c40; --nn-color-meter-background: #32224b; --nn-glass-line-strong: rgb(255 255 255 / 14%); --nn-glass-line-soft: rgb(255 255 255 / 8%); --nn-color-text: #f5f5f5; --nn-color-text-muted: #a69bad; --nn-color-text-secondary: #cdc4d6; --nn-color-error: #fa2d23; --nn-color-input-border: rgb(238 209 255 / 32%); --nn-accent-green: #5fcea8; --nn-accent-orange: #f59825; --nn-accent-blue: #4aa3ff; --nn-accent-green-glass: rgb(95 206 168 / 14%); --nn-accent-orange-glass: rgb(245 152 37 / 14%); --nn-accent-blue-glass: rgb(74 163 255 / 14%); --nn-purple-glass: rgb(139 71 255 / 16%); --nn-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 10px 30px rgb(0 0 0 / 35%); --pattern-opacity: 0.04; }
+[data-theme='light'] { --nn-color-bg: #eef0f4; --nn-color-primary-glass: #ffffff; --nn-color-primary-glass-soft: #f6f4fa; --nn-color-foreground-light: #edeaf4; --nn-color-meter-background: #e4e0ee; --nn-glass-line-strong: rgb(49 0 133 / 16%); --nn-glass-line-soft: rgb(49 0 133 / 9%); --nn-color-text: #16102b; --nn-color-text-muted: #493b52; --nn-color-text-secondary: #6d5f7a; --nn-color-error: #d92018; --nn-color-input-border: #8a8a8a; --nn-accent-green: #008a5a; --nn-accent-orange: #b96400; --nn-accent-blue: #0b6fd0; --nn-accent-green-glass: rgb(0 138 90 / 10%); --nn-accent-orange-glass: rgb(185 100 0 / 12%); --nn-accent-blue-glass: rgb(11 111 208 / 10%); --nn-purple-glass: rgb(113 31 255 / 8%); --nn-shadow: 0 1px 2px rgb(22 16 43 / 6%), 0 6px 20px rgb(22 16 43 / 7%); --pattern-opacity: 0.35; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { font-family: 'Open Sans', system-ui, sans-serif; background: var(--nn-color-bg); color: var(--nn-color-text); min-height: 100vh; }
+button { font-family: inherit; cursor: pointer; color: inherit; }
+body::before { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse at 12% -5%, var(--nn-purple-glass), transparent 55%), radial-gradient(ellipse at 95% 105%, var(--nn-purple-glass), transparent 50%); opacity: var(--pattern-opacity); }
+
+.topbar { position: sticky; top: 0; z-index: 90; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(90deg, #5a0bdf, var(--nn-color-primary)); padding: 0.6rem 1.2rem; color: #fff; }
+.topbar img { height: 22px; display: block; } .topbar-l { display: flex; align-items: center; gap: 0.8rem; } .topbar-r { display: flex; align-items: center; gap: 0.6rem; }
+.tpill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; background: rgb(31 209 130 / 22%); border: 1px solid rgb(120 240 190 / 55%); color: #eafff6; padding: 0.28rem 0.7rem; border-radius: 999px; }
+.wpill { font-size: 0.84rem; font-weight: 700; background: rgb(255 255 255 / 16%); border: 1px solid rgb(255 255 255 / 28%); padding: 0.25rem 0.8rem; border-radius: 999px; }
+.tico { width: 32px; height: 32px; border-radius: 9px; border: 0; background: rgb(255 255 255 / 16%); color: #fff; display: inline-flex; align-items: center; justify-content: center; } .tico:hover { background: rgb(255 255 255 / 30%); } .tico svg { width: 16px; height: 16px; }
+.frame { display: flex; position: relative; z-index: 1; }
+.sidenav { width: 194px; flex-shrink: 0; align-self: flex-start; position: sticky; top: 45px; background: var(--nn-color-primary-glass); border-right: 1px solid var(--nn-glass-line-strong); padding: 0.9rem 0.7rem; display: flex; flex-direction: column; gap: 2px; min-height: calc(100vh - 45px); }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 0.62rem 0.8rem; border-radius: var(--inner-border-radius); color: var(--nn-color-text-secondary); font-size: 1rem; font-weight: 600; text-decoration: none; } .nav-item:hover { background: var(--nn-color-primary-glass-soft); color: var(--nn-color-text); } .nav-item.active { background: var(--nn-purple-glass); color: var(--nn-color-primary-light); font-weight: 700; } [data-theme='light'] .nav-item.active { color: var(--nn-color-primary); } .nav-item svg { width: 16px; height: 16px; } .nav-spacer { flex: 1; min-height: 1rem; }
+.wscard { display: flex; align-items: center; gap: 8px; padding: 0.5rem 0.6rem; border-radius: var(--inner-border-radius); border: 1px solid var(--nn-glass-line-soft); margin-top: 0.5rem; }
+.wscard .logo { width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.wscard .logo.ph { background: transparent; border: 1.5px dashed var(--nn-color-input-border); color: var(--nn-color-text-muted); } .wscard .logo.ph svg { width: 15px; height: 15px; }
+.wscard .nm { font-size: 0.8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.usercard { display: flex; align-items: center; gap: 8px; padding: 0.45rem 0.6rem; border-radius: var(--inner-border-radius); margin-top: 4px; }
+.usercard .av { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.usercard .av.ph { background: var(--nn-color-primary-glass-soft); border: 1.5px dashed var(--nn-color-input-border); color: var(--nn-color-text-muted); position: relative; } .usercard .av.ph svg { width: 17px; height: 17px; }
+.usercard .av .need { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; background: var(--nn-accent-orange); border: 2px solid var(--nn-color-primary-glass); }
+.usercard .nm { font-size: 0.85rem; font-weight: 700; } .usercard .rl { font-size: 0.72rem; color: var(--nn-color-text-muted); }
+.main { flex: 1; min-width: 0; padding: 0 1.8rem 5rem; max-width: 1000px; }
+[data-persona='lead'] .hide-lead, [data-persona='member'] .hide-member { display: none !important; }
+
+.demo { display: flex; align-items: center; flex-wrap: wrap; gap: 0.7rem; margin: 1.1rem 0 0; padding: 0.55rem 0.8rem; background: var(--nn-color-primary-glass); border: 1px dashed var(--nn-glass-line-strong); border-radius: var(--inner-border-radius); }
+.demo .lab { font-size: 0.7rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--nn-color-text-muted); }
+.seg { display: inline-flex; background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-glass-line-soft); border-radius: 999px; padding: 3px; gap: 2px; } .seg button { border: 0; background: transparent; color: var(--nn-color-text-secondary); padding: 0.32rem 0.85rem; border-radius: 999px; font-size: 0.82rem; font-weight: 700; } .seg button.on { background: var(--nn-color-primary); color: #fff; }
+.demo .hint { font-size: 0.82rem; color: var(--nn-color-text-secondary); margin-left: auto; }
+
+.hero { padding: 1.5rem 0 0.2rem; }
+.eyebrow { display: inline-block; font-size: 0.72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--nn-color-primary-light); background: var(--nn-purple-glass); border: 1px solid var(--nn-glass-line-soft); padding: 0.25rem 0.7rem; border-radius: 999px; margin-bottom: 0.7rem; } [data-theme='light'] .eyebrow { color: var(--nn-color-primary); }
+.hero h1 { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.12; } .hero p { color: var(--nn-color-text-secondary); font-size: 1.05rem; margin-top: 0.55rem; max-width: 64ch; }
+.persona-block { display: none; } [data-persona='owner'] .p-owner, [data-persona='lead'] .p-lead, [data-persona='member'] .p-member { display: block; }
+.osurf.persona-block { display: none; } [data-persona='owner'] .osurf.p-owner, [data-persona='lead'] .osurf.p-lead, [data-persona='member'] .osurf.p-member { display: block; }
+
+.card { background: var(--nn-color-primary-glass); border: 1px solid var(--nn-glass-line-strong); border-radius: var(--outer-border-radius); box-shadow: var(--nn-shadow); }
+
+/* ---- SERVICE 1: FIND YOUR WAY AROUND (orientation, leads) ---- */
+.learn { margin-top: 1.5rem; padding: 1.2rem 1.3rem; position: relative; overflow: hidden; }
+.learn::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(var(--nn-color-primary-accent), var(--nn-accent-blue)); }
+.sec-title { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.sec-title h2 { font-size: 1.32rem; font-weight: 800; }
+.sec-title .tag { font-size: 0.66rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--nn-color-primary-light); background: var(--nn-purple-glass); border-radius: 999px; padding: 2px 8px; } [data-theme='light'] .sec-title .tag { color: var(--nn-color-primary); }
+.sec-title p { flex-basis: 100%; font-size: 0.92rem; color: var(--nn-color-text-secondary); }
+.tourcta { display: flex; align-items: center; gap: 0.9rem; padding: 0.85rem 1rem; border-radius: var(--inner-border-radius); background: linear-gradient(90deg, var(--nn-purple-glass), transparent 80%); border: 1px solid var(--nn-color-primary-accent); margin-bottom: 1rem; }
+.tourcta .ic { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; background: var(--nn-color-primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; } .tourcta .ic svg { width: 21px; height: 21px; }
+.tourcta .tt { flex: 1; min-width: 0; } .tourcta .tt b { font-size: 1.08rem; font-weight: 800; display: block; } .tourcta .tt span { font-size: 0.88rem; color: var(--nn-color-text-secondary); }
+.orient-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.6rem; }
+.osurf { background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-glass-line-strong); border-radius: var(--inner-border-radius); padding: 0.8rem 0.9rem; }
+.osurf.focus { border-color: var(--nn-color-primary-accent); background: var(--nn-purple-glass); }
+.osurf .ttl { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 0.98rem; }
+.osurf .pin { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--nn-color-primary-light); background: var(--nn-purple-glass); border: 1px solid var(--nn-glass-line-soft); border-radius: 999px; padding: 1px 6px; } [data-theme='light'] .osurf .pin { color: var(--nn-color-primary); }
+.osurf p { font-size: 0.85rem; color: var(--nn-color-text-secondary); margin-top: 4px; line-height: 1.45; }
+.osurf .mod { display: inline-block; margin-top: 7px; font-size: 0.8rem; font-weight: 700; color: var(--nn-accent-blue); text-decoration: none; } .osurf .mod:hover { text-decoration: underline; }
+
+/* ---- SERVICE 2: GET SET UP (combined, grouped) ---- */
+.setup { margin-top: 1.4rem; } [data-state='return'] .setup { display: none; }
+.cl-head { display: flex; align-items: center; gap: 1rem; padding: 1.05rem 1.25rem; border-bottom: 1px solid var(--nn-glass-line-soft); flex-wrap: wrap; }
+.cl-head h2 { font-size: 1.32rem; font-weight: 800; } .cl-head .sub { font-size: 0.88rem; color: var(--nn-color-text-secondary); margin-top: 2px; } .cl-head .spread { flex: 1; }
+.progress { display: flex; align-items: center; gap: 0.6rem; } .progress .bar { width: 120px; height: 8px; border-radius: 999px; background: var(--nn-color-meter-background); overflow: hidden; border: 1px solid var(--nn-glass-line-soft); } .progress .bar i { display: block; height: 100%; border-radius: 999px; background: var(--nn-accent-green); } .progress .txt { font-size: 0.86rem; font-weight: 800; color: var(--nn-accent-green); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hidebtn { border: 1px solid var(--nn-glass-line-strong); background: transparent; color: var(--nn-color-text-secondary); font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.75rem; border-radius: 999px; } .hidebtn:hover { color: var(--nn-color-text); border-color: var(--nn-color-input-border); }
+.steps { padding: 0.6rem; }
+.group-label { font-size: 0.72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--nn-color-text-muted); padding: 0.7rem 0.4rem 0.5rem; } .wsgroup .group-label { padding-top: 0.3rem; }
+.step { display: flex; align-items: center; gap: 0.95rem; padding: 0.8rem 0.85rem; border-radius: var(--inner-border-radius); background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-glass-line-soft); }
+.step + .step { margin-top: 0.5rem; }
+.step.now { border-color: var(--nn-color-primary-accent); background: var(--nn-color-foreground-light); }
+.dot { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800; border: 2px solid var(--nn-color-text-muted); color: var(--nn-color-text-secondary); background: var(--nn-color-primary-glass); }
+.step.done .dot { background: var(--nn-accent-green); border-color: var(--nn-accent-green); color: #06231a; } .step.now .dot { background: var(--nn-color-primary); border-color: var(--nn-color-primary-accent); color: #fff; }
+.step .body { flex: 1; min-width: 0; } .step .body b { font-size: 1.02rem; font-weight: 700; color: var(--nn-color-text); } .step.done .body b { color: var(--nn-color-text-muted); } .step .body p { font-size: 0.9rem; color: var(--nn-color-text-secondary); margin-top: 2px; } .step.done .body p { color: var(--nn-color-text-muted); }
+.wasdone { font-size: 0.74rem; font-weight: 700; color: var(--nn-accent-green); background: var(--nn-accent-green-glass); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.btn { border: 1px solid var(--nn-glass-line-strong); background: var(--nn-color-primary-glass); color: var(--nn-color-text); border-radius: 999px; padding: 0.5rem 1.05rem; font-size: 0.88rem; font-weight: 700; white-space: nowrap; } .btn:hover { border-color: var(--nn-color-primary-accent); color: var(--nn-color-primary-light); } [data-theme='light'] .btn:hover { color: var(--nn-color-primary); }
+.btn.primary { background: var(--nn-color-primary); border-color: var(--nn-color-primary); color: #fff; } .btn.primary:hover { background: var(--nn-color-primary-dark); color: #fff; }
+.avbig { width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0; background: var(--nn-color-primary-glass); border: 2px dashed var(--nn-color-input-border); color: var(--nn-color-text-muted); display: inline-flex; align-items: center; justify-content: center; position: relative; } .avbig svg { width: 24px; height: 24px; } .avbig .need { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--nn-accent-orange); border: 2px solid var(--nn-color-primary-glass-soft); }
+.callout { margin: 0.1rem 0 0; background: var(--nn-accent-blue-glass); border: 1px solid var(--nn-glass-line-soft); border-left: 3px solid var(--nn-accent-blue); border-radius: 8px; padding: 0.55rem 0.75rem; font-size: 0.85rem; color: var(--nn-color-text-secondary); line-height: 1.5; } .callout b { color: var(--nn-color-text); }
+.bizrow { display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0.4rem 0.2rem; padding: 0.55rem 0.75rem; border: 1px dashed var(--nn-glass-line-strong); border-radius: 8px; font-size: 0.84rem; color: var(--nn-color-text-secondary); } .bizrow b { color: var(--nn-accent-green); }
+.deststep { padding: 0.85rem; border-radius: var(--inner-border-radius); background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-glass-line-soft); margin-top: 0.5rem; }
+.deststep .dhead { display: flex; align-items: center; gap: 0.95rem; margin-bottom: 0.85rem; }
+.launch-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.55rem; }
+.deststep .lc { background: var(--nn-color-primary-glass); }
+.lc { display: flex; align-items: center; gap: 0.55rem; text-align: left; background: var(--nn-color-primary-glass-soft); border: 1.5px solid var(--nn-glass-line-strong); border-radius: var(--inner-border-radius); padding: 0.6rem 0.7rem; } .lc:hover { border-color: var(--nn-color-primary-accent); } .lc.sel { border-color: var(--nn-color-primary); background: var(--nn-purple-glass); }
+.lc .r { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--nn-color-text-muted); flex-shrink: 0; } .lc.sel .r { border-color: var(--nn-color-primary); background: radial-gradient(var(--nn-color-primary) 0 42%, transparent 46%); }
+.lc b { font-size: 0.9rem; font-weight: 700; } .lc .badge { display: inline-block; font-size: 0.6rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--nn-accent-green); background: var(--nn-accent-green-glass); border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; }
+.morerow { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.85rem; flex-wrap: wrap; } .morerow select { background: var(--nn-color-primary-glass-soft); border: 1px solid var(--nn-color-input-border); color: var(--nn-color-text); border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.88rem; font-weight: 600; } .morerow .cap { font-size: 0.82rem; color: var(--nn-color-text-muted); }
+
+.chip { display: none; align-items: center; gap: 0.8rem; margin-top: 1.4rem; padding: 0.7rem 1rem; width: fit-content; } [data-state='return'] .chip { display: inline-flex; } .chip .txt { font-size: 0.9rem; font-weight: 700; color: var(--nn-color-text-secondary); } .chip .re { border: 1px solid var(--nn-color-primary-accent); background: var(--nn-purple-glass); color: var(--nn-color-primary-light); font-size: 0.84rem; font-weight: 800; padding: 0.35rem 0.85rem; border-radius: 999px; } [data-theme='light'] .chip .re { color: var(--nn-color-primary); }
+
+.helpstrip { display: flex; align-items: center; gap: 0.7rem; margin-top: 1.4rem; padding: 0.7rem 0.95rem; background: var(--nn-color-primary-glass); border: 1px solid var(--nn-glass-line-soft); border-radius: var(--inner-border-radius); font-size: 0.9rem; color: var(--nn-color-text-secondary); flex-wrap: wrap; } .helpstrip .qic { width: 28px; height: 28px; border-radius: 8px; background: var(--nn-purple-glass); color: var(--nn-color-primary-light); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; } [data-theme='light'] .helpstrip .qic { color: var(--nn-color-primary); } .helpstrip .spread { flex: 1; }
+.foot { margin-top: 2.2rem; font-size: 0.84rem; color: var(--nn-color-text-muted); border-top: 1px solid var(--nn-glass-line-soft); padding-top: 1rem; line-height: 1.6; } .foot b { color: var(--nn-color-text-secondary); }
+
+.bottomnav { display: none; }
+@media (max-width: 1000px) { .launch-cards { grid-template-columns: repeat(2,1fr); } .sidenav { width: 58px; } .nav-item span, .wscard .nm, .usercard .nm, .usercard .rl { display: none; } .nav-item, .wscard, .usercard { justify-content: center; } }
+@media (max-width: 720px) { .sidenav { display: none; } .main { padding: 0 0.9rem 7rem; max-width: 100%; } .launch-cards { grid-template-columns: 1fr; } .hero h1 { font-size: 1.7rem; } .demo .hint { display: none; } .tourcta { flex-wrap: wrap; }
+  .bottomnav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 95; background: var(--nn-color-primary-glass); border-top: 1px solid var(--nn-glass-line-strong); backdrop-filter: blur(10px); padding: 0.5rem 0.4rem max(env(safe-area-inset-bottom), 0.55rem); justify-content: space-around; } .bottomnav a { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--nn-color-text-muted); text-decoration: none; font-size: 0.68rem; font-weight: 700; min-width: 54px; } .bottomnav a.active { color: var(--nn-color-primary-light); } [data-theme='light'] .bottomnav a.active { color: var(--nn-color-primary); } .bottomnav svg { width: 20px; height: 20px; } }
+</style>
+</head>
+<body data-persona="owner" data-state="new">
+
+<header class="topbar">
+  <div class="topbar-l"><img src="https://hellonetnet.com/wp-content/uploads/2024/12/logo-white.svg" alt="Net Net"><span class="wpill">Spiraleyezed Studios</span></div>
+  <div class="topbar-r">
+    <span class="tpill">Trial: 49d left</span>
+    <button class="tico" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></button>
+    <button class="tico" id="tt" title="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg></button>
+  </div>
+</header>
+
+<div class="frame">
+  <nav class="sidenav">
+    <a class="nav-item active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>Home</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span>Me</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c0-3.5 3-5 6-5s6 1.5 6 5M14 15.5c2.5 0 5 1 5 4"/></svg><span>Contacts</span></a>
+    <a class="nav-item hide-member" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 12V7h-5"/></svg><span>Sales</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg><span>Jobs</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg><span>Quick Tasks</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 01-8 8H4l2-3a8 8 0 1115-5z"/></svg><span>Chat</span></a>
+    <a class="nav-item hide-lead hide-member" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Performance</span></a>
+    <div class="nav-spacer"></div>
+    <a class="nav-item hide-lead hide-member" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.9 7.9 0 000-2l2-1.6-2-3.4-2.4 1a7.9 7.9 0 00-1.7-1L14 3h-4l-.3 2.6a7.9 7.9 0 00-1.7 1l-2.4-1-2 3.4L5.6 11a7.9 7.9 0 000 2l-2 1.6 2 3.4 2.4-1a7.9 7.9 0 001.7 1L10 21h4l.3-2.6a7.9 7.9 0 001.7-1l2.4 1 2-3.4z"/></svg><span>Settings</span></a>
+    <div class="wscard"><span class="logo ph" title="No workspace logo yet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M4 16l4-4 3 3 4-4 5 5"/><circle cx="9" cy="8.5" r="1.3"/></svg></span><span class="nm">Spiraleyezed Studios</span></div>
+    <div class="usercard"><span class="av ph" title="No profile photo yet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="9" r="3.4"/><path d="M5.5 20c0-3.6 3-5.5 6.5-5.5s6.5 1.9 6.5 5.5"/></svg><span class="need"></span></span><div><div class="nm" id="unm">Maria Ortiz</div><div class="rl" id="url">Owner</div></div></div>
+  </nav>
+
+  <main class="main">
+    <div class="demo">
+      <span class="lab">Demo</span>
+      <div class="seg" id="segP"><button data-p="owner" class="on">Owner · new</button><button data-p="lead">Lead · Juan</button><button data-p="member">Member</button></div>
+      <div class="seg" id="segS"><button data-s="new" class="on">First login</button><button data-s="return">Returning</button></div>
+      <span class="hint">Two services: orient, then set up.</span>
+    </div>
+
+    <section class="hero">
+      <span class="eyebrow">Workspace Home</span>
+      <div class="persona-block p-owner"><h1>Welcome to Spiraleyezed Studios</h1><p>Two things to do here: get your bearings, then finish setting up. Start with the tour, it takes two minutes.</p></div>
+      <div class="persona-block p-lead"><h1>Welcome, Juan</h1><p>Two things here: find your way around, then a couple of quick setup bits. The tour is the fastest way in.</p></div>
+      <div class="persona-block p-member"><h1>Welcome, Priya</h1><p>Start with the two-minute tour so you know your way around, then set your two profile bits and you are good.</p></div>
+    </section>
+
+    <!-- SERVICE 1: FIND YOUR WAY AROUND (orientation, leads) -->
+    <section class="card learn">
+      <div class="sec-title"><h2>Find your way around</h2><span class="tag">Orientation</span><p>Get comfortable with your part of Net Net in a couple of minutes. Nothing to install, nothing to read.</p></div>
+      <div class="tourcta">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+        <div class="tt"><b>Take the 2-minute tour</b><span class="persona-block p-owner">A quick walk through Jobs, Settings, and where your team works.</span><span class="persona-block p-lead">A quick walk through your Jobs and where your work lives.</span><span class="persona-block p-member">A quick walk through My Tasks, time, and chat.</span></div>
+        <button class="btn primary">Start the tour</button>
+      </div>
+      <div class="orient-grid">
+        <div class="osurf focus persona-block p-owner"><div class="ttl">Jobs <span class="pin">Start here</span></div><p>Plan a Job, deliver it, and learn from it. The core of how work flows.</p><a class="mod" href="#">Watch, 40s</a></div>
+        <div class="osurf focus persona-block p-owner"><div class="ttl">Settings &amp; plan <span class="pin">Start here</span></div><p>Service Types, team and roles, workspace defaults, and your subscription.</p><a class="mod" href="#">Watch, 40s</a></div>
+        <div class="osurf persona-block p-owner"><div class="ttl">Performance &amp; Reports</div><p>Effort and timeline across the workspace. Spot drift early.</p><a class="mod" href="#">Watch, 40s</a></div>
+        <div class="osurf persona-block p-owner"><div class="ttl">Your work</div><p>My Tasks, My Time, My Lists, My Performance, your own day to day.</p><a class="mod" href="#">Watch, 40s</a></div>
+        <div class="osurf focus persona-block p-lead"><div class="ttl">Jobs you lead <span class="pin">Start here</span></div><p>Plan, deliver, and learn from the Jobs you are responsible for.</p><a class="mod" href="#">Watch, 40s</a></div>
+        <div class="osurf persona-block p-lead"><div class="ttl">Your work</div><p>My Tasks, My Time, My Lists, My Performance.</p><a class="mod" href="#">Watch, 40s</a></div>
+        <div class="osurf persona-block p-lead"><div class="ttl">Chat</div><p>Coordinate on Jobs and with your team. Use [[ for work, @ for people.</p><a class="mod" href="#">Watch, 40s</a></div>
+        <div class="osurf focus persona-block p-member"><div class="ttl">Your work <span class="pin">Start here</span></div><p>My Tasks, My Time, My Lists, My Performance. This is where you will spend your time.</p><a class="mod" href="#">Watch, 40s</a></div>
+        <div class="osurf persona-block p-member"><div class="ttl">Chat</div><p>Talk to your team. Use [[ for work, @ for people.</p><a class="mod" href="#">Watch, 40s</a></div>
+      </div>
+    </section>
+
+    <!-- SERVICE 2: GET SET UP (combined, grouped) -->
+    <section class="card setup">
+      <div class="cl-head">
+        <div><h2>Get set up</h2><div class="sub">A few things to make the workspace and your profile ready.</div></div>
+        <div class="spread"></div>
+        <div class="progress"><span class="bar"><i id="pf" style="width:33%"></i></span><span class="txt" id="pt">3 of 9</span></div>
+        <button class="hidebtn">Hide</button>
+      </div>
+      <div class="steps">
+        <div class="wsgroup hide-lead hide-member">
+          <div class="group-label">Your workspace</div>
+          <div class="step done"><span class="dot">&check;</span><div class="body"><b>Name your workspace</b><p>Spiraleyezed Studios.</p></div><span class="wasdone">Done in setup</span></div>
+          <div class="step done"><span class="dot">&check;</span><div class="body"><b>Add your Service Types</b><p>You added 4 during setup.</p></div><span class="wasdone">Done in setup</span></div>
+          <div class="step now"><span class="dot">3</span><div class="body"><b>Add your contacts</b><p>The companies and people you actually work with.</p><div class="callout"><b>Not a CRM.</b> Bring in a focused set only: current customers, past customers, and people behind serious live opportunities. Do not mass-import your whole address book, that is what makes Net Net noisy.</div></div><button class="btn primary">Add contacts</button></div>
+          <div class="step"><span class="dot">4</span><div class="body"><b>Invite your team</b><p>1 of 4 seats used. Get them in first, so they are ready to add to a Job and staff the work. Skippable, invites can trickle in and never block you.</p></div><button class="btn">Invite team</button></div>
+          <div class="step"><span class="dot">5</span><div class="body"><b>Plan a Job (project or retainer)</b><p>Pulls together your Service Types, a client contact, and your team. This is what brings the app to life.</p></div><button class="btn">Plan a Job</button></div>
+          <div class="step"><span class="dot">6</span><span class="avbig" style="border-radius:9px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M4 16l4-4 3 3 4-4 5 5"/><circle cx="9" cy="8.5" r="1.3"/></svg><span class="need"></span></span><div class="body"><b>Add your workspace logo</b><p>It sits next to Spiraleyezed Studios in the sidebar. Right now that spot is an empty placeholder.</p></div><button class="btn">Upload logo</button></div>
+          <div class="bizrow"><b>Trial:</b>&nbsp;49 days left. Confirm your plan whenever you are ready, this is separate from getting set up.</div>
+        </div>
+        <div class="yougroup">
+          <div class="group-label">You</div>
+          <div class="step done"><span class="dot">&check;</span><div class="body"><b>Account created</b><p>You are signed in.</p></div><span class="wasdone">Done</span></div>
+          <div class="step now"><span class="dot">&nbsp;</span><span class="avbig"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="9" r="3.4"/><path d="M5.5 20c0-3.6 3-5.5 6.5-5.5s6.5 1.9 6.5 5.5"/></svg><span class="need"></span></span><div class="body"><b>Add your profile picture</b><p>Right now you are a blank avatar, and that shows on every mention, chat, and assignment. A real photo makes you instantly recognizable, and Net Net simply looks better with them.</p></div><button class="btn primary">Upload photo</button></div>
+          <div class="deststep">
+            <div class="dhead"><span class="dot">&nbsp;</span><div class="body"><b>Set where you log in</b><p>This Welcome screen is your default. Change it to any place you can open.</p></div></div>
+            <div class="launch-cards">
+              <button class="lc sel"><span class="r"></span><b>Welcome<span class="badge">Default</span></b></button>
+              <button class="lc"><span class="r"></span><b>My Tasks</b></button>
+              <button class="lc"><span class="r"></span><b>My Lists</b></button>
+              <button class="lc"><span class="r"></span><b>My Time</b></button>
+              <button class="lc"><span class="r"></span><b>My Performance</b></button>
+              <button class="lc"><span class="r"></span><b>Jobs</b></button>
+              <button class="lc hide-lead hide-member"><span class="r"></span><b>Performance</b></button>
+            </div>
+            <div class="morerow"><select><option>More places…</option><option>Chat</option><option>Quick Tasks</option><option>Contacts</option><option>A specific Job…</option></select><span class="cap">Only lists screens your role can open.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="card chip"><span class="txt">Getting started</span><span class="txt" style="color:var(--nn-accent-green)">almost done</span><button class="re">Reopen setup</button></div>
+
+    <div class="helpstrip"><span class="qic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 115 .5c0 1.5-2.5 2-2.5 3.5"/><path d="M12 17h.01"/></svg></span><span class="spread">Stuck at any point? Ask the assistant or start a chat.</span><button class="btn">Chat with us</button><button class="btn primary">Ask Net Net AI</button></div>
+
+    <p class="foot"><b>Net Net V2 · Home &amp; Onboarding mockup v4.</b> Two services: Find your way around (orientation, leads) and Get set up (one combined checklist, grouped Your workspace + You). Renamed from v3. Demo controls are not product UI. Prepared by Claude with Marc, July 14, 2026.</p>
+  </main>
+</div>
+
+<nav class="bottomnav">
+  <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v7H4V5h11"/></svg>My Tasks</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>My Time</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h10"/><circle cx="4" cy="6" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/></svg>My Lists</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 01-8 8H4l2-3a8 8 0 1115-5z"/></svg>Chat</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Menu</a>
+</nav>
+
+<script>
+const body = document.body, root = document.documentElement;
+document.getElementById('tt').onclick = () => { root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'; };
+const cfg = { owner:['Maria Ortiz','Owner','3 of 9',33], lead:['Juan Reyes','Lead','1 of 3',33], member:['Priya Shah','Member','1 of 3',33] };
+function setP(p){ body.dataset.persona=p; document.querySelectorAll('#segP button').forEach(b=>b.classList.toggle('on',b.dataset.p===p)); document.getElementById('unm').textContent=cfg[p][0]; document.getElementById('url').textContent=cfg[p][1]; document.getElementById('pt').textContent=cfg[p][2]; document.getElementById('pf').style.width=cfg[p][3]+'%'; }
+function setS(s){ body.dataset.state=s; document.querySelectorAll('#segS button').forEach(b=>b.classList.toggle('on',b.dataset.s===s)); }
+document.getElementById('segP').addEventListener('click',e=>{const b=e.target.closest('button'); if(b) setP(b.dataset.p);});
+document.getElementById('segS').addEventListener('click',e=>{const b=e.target.closest('button'); if(b) setS(b.dataset.s);});
+document.querySelectorAll('.lc').forEach(c=>c.addEventListener('click',()=>{document.querySelectorAll('.lc').forEach(x=>x.classList.remove('sel')); c.classList.add('sel');}));
+setP('owner'); setS('new');
+</script>
+</body>
+</html>
