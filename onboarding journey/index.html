@@ -172,9 +172,58 @@
     </div>
   </section>
 
-  <!-- PHASE 2 : two branches -->
+  <!-- PHASE 2 : session check -->
   <section class="phase">
-    <div class="phase-label"><span class="num">2</span> Two paths: the system picks the right one</div>
+    <div class="phase-label"><span class="num">2</span> But first: is someone already signed in? (session check at "Let's go")</div>
+    <div class="row">
+      <div class="col" style="max-width:430px">
+        <div class="branch-head" style="background:#E7F8F0;color:#087443"><span class="dot" style="background:var(--green)"></span> Signed in AS the invited email <span class="pill">no login needed</span></div>
+        <div class="screen-name">Screen · One-click join</div>
+        <div class="screen">
+          <div class="bar"><i></i><i></i><i></i><span class="url">netnet.app/invite/…</span></div>
+          <div class="body" style="text-align:center">
+            <span class="logo c" role="img" aria-label="Net Net"></span>
+            <div class="accent-bar green" style="margin-left:auto;margin-right:auto"></div>
+            <h2 class="title" style="font-size:19px">Join Widgets Co</h2>
+            <p class="desc">You're signed in as <b>john@widgets.com</b>. Accept your invitation and you're in.</p>
+            <div class="btn">Join workspace</div>
+          </div>
+        </div>
+        <div class="caption"><b>Match.</b> The signed-in email is the invited email, so there is no login step. One click accepts the pending invite and drops them into the workspace.</div>
+      </div>
+
+      <div class="col" style="max-width:430px">
+        <div class="branch-head" style="background:var(--amber-soft);color:#9A3412"><span class="dot" style="background:var(--amber)"></span> Signed in as a DIFFERENT account <span class="pill">must log out</span></div>
+        <div class="screen-name">Screen · Wrong account, please log out</div>
+        <div class="screen">
+          <div class="bar"><i></i><i></i><i></i><span class="url">netnet.app/invite/…</span></div>
+          <div class="body" style="text-align:center">
+            <span class="logo c" role="img" aria-label="Net Net"></span>
+            <div style="font-size:30px;margin:2px 0 8px">🔐</div>
+            <h2 class="title" style="font-size:19px">You're signed in as someone else</h2>
+            <p class="desc">This invitation is for <b>john@widgets.com</b>, but you're signed in as <b>john@acme.com</b>. Please log out to continue.</p>
+            <div class="btn">Log out</div>
+          </div>
+        </div>
+        <div class="caption"><b>No account picker.</b> The invite is permanently bound to the address it was sent to. Log out is the only action offered.</div>
+      </div>
+    </div>
+
+    <div class="arrow">↓</div>
+    <div class="decision">
+      <div class="q">On log out, the invite stays attached and the flow re-runs the resolve check</div>
+      <div style="font-size:12.5px;color:var(--gray)">Straight back into the same routing as an un-signed-in visitor:</div>
+      <div class="split">
+        <div class="no">no account: Sign Up (Path A)</div>
+        <div class="yes">account exists: Log In (Path B)</div>
+      </div>
+    </div>
+    <div class="caption" style="max-width:840px;margin-top:12px">Not signed in at all? Skip straight to the routing below. And a mismatch is never resolved by moving the invite: if <b>john@acme.com</b> wants access too, a workspace Admin invites that address directly, or he sends a Join Request.</div>
+  </section>
+
+  <!-- PHASE 3 : two branches -->
+  <section class="phase">
+    <div class="phase-label"><span class="num">3</span> Two paths: the system picks the right one</div>
     <div class="row">
 
       <!-- PATH A -->
@@ -255,7 +304,7 @@
 
   <!-- PHASE 3 : forgot password -->
   <section class="phase forgot-strip">
-    <div class="phase-label"><span class="num">3</span> Forgot password: offshoot of Path B (a common real case for invited existing users)</div>
+    <div class="phase-label"><span class="num">4</span> Forgot password: offshoot of Path B (a common real case for invited existing users)</div>
     <div class="row">
       <div class="col">
         <div class="screen-name">Step 1 · Enter email</div>
@@ -314,7 +363,7 @@
 
   <!-- PHASE 4 : edge -->
   <section class="phase">
-    <div class="phase-label"><span class="num">4</span> Graceful dead-ends (don't dump people on a generic login)</div>
+    <div class="phase-label"><span class="num">5</span> Graceful dead-ends (don't dump people on a generic login)</div>
     <div class="row">
       <div class="col" style="max-width:380px">
         <div class="screen-name">Screen · Expired / revoked invite</div>
@@ -332,7 +381,7 @@
       <div class="col">
         <div class="branch-head a" style="background:#fff;border:1px solid var(--border);color:var(--ink)"><span class="dot" style="background:var(--ink)"></span> Not shown here, defined in the workflow doc</div>
         <div class="caption" style="margin-top:0">
-          The written workflow also covers: wrong account logged in a different tab (invite is bound to the invited email, offer switch/log out), Google sign-in email must match the invited email, multiple independent pending invites, and the separation from <b>Join Requests</b> (the pull-path with domain suggestions) so an invited person is never routed through approval a human already gave.
+          The written workflow also covers: Google sign-in email must match the invited email, multiple independent pending invites, and the separation from <b>Join Requests</b> (the pull-path with domain suggestions) so an invited person is never routed through approval a human already gave.
         </div>
       </div>
     </div>
