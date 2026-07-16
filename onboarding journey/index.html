@@ -246,6 +246,7 @@
             </div>
             <label class="f">Password</label>
             <div class="input ph">Create a password</div>
+            <label class="rem" style="margin:2px 0 14px;font-size:12px;color:var(--gray)"><span class="chk"></span> I agree to the <span class="link">Terms of Service</span> and <span class="link">Privacy Policy</span></label>
             <div class="btn">Create account</div>
             <div class="btn google"><span class="gicon"></span> Continue with Google</div>
           </div>
@@ -381,7 +382,7 @@
       <div class="col">
         <div class="branch-head a" style="background:#fff;border:1px solid var(--border);color:var(--ink)"><span class="dot" style="background:var(--ink)"></span> Not shown here, defined in the workflow doc</div>
         <div class="caption" style="margin-top:0">
-          The written workflow also covers: Google sign-in email must match the invited email, multiple independent pending invites, and the separation from <b>Join Requests</b> (the pull-path with domain suggestions) so an invited person is never routed through approval a human already gave.
+          The written workflow also covers: Google sign-in email must match the invited email, multiple independent pending invites, and the separation from <b>Join Requests</b> (the pull-path with domain suggestions) so an invited person is never routed through approval a human already gave. Section 15 of the doc adds the directive security, legal, and data-integrity rules the build must follow: read-only invite links with explicit (POST) acceptance so email scanners can't burn an invite, single-use expiring tokens, a server-authoritative role ceiling (an Admin can't mint an Owner invite), Terms acceptance on signup, subscription-state checks, and email normalization.
         </div>
       </div>
     </div>
