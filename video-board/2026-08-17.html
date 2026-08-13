@@ -41,7 +41,27 @@ display:flex;flex-direction:column;gap:2px;background:rgba(0,0,0,.22)}
 .card{display:grid;grid-template-columns:340px minmax(300px,1fr);gap:24px;
 border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:20px;
 background:rgba(250,245,237,.035);transition:border-color .15s,opacity .15s}
-.card[data-state="approved"]{border-color:rgba(95,206,168,.6);background:rgba(95,206,168,.07)}
+.card[data-state="approved"]{border-color:rgba(95,206,168,.55);background:rgba(95,206,168,.06)}
+.card[data-state="recut"]{border-color:rgba(113,31,255,.65);background:rgba(113,31,255,.09)}
+.badge{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+padding:4px 9px;border-radius:6px;margin-left:2px}
+.badge.approved{background:var(--green);color:#10281f}
+.badge.recut{background:var(--purple);color:#fff}
+.badge.kill{background:var(--sienna);color:#fff}
+.badge.pending{background:rgba(250,245,237,.12);color:var(--muted)}
+.badge.rnd{background:rgba(250,245,237,.12);color:var(--cream)}
+.hist{border-left:3px solid var(--purple);padding:2px 0 2px 13px;margin:14px 0 4px}
+.hist.ok{border-left-color:var(--green)}
+.hlbl{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+font-weight:700;margin-bottom:5px}
+.hist blockquote{margin:0 0 11px;font-size:14.5px;line-height:1.5;color:#E4DEF3;font-style:italic}
+.chg{margin:0;font-size:14px;line-height:1.5;color:#C9C1E0}
+.locked{margin:18px 0 6px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;
+color:var(--muted);font-size:13.5px;display:flex;gap:12px;align-items:center;
+justify-content:space-between;flex-wrap:wrap}
+.reopen{font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:8px;
+border:1px solid var(--line);background:transparent;color:var(--cream);cursor:pointer}
+.reopen:hover{background:rgba(250,245,237,.09)}
 .card[data-state="revise"]{border-color:rgba(11,136,249,.6);background:rgba(11,136,249,.07)}
 .card[data-state="kill"]{border-color:rgba(196,99,62,.6);background:rgba(196,99,62,.06);opacity:.7}
 .vidwrap{background:#000;border-radius:12px;overflow:hidden;align-self:start;
@@ -171,15 +191,16 @@ dialog h3{margin:0 0 8px;font-size:17px}
 </div></div>
 <h3 class="sec">Week of Aug 17, review</h3>
 
-<article class="card" data-key="talkinghead" data-state="none">
+<article class="card" data-key="talkinghead" data-state="approved" data-init="approved">
   <div class="vidwrap">
     <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/WCO4qi1PC9jNLqk4OpWMaqnxpgGmkYvN0JTzcWgw-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/WCO4qi1PC9jNLqk4OpWMaqnxpgGmkYvN0JTzcWgw.mp4" type="video/mp4"></video>
   </div>
   <div class="meta">
     <div class="tags"><span class="tag">Talking head</span>
       <span class="tag when">Mon Aug 17 &middot; 9:00 ET</span>
-      <span class="tag n">6 accounts</span></div>
+      <span class="tag n">6 accounts</span><span class='badge approved'>Approved</span></div>
     <h2>The gap</h2>
+    <div class='hist ok'><div class='hlbl'>Approved 2026-08-13, round 1. No changes requested.</div></div>
     <div class="lbl">On screen</div><ul class="beats"><li>Every shop I know can tell you what a Job was supposed to take.</li><li>Almost nobody can tell you what it actually took.</li><li>That gap is where your week goes.</li></ul>
     <div class="lbl">Platform caption</div>
     <pre class="cap">Every shop can tell you what a Job was supposed to take. Almost nobody can tell you what it actually took.
@@ -187,24 +208,20 @@ dialog h3{margin:0 0 8px;font-size:17px}
 That gap is where your week goes.</pre>
     <div class="lbl">Screen used</div><p class="screen">n/a, presenter</p>
     <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">LinkedIn</span> <span class="acct">Facebook</span></div>
-    <div class="choice">
-      <button class="acc" aria-pressed="false" onclick="setState('talkinghead','approved')">Approve</button>
-      <button class="rev" aria-pressed="false" onclick="setState('talkinghead','revise')">Revise</button>
-      <button class="rej" aria-pressed="false" onclick="setState('talkinghead','kill')">Kill</button>
-    </div>
-    <textarea placeholder="Notes, what to change" oninput="note('talkinghead',this.value)"></textarea>
+    <div class='locked'>Locked. Reopen only if you want to change your mind.<button class='reopen' onclick="reopen('talkinghead')">Reopen</button></div>
     <div class="uuid">post 4632b59d-33e8-4b03-8cec-72c3c3adbe31</div>
   </div>
 </article>
-<article class="card" data-key="reel01" data-state="none">
+<article class="card" data-key="reel01" data-state="approved" data-init="approved">
   <div class="vidwrap">
     <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/EUyQEhWwCI1fWhGeTSuqJY9VaDXQVW7AI9pOgkmX-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/EUyQEhWwCI1fWhGeTSuqJY9VaDXQVW7AI9pOgkmX.mp4" type="video/mp4"></video>
   </div>
   <div class="meta">
     <div class="tags"><span class="tag">Caption reel</span>
       <span class="tag when">Tue Aug 18 &middot; 9:00 ET</span>
-      <span class="tag n">5 accounts</span></div>
+      <span class="tag n">5 accounts</span><span class='badge approved'>Approved</span></div>
     <h2>While we&#x27;re in there</h2>
+    <div class='hist ok'><div class='hlbl'>Approved 2026-08-13, round 1. No changes requested.</div></div>
     <div class="lbl">On screen</div><ul class="beats"><li>“While we&#x27;re in there.”</li><li>Four words.</li><li>Three weeks.</li><li>Scope creep never announces itself. It asks a favor.</li></ul>
     <div class="lbl">Platform caption</div>
     <pre class="cap">Four words that quietly cost you three weeks.
@@ -214,24 +231,20 @@ That gap is where your week goes.</pre>
 Scope creep never announces itself. It asks a favor.</pre>
     <div class="lbl">Screen used</div><p class="screen">n/a, typographic</p>
     <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">Threads</span></div>
-    <div class="choice">
-      <button class="acc" aria-pressed="false" onclick="setState('reel01','approved')">Approve</button>
-      <button class="rev" aria-pressed="false" onclick="setState('reel01','revise')">Revise</button>
-      <button class="rej" aria-pressed="false" onclick="setState('reel01','kill')">Kill</button>
-    </div>
-    <textarea placeholder="Notes, what to change" oninput="note('reel01',this.value)"></textarea>
+    <div class='locked'>Locked. Reopen only if you want to change your mind.<button class='reopen' onclick="reopen('reel01')">Reopen</button></div>
     <div class="uuid">post a375f700-367c-4868-9374-ab271f4d8788</div>
   </div>
 </article>
-<article class="card" data-key="product" data-state="none">
+<article class="card" data-key="product" data-state="recut" data-init="recut">
   <div class="vidwrap">
     <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/IJIcaREvfmVe3L8vrdeTAvfPhcdXEXi05JXm1oOU-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/IJIcaREvfmVe3L8vrdeTAvfPhcdXEXi05JXm1oOU.mp4" type="video/mp4"></video>
   </div>
   <div class="meta">
     <div class="tags"><span class="tag">Product in motion</span>
       <span class="tag when">Wed Aug 19 &middot; 9:00 ET</span>
-      <span class="tag n">6 accounts</span></div>
+      <span class="tag n">6 accounts</span><span class='badge recut'>Recut, needs review</span><span class='badge rnd'>v2</span></div>
     <h2>It just went</h2>
+    <div class='hist'><div class='hlbl'>Your note, round 1 &middot; 2026-08-13</div><blockquote>Extend the length of each screen. You can&#x27;t get any sense of what you&#x27;re looking at before the screen changes right now.</blockquote><div class='hlbl'>What changed</div><p class='chg'>Runtime 15s to 22s. Each screen now holds 7 seconds, with the camera move settling at 55 percent and then stopping completely. Both crops reframed so no UI text is clipped at the edges.</p></div>
     <div class="lbl">On screen</div><ul class="beats"><li>Nobody decided to go over plan.</li><li>It just went.</li><li>Plan versus actual effort, by Service Type.</li><li>The moment a Deliverable closes.</li><li>That gap has a name. Drift.</li></ul>
     <div class="lbl">Platform caption</div>
     <pre class="cap">Nobody decides to go over plan. It just goes.
@@ -239,24 +252,20 @@ Scope creep never announces itself. It asks a favor.</pre>
 Plan versus actual effort, by Service Type, the moment a Deliverable closes. That gap has a name.</pre>
     <div class="lbl">Screen used</div><p class="screen">04 Performance Dashboard, Plan vs Actual. Env and build strip cropped.</p>
     <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">LinkedIn</span> <span class="acct">Facebook</span></div>
-    <div class="choice">
-      <button class="acc" aria-pressed="false" onclick="setState('product','approved')">Approve</button>
-      <button class="rev" aria-pressed="false" onclick="setState('product','revise')">Revise</button>
-      <button class="rej" aria-pressed="false" onclick="setState('product','kill')">Kill</button>
-    </div>
-    <textarea placeholder="Notes, what to change" oninput="note('product',this.value)"></textarea>
+    <div class='choice'><button class='acc' aria-pressed='false' onclick="setState('product','approved')">Approve</button><button class='rev' aria-pressed='false' onclick="setState('product','revise')">Revise again</button><button class='rej' aria-pressed='false' onclick="setState('product','kill')">Kill</button></div><textarea placeholder='Notes, what to change' oninput="note('product',this.value)"></textarea>
     <div class="uuid">post cba56fa5-1457-498f-b252-8791455208d8</div>
   </div>
 </article>
-<article class="card" data-key="reel03" data-state="none">
+<article class="card" data-key="reel03" data-state="approved" data-init="approved">
   <div class="vidwrap">
     <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/hPzc2oNln4axeiXw9XLULxWZSVbzBX8SVqP0hdpB-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/hPzc2oNln4axeiXw9XLULxWZSVbzBX8SVqP0hdpB.mp4" type="video/mp4"></video>
   </div>
   <div class="meta">
     <div class="tags"><span class="tag">Caption reel</span>
       <span class="tag when">Thu Aug 20 &middot; 9:00 ET</span>
-      <span class="tag n">5 accounts</span></div>
+      <span class="tag n">5 accounts</span><span class='badge approved'>Approved</span></div>
     <h2>Status update</h2>
+    <div class='hist ok'><div class='hlbl'>Approved 2026-08-13, round 1. No changes requested.</div></div>
     <div class="lbl">On screen</div><ul class="beats"><li>How&#x27;s that Job going?</li><li>“Great. Really great.”</li><li>When did you last actually look?</li><li>Drift does not send a status update.</li></ul>
     <div class="lbl">Platform caption</div>
     <pre class="cap">&quot;How&#x27;s that Job going?&quot;
@@ -267,24 +276,20 @@ When did you last actually look?
 Drift does not send a status update.</pre>
     <div class="lbl">Screen used</div><p class="screen">n/a, typographic</p>
     <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">Threads</span></div>
-    <div class="choice">
-      <button class="acc" aria-pressed="false" onclick="setState('reel03','approved')">Approve</button>
-      <button class="rev" aria-pressed="false" onclick="setState('reel03','revise')">Revise</button>
-      <button class="rej" aria-pressed="false" onclick="setState('reel03','kill')">Kill</button>
-    </div>
-    <textarea placeholder="Notes, what to change" oninput="note('reel03',this.value)"></textarea>
+    <div class='locked'>Locked. Reopen only if you want to change your mind.<button class='reopen' onclick="reopen('reel03')">Reopen</button></div>
     <div class="uuid">post 11736451-3b67-4160-8c0d-3234878d739b</div>
   </div>
 </article>
-<article class="card" data-key="reel02" data-state="none">
+<article class="card" data-key="reel02" data-state="recut" data-init="recut">
   <div class="vidwrap">
     <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/VAtiTHUlSNYZf40uh9oE48vIt28xh1EgwuaJHbxy-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/VAtiTHUlSNYZf40uh9oE48vIt28xh1EgwuaJHbxy.mp4" type="video/mp4"></video>
   </div>
   <div class="meta">
     <div class="tags"><span class="tag">Two-hander</span>
       <span class="tag when">Fri Aug 21 &middot; 9:00 ET</span>
-      <span class="tag n">7 accounts</span></div>
+      <span class="tag n">7 accounts</span><span class='badge recut'>Recut, needs review</span><span class='badge rnd'>v2</span></div>
     <h2>Vibes</h2>
+    <div class='hist'><div class='hlbl'>Your note, round 1 &middot; 2026-08-13</div><blockquote>This should really be a generative character having a conversation with another generative character. After they get through mostly vibes, which should be hugely hilarious as a punch line, you can keep the last screen in purple. Your next estimate should come from evidence.</blockquote><div class='hlbl'>What changed</div><p class='chg'>Recast as a two-hander. Three clips, shot / reverse / shot, with real synced audio. A 3.8 second awkward pause before the punchline. Purple card retained with the evidence line.</p></div>
     <div class="lbl">On screen</div><ul class="beats"><li>A: “Our estimates are pretty solid.”</li><li>B: “Based on?”</li><li>(long, awkward pause)</li><li>A: “Vibes. Mostly vibes.”</li><li>Card: Your next estimate should come from evidence.</li></ul>
     <div class="lbl">Platform caption</div>
     <pre class="cap">Every shop says their estimates are solid. Ask what they are based on.
@@ -292,12 +297,7 @@ Drift does not send a status update.</pre>
 Your next estimate should come from evidence, not vibes.</pre>
     <div class="lbl">Screen used</div><p class="screen">n/a, two generative presenters, synced audio</p>
     <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">LinkedIn</span> <span class="acct">Facebook</span> <span class="acct">Threads</span></div>
-    <div class="choice">
-      <button class="acc" aria-pressed="false" onclick="setState('reel02','approved')">Approve</button>
-      <button class="rev" aria-pressed="false" onclick="setState('reel02','revise')">Revise</button>
-      <button class="rej" aria-pressed="false" onclick="setState('reel02','kill')">Kill</button>
-    </div>
-    <textarea placeholder="Notes, what to change" oninput="note('reel02',this.value)"></textarea>
+    <div class='choice'><button class='acc' aria-pressed='false' onclick="setState('reel02','approved')">Approve</button><button class='rev' aria-pressed='false' onclick="setState('reel02','revise')">Revise again</button><button class='rej' aria-pressed='false' onclick="setState('reel02','kill')">Kill</button></div><textarea placeholder='Notes, what to change' oninput="note('reel02',this.value)"></textarea>
     <div class="uuid">post db8fd23e-d818-4f99-8702-b738b8ecf65e</div>
   </div>
 </article>
@@ -308,31 +308,55 @@ Your next estimate should come from evidence, not vibes.</pre>
 <div class="row"><button class="ghost" onclick="navigator.clipboard.writeText(document.getElementById('outTa').value)">Copy</button>
 <button class="ghost" onclick="document.getElementById('dlg').close()">Close</button></div></dialog>
 <script>
-const S={},N={};
+const S={},N={},INIT={};
+document.querySelectorAll('.card').forEach(c=>{
+  const k=c.dataset.key, st=c.dataset.init;
+  INIT[k]=st;
+  if(st==='approved') S[k]='approved';        // carried forward, already decided
+});
 function setState(k,v){
   S[k]=(S[k]===v)?null:v;
   const c=document.querySelector('.card[data-key="'+k+'"]');
-  c.dataset.state=S[k]||'none';
+  c.dataset.state=S[k]||'pending';
   c.querySelectorAll('.choice button').forEach(b=>b.setAttribute('aria-pressed','false'));
   if(S[k]){const m={approved:'.acc',revise:'.rev',kill:'.rej'};
-    c.querySelector(m[S[k]]).setAttribute('aria-pressed','true');}
+    const b=c.querySelector(m[S[k]]); if(b) b.setAttribute('aria-pressed','true');}
   tally();
+}
+function reopen(k){
+  const c=document.querySelector('.card[data-key="'+k+'"]');
+  c.querySelector('.locked').outerHTML =
+    '<div class="choice">'+
+    '<button class="acc" aria-pressed="false" onclick="setState(''+k+'','approved')">Approve</button>'+
+    '<button class="rev" aria-pressed="false" onclick="setState(''+k+'','revise')">Revise</button>'+
+    '<button class="rej" aria-pressed="false" onclick="setState(''+k+'','kill')">Kill</button>'+
+    '</div><textarea placeholder="Notes, what to change" oninput="note(''+k+'',this.value)"></textarea>';
+  S[k]=null; c.dataset.state='pending'; tally();
 }
 function note(k,v){N[k]=v}
 function tally(){
-  const v=Object.values(S),t=document.querySelectorAll('.card').length;
-  const a=v.filter(x=>x==='approved').length,r=v.filter(x=>x==='revise').length,
-        k=v.filter(x=>x==='kill').length;
+  const cards=document.querySelectorAll('.card'), t=cards.length;
+  let a=0,r=0,k=0,p=0;
+  cards.forEach(c=>{const v=S[c.dataset.key];
+    if(v==='approved')a++; else if(v==='revise')r++; else if(v==='kill')k++; else p++;});
   cA.textContent=a+' approved';cR.textContent=r+' revise';cK.textContent=k+' kill';
-  cP.textContent=(t-a-r-k)+' pending';
+  cP.textContent=p+' pending';
   pA.style.width=(a/t*100)+'%';pR.style.width=(r/t*100)+'%';pK.style.width=(k/t*100)+'%';
 }
 function exportOut(){
-  let o='NET NET VIDEO BOARD, week of Aug 17\n\n';
+  let o='NET NET VIDEO BOARD, week of Aug 17
+
+';
   document.querySelectorAll('.card').forEach(c=>{
     const k=c.dataset.key,t=c.querySelector('h2').textContent;
-    o+=(S[k]||'PENDING').toUpperCase()+'  '+t+'\n';
-    if(N[k]) o+='   notes: '+N[k]+'\n';
+    const cur=(S[k]||'PENDING').toUpperCase(), was=INIT[k].toUpperCase();
+    const carried=(cur===was&&was==='APPROVED');
+    o+=cur+'  '+t+(carried?'  (carried forward, unchanged)':'')+'
+';
+    if(!carried&&was!=='PENDING') o+='   was: '+was+'
+';
+    if(N[k]) o+='   notes: '+N[k]+'
+';
   });
   document.getElementById('outTa').value=o;
   document.getElementById('dlg').showModal();
