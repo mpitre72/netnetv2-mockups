@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Net Net video board, week of Aug 24</title><style>
+:root{--violet:#1F194C;--deep:#17123D;--purple:#711FFF;--blue:#0B88F9;--green:#5FCEA8;
+--sienna:#C4633E;--cream:#FAF5ED;--line:rgba(250,245,237,.14);--muted:#A79FC4;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--deep);color:var(--cream);
+font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header{position:sticky;top:0;z-index:20;background:rgba(23,18,61,.96);backdrop-filter:blur(12px);
+border-bottom:1px solid var(--line);padding:16px 26px}
+.bar{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+h1{font-size:19px;margin:0;font-weight:800;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px;margin-top:3px}
+.counts{display:flex;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700}
+.counts span{padding:6px 12px;border-radius:999px;border:1px solid var(--line)}
+#cA{color:var(--green)}#cR{color:var(--blue)}#cK{color:var(--sienna)}
+button.ghost{font-size:13px;font-weight:700;padding:8px 15px;border-radius:9px;
+border:1px solid var(--line);background:transparent;color:var(--cream);cursor:pointer}
+button.ghost:hover{background:rgba(250,245,237,.09)}
+.progress{height:5px;background:rgba(250,245,237,.09);border-radius:99px;overflow:hidden;
+margin-top:13px;display:flex}.progress i{display:block;height:100%;transition:width .2s}
+.progress .a{background:var(--green)}.progress .r{background:var(--blue)}.progress .k{background:var(--sienna)}
+main{padding:24px 26px 90px;max-width:1500px;margin:0 auto}
+h3.sec{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+margin:0 0 14px;font-weight:700}
+.note{border:1px solid rgba(196,99,62,.5);background:rgba(196,99,62,.09);border-radius:12px;
+padding:14px 16px;margin-bottom:22px;font-size:14px;line-height:1.55;color:#EFE6DF}
+.note strong{color:var(--sienna)}
+.cal{display:grid;gap:9px;margin-bottom:30px}
+.wk{border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:rgba(250,245,237,.03)}
+.wk.scheduled{border-color:rgba(95,206,168,.5);background:rgba(95,206,168,.07)}
+.wk.review{border-color:rgba(113,31,255,.6);background:rgba(113,31,255,.10)}
+.wk.producing{border-color:rgba(250,245,237,.2)}
+.wkhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:11px;
+font-size:14px}.wkhead span{color:var(--muted);font-size:12.5px}
+.days{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.day{border:1px solid var(--line);border-radius:9px;padding:6px 3px;text-align:center;
+display:flex;flex-direction:column;gap:2px;background:rgba(0,0,0,.22)}
+.day .dow{font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.day .num{font-size:16px;font-weight:800;line-height:1}
+.day .dot{width:7px;height:7px;border-radius:99px;background:var(--purple);margin:3px auto 0}
+.wk.scheduled .day .dot{background:var(--green)}
+.day.hol{opacity:.5}.day.hol .holname{font-size:8.5px;color:var(--sienna);font-weight:700}
+.card{display:grid;grid-template-columns:340px minmax(300px,1fr);gap:24px;
+border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:20px;
+background:rgba(250,245,237,.035);transition:border-color .15s,opacity .15s}
+.card[data-state="approved"]{border-color:rgba(95,206,168,.55);background:rgba(95,206,168,.06)}
+.card[data-state="recut"]{border-color:rgba(113,31,255,.65);background:rgba(113,31,255,.09)}
+.badge{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+padding:4px 9px;border-radius:6px;margin-left:2px}
+.badge.approved{background:var(--green);color:#10281f}
+.badge.recut{background:var(--purple);color:#fff}
+.badge.kill{background:var(--sienna);color:#fff}
+.badge.pending{background:rgba(250,245,237,.12);color:var(--muted)}
+.badge.rnd{background:rgba(250,245,237,.12);color:var(--cream)}
+.hist{border-left:3px solid var(--purple);padding:2px 0 2px 13px;margin:14px 0 4px}
+.hist.ok{border-left-color:var(--green)}
+.hlbl{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+font-weight:700;margin-bottom:5px}
+.hist blockquote{margin:0 0 11px;font-size:14.5px;line-height:1.5;color:#E4DEF3;font-style:italic}
+.chg{margin:0 0 10px;font-size:14px;line-height:1.5;color:#C9C1E0}
+.chg.out{color:var(--green);margin-bottom:0}
+.locked{margin:18px 0 6px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;
+color:var(--muted);font-size:13.5px;display:flex;gap:12px;align-items:center;
+justify-content:space-between;flex-wrap:wrap}
+.reopen{font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:8px;
+border:1px solid var(--line);background:transparent;color:var(--cream);cursor:pointer}
+.reopen:hover{background:rgba(250,245,237,.09)}
+.card[data-state="revise"]{border-color:rgba(11,136,249,.6);background:rgba(11,136,249,.07)}
+.card[data-state="kill"]{border-color:rgba(196,99,62,.6);background:rgba(196,99,62,.06);opacity:.7}
+.vidwrap{background:#000;border-radius:12px;overflow:hidden;align-self:start;
+width:100%;max-width:320px;aspect-ratio:9/16;margin:0 auto}
+video{width:100%;height:100%;display:block;object-fit:contain;background:#000}
+.meta h2{font-size:21px;margin:0 0 14px;font-weight:800;letter-spacing:-.01em}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+.tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+padding:4px 9px;border-radius:6px;background:rgba(113,31,255,.26);color:#CDB4FF}
+.tag.when{background:rgba(95,206,168,.18);color:#8FE3C6}
+.tag.hook{background:rgba(250,245,237,.09);color:#CDB4FF}
+.tag.n{background:rgba(250,245,237,.09);color:var(--muted)}
+.lbl{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);
+font-weight:700;margin:14px 0 6px}
+.beats{margin:0;padding-left:18px;font-size:14.5px;color:#E4DEF3}
+.beats li{margin-bottom:3px}
+.cap{margin:0;padding:11px 13px;border-radius:9px;background:rgba(0,0,0,.32);
+border:1px solid var(--line);font:13.5px/1.5 inherit;white-space:pre-wrap;color:#D9D2EC}
+.screen{margin:0;font-size:13.5px;color:#D9D2EC}
+.screen.qa{color:#A79FC4;font-size:13px}
+.accts{display:flex;gap:6px;flex-wrap:wrap}
+.acct{font-size:12px;padding:3px 9px;border-radius:6px;border:1px solid var(--line);color:#D9D2EC}
+.choice{display:flex;gap:8px;margin:18px 0 10px}
+.choice button{flex:1;padding:11px;border-radius:10px;font-weight:800;font-size:14px;
+border:1px solid var(--line);background:transparent;color:var(--cream);cursor:pointer}
+.choice button:hover{background:rgba(250,245,237,.09)}
+.choice .acc[aria-pressed="true"]{background:var(--green);color:#10281f;border-color:var(--green)}
+.choice .rev[aria-pressed="true"]{background:var(--blue);border-color:var(--blue)}
+.choice .rej[aria-pressed="true"]{background:var(--sienna);border-color:var(--sienna)}
+textarea{width:100%;min-height:62px;border-radius:10px;padding:10px 12px;resize:vertical;
+background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--cream);font:14px/1.45 inherit}
+textarea::placeholder{color:#7E76A0}
+.uuid{font:11.5px/1.4 ui-monospace,Menlo,monospace;color:#6F6795;margin-top:9px}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--violet);
+color:var(--cream);max-width:700px;width:92%;padding:22px}
+dialog::backdrop{background:rgba(10,7,26,.72)}
+dialog h3{margin:0 0 8px;font-size:17px}
+.hint{color:var(--muted);font-size:13px;margin-bottom:12px}
+.row{display:flex;gap:9px;justify-content:flex-end;margin-top:14px}
+@media (max-width:900px){.card{grid-template-columns:1fr}}
+</style></head><body>
+<header><div class="bar">
+  <div><h1>Net Net video board</h1>
+  <div class="sub">Act 1, drift and scope creep &middot; week of Aug 24 &middot; out of cadence catch up batch &middot; nothing scheduled until you approve</div></div>
+  <div class="counts"><span id="cA">0 approved</span><span id="cR">0 revise</span>
+    <span id="cK">0 kill</span><span id="cP">5 pending</span></div>
+  <div><button class="ghost" onclick="exportOut()">Copy decisions</button></div>
+</div>
+<div class="progress"><i class="a" id="pA" style="width:0"></i><i class="r" id="pR" style="width:0"></i>
+<i class="k" id="pK" style="width:0"></i></div></header>
+<main>
+<div class="note"><strong>Instagram needs a fix before any of this posts.</strong>
+Monday Aug 17 went out on TikTok, YouTube, LinkedIn and Facebook but failed on Instagram.
+Meta has deprecated the <code>VIDEO</code> media type and now requires <code>REELS</code> for a
+feed video. Every post the pipeline creates leaves <code>options</code> empty, so OnlySocial
+defaults Instagram to <code>type: post</code>. Aug 18, 19, 20 and 21 are already scheduled with
+the same setting and will fail on Instagram the same way, one per day. The four other networks
+are unaffected. This needs your call before this week is scheduled.</div>
+<h3 class="sec">Posting calendar</h3>
+<div class="cal">
+<div class="wk scheduled">
+  <div class="wkhead"><strong>Aug 17 to Aug 21</strong><span>Scheduled. Monday failed on Instagram.</span></div>
+  <div class="days"><div class="day ">
+            <span class="dow">Mon</span><span class="num">17</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Tue</span><span class="num">18</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Wed</span><span class="num">19</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Thu</span><span class="num">20</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Fri</span><span class="num">21</span>
+            <span class="dot"></span>
+          </div></div>
+</div>
+<div class="wk review">
+  <div class="wkhead"><strong>Aug 24 to Aug 28</strong><span>This board, awaiting your approval</span></div>
+  <div class="days"><div class="day ">
+            <span class="dow">Mon</span><span class="num">24</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Tue</span><span class="num">25</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Wed</span><span class="num">26</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Thu</span><span class="num">27</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Fri</span><span class="num">28</span>
+            <span class="dot"></span>
+          </div></div>
+</div>
+<div class="wk producing">
+  <div class="wkhead"><strong>Aug 31 to Sep 4</strong><span>Separate automated run</span></div>
+  <div class="days"><div class="day ">
+            <span class="dow">Mon</span><span class="num">31</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Tue</span><span class="num">1</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Wed</span><span class="num">2</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Thu</span><span class="num">3</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Fri</span><span class="num">4</span>
+            <span class="dot"></span>
+          </div></div>
+</div>
+<div class="wk planned">
+  <div class="wkhead"><strong>Sep 7 to Sep 11</strong><span>Labor Day Monday, 4 cuts</span></div>
+  <div class="days"><div class="day hol">
+            <span class="dow">Mon</span><span class="num">7</span>
+            <span class="holname">Labor Day</span>
+          </div><div class="day ">
+            <span class="dow">Tue</span><span class="num">8</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Wed</span><span class="num">9</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Thu</span><span class="num">10</span>
+            <span class="dot"></span>
+          </div><div class="day ">
+            <span class="dow">Fri</span><span class="num">11</span>
+            <span class="dot"></span>
+          </div></div>
+</div></div>
+<h3 class="sec">Week of Aug 24, review</h3>
+
+<article class="card" data-key="talkinghead" data-state="pending" data-init="pending">
+  <div class="vidwrap">
+    <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/h7rK2BGdy5AT1nXTCP2bgDmh4sxS2giMggxPBPV9-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/h7rK2BGdy5AT1nXTCP2bgDmh4sxS2giMggxPBPV9.mp4" type="video/mp4"></video>
+  </div>
+  <div class="meta">
+    <div class="tags"><span class="tag">Talking head</span>
+      <span class="tag when">Mon Aug 24 &middot; 9:00 ET</span>
+      <span class="tag hook">TH-A1-02</span>
+      <span class="tag n">6 accounts</span><span class='badge pending'>Awaiting review</span></div>
+    <h2>Five favors</h2>
+    
+    <div class="lbl">On screen</div><ul class="beats"><li>Scope creep never shows up as a big decision.</li><li>It shows up as five small favors, and then you are three weeks behind.</li><li>Card: Five favors do not feel like three weeks. They are.</li></ul>
+    <div class="lbl">Platform caption</div>
+    <pre class="cap">Scope creep never shows up as a big decision. It shows up as five small favors, and then you are three weeks behind.
+
+Five favors do not feel like three weeks. They are.</pre>
+    <div class="lbl">Screen used</div><p class="screen">n/a, anonymous presenter. Captions burned from the transcribed audio.</p>
+    <div class="lbl">QA notes</div><p class="screen qa">Presenter is anonymous UGC, not a stand-in for Marc. Captions transcribed with faster-whisper word timings and checked against the spoken line word for word.</p>
+    <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">LinkedIn</span> <span class="acct">Facebook</span></div>
+    <div class='choice'><button class='acc' aria-pressed='false' onclick="setState('talkinghead','approved')">Approve</button><button class='rev' aria-pressed='false' onclick="setState('talkinghead','revise')">Revise</button><button class='rej' aria-pressed='false' onclick="setState('talkinghead','kill')">Kill</button></div><textarea placeholder='Notes, what to change' oninput="note('talkinghead',this.value)"></textarea>
+    <div class="uuid">media 2191334 &middot; not scheduled, awaiting approval</div>
+  </div>
+</article>
+<article class="card" data-key="reel04" data-state="pending" data-init="pending">
+  <div class="vidwrap">
+    <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/Y8VFrwY6GbF6IGvCNBx8B360CPLWVgUxbhBFw9S9-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/Y8VFrwY6GbF6IGvCNBx8B360CPLWVgUxbhBFw9S9.mp4" type="video/mp4"></video>
+  </div>
+  <div class="meta">
+    <div class="tags"><span class="tag">Caption reel</span>
+      <span class="tag when">Tue Aug 25 &middot; 9:00 ET</span>
+      <span class="tag hook">CR-A1-04</span>
+      <span class="tag n">5 accounts</span><span class='badge pending'>Awaiting review</span></div>
+    <h2>Silence</h2>
+    
+    <div class="lbl">On screen</div><ul class="beats"><li>The Job was six weeks.</li><li>It is week nine.</li><li>Nobody has said anything.</li><li>Silence is not the same as on track.</li></ul>
+    <div class="lbl">Platform caption</div>
+    <pre class="cap">The Job was six weeks. It is week nine. Nobody has said anything.
+
+Silence is not the same as on track.</pre>
+    <div class="lbl">Screen used</div><p class="screen">n/a, typographic over an abstract plate</p>
+    <div class="lbl">QA notes</div><p class="screen qa">Plate carries sienna filaments, the drift colour. No green and no blue anywhere.</p>
+    <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">Threads</span></div>
+    <div class='choice'><button class='acc' aria-pressed='false' onclick="setState('reel04','approved')">Approve</button><button class='rev' aria-pressed='false' onclick="setState('reel04','revise')">Revise</button><button class='rej' aria-pressed='false' onclick="setState('reel04','kill')">Kill</button></div><textarea placeholder='Notes, what to change' oninput="note('reel04',this.value)"></textarea>
+    <div class="uuid">media 2191333 &middot; not scheduled, awaiting approval</div>
+  </div>
+</article>
+<article class="card" data-key="product" data-state="pending" data-init="pending">
+  <div class="vidwrap">
+    <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/q3ljCcKkAR7hlhJpvoKp97Ga0KRKwHJnMghvunq6-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/q3ljCcKkAR7hlhJpvoKp97Ga0KRKwHJnMghvunq6.mp4" type="video/mp4"></video>
+  </div>
+  <div class="meta">
+    <div class="tags"><span class="tag">Product in motion</span>
+      <span class="tag when">Wed Aug 26 &middot; 9:00 ET</span>
+      <span class="tag hook">PM-A1-02</span>
+      <span class="tag n">6 accounts</span><span class='badge pending'>Awaiting review</span></div>
+    <h2>Change Orders add up</h2>
+    
+    <div class="lbl">On screen</div><ul class="beats"><li>Every Change Order feels small.</li><li>Here is what they add up to.</li><li>CHANGE ORDERS / Approved changes added to the plan.</li><li>PLAN VS ACTUAL / Service Type trends, before and after.</li><li>Approved changes moved the plan. Now you can see by how much.</li></ul>
+    <div class="lbl">Platform caption</div>
+    <pre class="cap">Every Change Order feels small. Here is what they add up to.
+
+Approved changes moved the plan, and now you can see by how much.</pre>
+    <div class="lbl">Screen used</div><p class="screen">04 Performance Dashboard, Plan vs Actual. Environment and build strip cropped, owner name row cropped. Composited losslessly, never through an image model.</p>
+    <div class="lbl">QA notes</div><p class="screen qa">Screen 1 pushes in and settles for 7 seconds on the &#x27;Approved changes changed the plan&#x27; card, dead stop at 55 percent. Screen 2 is a static 7 second hold on the full dashboard: any zoom on a screen this wide crosses UI text at the crop edge, so it does not move. Crop edges were placed in measured empty gutters, so no UI text is severed. The blue inside the screenshot is the real product UI, composited untouched.</p>
+    <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">LinkedIn</span> <span class="acct">Facebook</span></div>
+    <div class='choice'><button class='acc' aria-pressed='false' onclick="setState('product','approved')">Approve</button><button class='rev' aria-pressed='false' onclick="setState('product','revise')">Revise</button><button class='rej' aria-pressed='false' onclick="setState('product','kill')">Kill</button></div><textarea placeholder='Notes, what to change' oninput="note('product',this.value)"></textarea>
+    <div class="uuid">media 2191335 &middot; not scheduled, awaiting approval</div>
+  </div>
+</article>
+<article class="card" data-key="reel05" data-state="pending" data-init="pending">
+  <div class="vidwrap">
+    <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/rXA2RmA2yVye3hhe35LWjtB6mzd18Nn53cfDzUjH-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/rXA2RmA2yVye3hhe35LWjtB6mzd18Nn53cfDzUjH.mp4" type="video/mp4"></video>
+  </div>
+  <div class="meta">
+    <div class="tags"><span class="tag">Caption reel</span>
+      <span class="tag when">Thu Aug 27 &middot; 9:00 ET</span>
+      <span class="tag hook">CR-A1-05</span>
+      <span class="tag n">5 accounts</span><span class='badge pending'>Awaiting review</span></div>
+    <h2>Just</h2>
+    
+    <div class="lbl">On screen</div><ul class="beats"><li>&quot;Can you just take a quick look?&quot;</li><li>Quick.</li><li>Nothing that starts with &quot;just&quot; ever stays small.</li></ul>
+    <div class="lbl">Platform caption</div>
+    <pre class="cap">&quot;Can you just take a quick look?&quot;
+
+Quick.
+
+Nothing that starts with &quot;just&quot; ever stays small.</pre>
+    <div class="lbl">Screen used</div><p class="screen">n/a, typographic over an abstract plate</p>
+    <div class="lbl">QA notes</div><p class="screen qa">Sienna used once, on &#x27;just&#x27;, the scope creep tell. Scarcity rule respected.</p>
+    <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">Threads</span></div>
+    <div class='choice'><button class='acc' aria-pressed='false' onclick="setState('reel05','approved')">Approve</button><button class='rev' aria-pressed='false' onclick="setState('reel05','revise')">Revise</button><button class='rej' aria-pressed='false' onclick="setState('reel05','kill')">Kill</button></div><textarea placeholder='Notes, what to change' oninput="note('reel05',this.value)"></textarea>
+    <div class="uuid">media 2191336 &middot; not scheduled, awaiting approval</div>
+  </div>
+</article>
+<article class="card" data-key="reel06" data-state="pending" data-init="pending">
+  <div class="vidwrap">
+    <video controls playsinline preload="metadata" poster="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/xymzldhBJsBdFZwyIJpIgaObTZtmY7nV6LnesTnc-thumb.jpg"><source src="https://storage.onlysocial.io/b8f638be-2a5c-485c-9d66-f4f63b3b2f9a/uploads/08-2026/xymzldhBJsBdFZwyIJpIgaObTZtmY7nV6LnesTnc.mp4" type="video/mp4"></video>
+  </div>
+  <div class="meta">
+    <div class="tags"><span class="tag">Caption reel</span>
+      <span class="tag when">Fri Aug 28 &middot; 9:00 ET</span>
+      <span class="tag hook">CR-A1-06</span>
+      <span class="tag n">7 accounts</span><span class='badge pending'>Awaiting review</span></div>
+    <h2>Round four</h2>
+    
+    <div class="lbl">On screen</div><ul class="beats"><li>Round one.</li><li>Round two.</li><li>Round three.</li><li>Round four.</li><li>At some point revisions stop being feedback and start being a new Job.</li></ul>
+    <div class="lbl">Platform caption</div>
+    <pre class="cap">Round one. Round two. Round three. Round four.
+
+At some point revisions stop being feedback and start being a new Job.</pre>
+    <div class="lbl">Screen used</div><p class="screen">n/a, typographic over an abstract plate</p>
+    <div class="lbl">QA notes</div><p class="screen qa">&#x27;Job&#x27; capitalised as the product term. No treated colour word, the beat count is the joke.</p>
+    <div class="lbl">Goes to</div><div class="accts"><span class="acct">Instagram</span> <span class="acct">TikTok</span> <span class="acct">YouTube</span> <span class="acct">X</span> <span class="acct">LinkedIn</span> <span class="acct">Facebook</span> <span class="acct">Threads</span></div>
+    <div class='choice'><button class='acc' aria-pressed='false' onclick="setState('reel06','approved')">Approve</button><button class='rev' aria-pressed='false' onclick="setState('reel06','revise')">Revise</button><button class='rej' aria-pressed='false' onclick="setState('reel06','kill')">Kill</button></div><textarea placeholder='Notes, what to change' oninput="note('reel06',this.value)"></textarea>
+    <div class="uuid">media 2191337 &middot; not scheduled, awaiting approval</div>
+  </div>
+</article>
+</main>
+<dialog id="dlg"><h3>Decisions</h3>
+<div class="hint">Paste this back into the session and I will action it.</div>
+<textarea id="outTa" style="min-height:280px"></textarea>
+<div class="row"><button class="ghost" onclick="navigator.clipboard.writeText(document.getElementById('outTa').value)">Copy</button>
+<button class="ghost" onclick="document.getElementById('dlg').close()">Close</button></div></dialog>
+<script>
+const S={},N={},INIT={};
+document.querySelectorAll('.card').forEach(c=>{
+  const k=c.dataset.key, st=c.dataset.init;
+  INIT[k]=st;
+  if(st==='approved') S[k]='approved';
+});
+function setState(k,v){
+  S[k]=(S[k]===v)?null:v;
+  const c=document.querySelector('.card[data-key="'+k+'"]');
+  c.dataset.state=S[k]||'pending';
+  c.querySelectorAll('.choice button').forEach(b=>b.setAttribute('aria-pressed','false'));
+  if(S[k]){const m={approved:'.acc',revise:'.rev',kill:'.rej'};
+    const b=c.querySelector(m[S[k]]); if(b) b.setAttribute('aria-pressed','true');}
+  tally();
+}
+function reopen(k){
+  const c=document.querySelector('.card[data-key="'+k+'"]');
+  c.querySelector('.locked').outerHTML =
+    '<div class="choice">'+
+    '<button class="acc" aria-pressed="false" onclick="setState(\''+k+'\',\'approved\')">Approve</button>'+
+    '<button class="rev" aria-pressed="false" onclick="setState(\''+k+'\',\'revise\')">Revise</button>'+
+    '<button class="rej" aria-pressed="false" onclick="setState(\''+k+'\',\'kill\')">Kill</button>'+
+    '</div><textarea placeholder="Notes, what to change" oninput="note(\''+k+'\',this.value)"></textarea>';
+  S[k]=null; c.dataset.state='pending'; tally();
+}
+function note(k,v){N[k]=v}
+function tally(){
+  const cards=document.querySelectorAll('.card'), t=cards.length;
+  let a=0,r=0,k=0,p=0;
+  cards.forEach(c=>{const v=S[c.dataset.key];
+    if(v==='approved')a++; else if(v==='revise')r++; else if(v==='kill')k++; else p++;});
+  cA.textContent=a+' approved';cR.textContent=r+' revise';cK.textContent=k+' kill';
+  cP.textContent=p+' pending';
+  pA.style.width=(a/t*100)+'%';pR.style.width=(r/t*100)+'%';pK.style.width=(k/t*100)+'%';
+}
+function exportOut(){
+  let o='NET NET VIDEO BOARD, week of Aug 24\n\n';
+  document.querySelectorAll('.card').forEach(c=>{
+    const k=c.dataset.key,t=c.querySelector('h2').textContent;
+    const cur=(S[k]||'PENDING').toUpperCase(), was=INIT[k].toUpperCase();
+    const carried=(cur===was&&was==='APPROVED');
+    o+=cur+'  '+t+(carried?'  (carried forward, unchanged)':'')+'\n';
+    if(!carried&&was!=='PENDING') o+='   was: '+was+'\n';
+    if(N[k]) o+='   notes: '+N[k]+'\n';
+  });
+  document.getElementById('outTa').value=o;
+  document.getElementById('dlg').showModal();
+}
+tally();
+</script></body></html>
